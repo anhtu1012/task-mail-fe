@@ -10,7 +10,6 @@ import type { BreadcrumbItem } from "./_types/types";
 import { autoBuildBreadcrumbs, findNavChain } from "./utils";
 import Breadcrumbs from "./_components/Breadcrumbs";
 import SearchBar from "./_components/SearchBar";
-import ShipSelector from "./_components/ShipSelector";
 import styles from "./AppHeader.module.scss";
 
 import { useWindowMode } from "@/contexts/WindowModeContext";
@@ -47,26 +46,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   extra,
 }) => {
   const pathname = usePathname();
-  const dispatch = useAppDispatch();
   const { layoutMode, setLayoutMode } = useWindowMode();
-
-  // Find active group header and active item
-  const segments = pathname.split("/").filter(Boolean);
-  const lastSegment = segments[segments.length - 1];
-  const found = lastSegment ? findNavChain(navGroups, lastSegment) : null;
-  const activeHeader = found?.groupHeader;
-  const activeItem = found?.chain[found.chain.length - 1];
-
-  const showShipSelector =
-    (activeHeader === "ship" || activeHeader === "shipVoy") &&
-    activeItem?.header !== false;
-
-  // Clear ship data if we don't show the ship selector
-  useEffect(() => {
-    if (!showShipSelector) {
-      dispatch(clearShipData());
-    }
-  }, [showShipSelector, dispatch]);
 
   // Auto breadcrumbs: use manual if provided, otherwise auto-build
   const breadcrumbs =
@@ -95,10 +75,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         <Breadcrumbs items={breadcrumbs} />
       </div>
 
-      <div className={styles.headerCenter}>
-        {showShipSelector && <ShipSelector />}
-      </div>
-
       <div className={styles.headerRight}>
         <CSegmented
           value={layoutMode}
@@ -106,7 +82,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           options={[
             {
               label: (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }} title="Chế độ thường">
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                  title="Chế độ thường"
+                >
                   <Layout size={14} />
                   <span>Thường</span>
                 </div>
@@ -115,7 +94,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             },
             {
               label: (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }} title="Chế độ đa nhiệm cửa sổ">
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                  title="Chế độ đa nhiệm cửa sổ"
+                >
                   <AppWindow size={14} />
                   <span>Đa nhiệm</span>
                 </div>

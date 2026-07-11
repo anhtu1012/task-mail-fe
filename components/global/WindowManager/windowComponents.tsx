@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import ShipModuleRenderer from "./page/ship";
 import UiModuleRenderer from "./page/ui";
 
 // ============================================================
@@ -17,32 +16,6 @@ export const ModuleRenderer: React.FC<ModuleRendererProps> = ({
   title,
 }) => {
   switch (moduleCode.toUpperCase()) {
-    // SHIP sub-pages routing:
-    case "SHIP":
-    case "THIET-LAP-QUY-LUAT":
-    case "THONG-TIN-TAU":
-    case "TRONG-LUONG-TOI-DA":
-    case "THIET-KE-TAU":
-    case "IN-SO-DO-TAU":
-    case "KE-HOACH-DO-CONTAINER":
-    case "KE-HOACH-XEP-CONTAINER":
-    case "DANH-SACH-CONTAINER-XUAT-TAU":
-    case "THONG-KE-KE-HOACH-XEP-DO":
-    case "GAN-CAU":
-    case "CAP-NHAT-DANH-SACH-CONTAINER-XUAT-TAU":
-    case "IN-KE-HOACH":
-    case "CMC":
-    case "DANH-SACH-PRE-PLAN":
-    case "GROUP-CONTAINER-XUAT-TAU":
-      return (
-        <div
-          className="working-page-wrapper"
-          style={{ height: "100%", overflow: "auto", padding: "5px" }}
-        >
-          <ShipModuleRenderer moduleCode={moduleCode} />
-        </div>
-      );
-
     // UI sub-pages routing:
     case "BUTTON":
     case "COLOR-PICKER":

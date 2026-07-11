@@ -9,13 +9,73 @@ import { Button, Modal, Tooltip, Upload, Checkbox } from "antd";
 import { ColDef } from "@ag-grid-community/core";
 import { AgGridReact } from "@ag-grid-community/react";
 import { UploadFile } from "antd/es/upload/interface";
-import React, { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import { exportErrorsToExcel, DateColumnConfig } from "./exportErrorsToExcel";
-import AgGridComponent from "@/components/basicUI/cTableAG";
-import { showError, showSuccess } from "@/hooks/useNotification";
-import { MesError } from "@/model/error";
-import { useTranslations } from "next-intl";
+import AgGridComponent from "@/components/global/cTableAG";
+import { message } from "antd";
+const { error: showError, success: showSuccess } = message;
+
+const IMPORT_EXCEL_MESSAGES: Record<string, string> = {
+  noDataToExportError: "Không có dữ liệu để xuất",
+  exportErrorFileSuccess: "Xuất file lỗi thành công",
+  exportErrorFileError: "Xuất file lỗi thất bại",
+  duplicateInCurrentData: 'Giá trị "{value}" bị trùng lặp trong dữ liệu import (trường {field})',
+  duplicateInExistingData: 'Giá trị "{value}" đã tồn tại (trường {field})',
+  requiredField: "Trường {field} là bắt buộc",
+  invalidFormat: 'Giá trị "{value}" không đúng định dạng (trường {field})',
+  invalidValue: 'Giá trị "{value}" không hợp lệ (trường {field})',
+  invalidFile: "File không hợp lệ",
+  cannotReadFileData: "Không thể đọc dữ liệu file",
+  invalidExcelFile: "File Excel không hợp lệ",
+  noDataInFile: "File không có dữ liệu",
+  noValidData: "Không có dữ liệu hợp lệ",
+  excelParseError: "Lỗi khi đọc file Excel",
+  fileReadError: "Lỗi khi đọc file",
+  fileFormatError: "Định dạng file không hợp lệ",
+  fileProcessingError: "Lỗi khi xử lý file",
+  noDataToImport: "Không có dữ liệu để import",
+  noValidDataToImport: "Không có dữ liệu hợp lệ để import",
+  importError: "Import thất bại",
+  errorSummary: "Tổng hợp lỗi",
+  missingRequiredData: "Thiếu dữ liệu bắt buộc",
+  errors: "lỗi",
+  duplicateData: "Dữ liệu trùng lặp",
+  invalidData: "Dữ liệu không hợp lệ",
+  invalidForeignKey: 'Giá trị "{value}" không hợp lệ cho trường {field}',
+  otherErrors: "Lỗi khác",
+  unknownErrors: "Lỗi không xác định",
+  importExcelData: "Import dữ liệu Excel",
+  cancel: "Hủy",
+  exportErrors: "Xuất lỗi",
+  importRows: "Import {valid}/{total} dòng",
+  selectExcelFile: "Chọn file Excel",
+  foundErrors: "Tìm thấy {count} dòng lỗi",
+  previewData: "Xem trước dữ liệu ({count} dòng)",
+  missingData: "Thiếu dữ liệu",
+  duplicate: "Trùng lặp",
+  rowsAdded: "Đã thêm {count} dòng thành công",
+};
+
+function t(
+  key: string,
+  params?: Record<string, string | number | undefined>,
+): string {
+  let str = IMPORT_EXCEL_MESSAGES[key] ?? key;
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      str = str.replace(new RegExp(`\\{${k}\\}`, "g"), String(v ?? ""));
+    });
+  }
+  return str;
+}
+
+export interface MesError {
+  unitKey?: string | number;
+  field: string;
+  message: string;
+  [key: string]: any;
+}
 
 export type ForeignKeyMapping = {
   field: string; // Field (dataIndex) cần tạo dropdown
@@ -97,8 +157,6 @@ ImportExcelProps<T>) {
   const gridRef = useRef<AgGridReact>(null);
   // Track if there are any errors in the data
   const hasErrors = previewData.some((row) => row.hasErrors);
-  const mes = useTranslations("HandleNotion");
-  const t = useTranslations("ImportExcel");
 
   // Handle exporting errors to Excel
   const handleExportErrors = async () => {
@@ -901,7 +959,7 @@ ImportExcelProps<T>) {
       );
       const count = validData.length - result.length;
       if (count > 0) {
-        showSuccess(mes("success.rowsAdded", { count: count }));
+        showSuccess(t("rowsAdded", { count }));
       }
       if (result.length <= 0) {
         handleClose();
@@ -1116,12 +1174,7 @@ ImportExcelProps<T>) {
     };
 
     return [...baseColumns, errorColumn];
-  }, [
-    columns,
-    ErrorCellRenderer,
-    // mes,
-    t,
-  ]);
+  }, [columns, ErrorCellRenderer]);
   // console.log("gridColumns", gridColumns);
   // console.log("previewData", previewData);
 

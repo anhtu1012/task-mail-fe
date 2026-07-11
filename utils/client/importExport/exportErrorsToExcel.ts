@@ -3,7 +3,8 @@
 import { message } from "antd";
 import ExcelJS from "exceljs";
 import { ForeignKeyMapping, ImportRow } from "./importUtils";
-import { showError, showSuccess } from "@/hooks/useNotification";
+
+const { error: showError, success: showSuccess } = message;
 
 /**
  * Type definition for date column configuration
