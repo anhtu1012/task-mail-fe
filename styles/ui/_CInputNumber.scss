@@ -1,0 +1,93 @@
+@use "../colors";
+@use "../variable" as v;
+
+/**
+ * CInputNumber - Premium Ant Design InputNumber Overrides
+ */
+
+.c-input-number {
+  &.ant-input-number {
+    border-radius: v.$input-radius;
+    border: 1px solid colors.$color-border;
+    font-size: v.$font-size-sm;
+    height: v.$input-height !important;
+    min-height: v.$input-height !important;
+    transition: all v.$transition-normal;
+
+    .ant-input-number-input {
+      // padding: 0 v.$input-padding-x !important;
+      height: v.$input-height - 2px !important;
+    }
+
+    &.ant-input-number-sm {
+      height: 24px !important;
+      min-height: 24px !important;
+      .ant-input-number-input {
+        padding: 0 7px !important;
+        height: 22px !important;
+      }
+    }
+
+    &.ant-input-number-lg {
+      height: 40px !important;
+      min-height: 40px !important;
+      .ant-input-number-input {
+        padding: 0 11px !important;
+        height: 38px !important;
+      }
+    }
+
+    &:hover {
+      border-color: colors.$color-primary-300;
+    }
+
+    &.ant-input-number-focused {
+      border-color: colors.$color-primary;
+      box-shadow: 0 0 0 3px rgba(colors.$color-primary, 0.1);
+    }
+
+    &.ant-input-number-disabled {
+      background-color: colors.$color-muted;
+      border-color: colors.$color-border-light;
+    }
+
+    // Status - Error
+    &.ant-input-number-status-error {
+      border-color: colors.$color-danger !important;
+      &.ant-input-number-focused {
+        box-shadow: 0 0 0 3px rgba(colors.$color-danger, 0.1) !important;
+      }
+    }
+
+    // Status - Warning
+    &.ant-input-number-status-warning {
+      border-color: colors.$color-warning !important;
+      &.ant-input-number-focused {
+        box-shadow: 0 0 0 3px rgba(colors.$color-warning, 0.12) !important;
+      }
+    }
+
+    .ant-input-number-handler-wrap {
+      border-radius: 0 v.$input-radius v.$input-radius 0;
+      opacity: 0;
+      transition: opacity v.$transition-normal;
+    }
+
+    &:hover .ant-input-number-handler-wrap {
+      opacity: 1;
+    }
+  }
+
+  // Custom Mandatory field styling
+  &.c-input-number-mandatory {
+    &.ant-input-number {
+      background-color: rgba(colors.$color-warning, 0.06);
+      border-color: rgba(colors.$color-warning, 0.4);
+
+      &.ant-input-number-focused {
+        border-color: colors.$color-warning;
+        box-shadow: 0 0 0 3px rgba(colors.$color-warning, 0.12);
+      }
+    }
+  }
+}

@@ -1,0 +1,180 @@
+@use "../../../styles/variable" as *;
+@use "../../../styles/colors" as *;
+@use "../../../styles/mixins" as *;
+
+/* ============================================================
+   Header — App Header / Breadcrumb + Search
+   ============================================================ */
+
+.header {
+  @include flex-between;
+  height: 52px;
+  min-height: 52px;
+  padding: 0 $spacing-5;
+  background-color: $color-white;
+  border-bottom: 1px solid $color-border;
+  position: sticky;
+  top: 0;
+  z-index: $z-index-sticky;
+}
+
+.headerLeft {
+  @include flex(row, center, flex-start);
+  gap: $spacing-3;
+  flex: 1;
+  min-width: 0;
+}
+
+.headerCenter {
+  @include flex(row, center, center);
+  flex-shrink: 0;
+}
+
+.headerRight {
+  @include flex(row, center, flex-end);
+  gap: $spacing-3;
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- Header separator (vertical line) --- */
+.headerSeparator {
+  width: 1px;
+  height: 20px;
+  background-color: $color-border;
+  flex-shrink: 0;
+}
+
+/* --- Sidebar toggle --- */
+.sidebarToggle {
+  @include flex-center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: $radius-sm;
+  color: $color-muted-foreground;
+  cursor: pointer;
+  @include transition-colors;
+
+  &:hover {
+    background-color: $color-muted;
+    color: $color-foreground;
+  }
+}
+
+/* ============================================================
+   Search Bar
+   ============================================================ */
+.searchBar {
+  @include flex(row, center, flex-start);
+  gap: $spacing-2;
+  height: 34px;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 0 $spacing-3;
+  background-color: $color-muted;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  transition: border-color $transition-normal,
+    box-shadow $transition-normal,
+    width $transition-normal;
+}
+
+.searchBarFocused {
+  border-color: $color-primary;
+  box-shadow: 0 0 0 2px rgba($color-primary, 0.12);
+  background-color: $color-white;
+}
+
+.searchIcon {
+  color: $color-muted-foreground;
+  flex-shrink: 0;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  @include text(sm, regular);
+  color: $color-foreground;
+
+  &::placeholder {
+    color: $color-muted-foreground;
+  }
+}
+
+.searchKbd {
+  @include flex(row, center, center);
+  gap: 2px;
+  height: 22px;
+  padding: 0 $spacing-1;
+  border: 1px solid $color-border;
+  border-radius: 4px;
+  background-color: $color-white;
+  @include text(xs, medium);
+  color: $color-muted-foreground;
+  font-family: $font-family-mono;
+  white-space: nowrap;
+  flex-shrink: 0;
+  pointer-events: none;
+
+  span {
+    font-size: 11px;
+  }
+}
+
+/* ============================================================
+   Breadcrumbs
+   ============================================================ */
+.breadcrumbs {
+  @include flex(row, center, flex-start);
+}
+
+.breadcrumbList {
+  @include flex(row, center, flex-start);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: $spacing-1;
+}
+
+.breadcrumbItem {
+  @include flex(row, center, flex-start);
+  gap: $spacing-1;
+}
+
+.breadcrumbSeparator {
+  color: $color-muted-foreground;
+  flex-shrink: 0;
+}
+
+.breadcrumbIcon {
+  @include flex-center;
+  color: $color-muted-foreground;
+  flex-shrink: 0;
+}
+
+.breadcrumbLink {
+  @include text(sm, regular);
+  color: $color-muted-foreground;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.breadcrumbLinkClickable {
+  cursor: pointer;
+  @include transition-colors;
+
+  &:hover {
+    color: $color-foreground;
+  }
+}
+
+.breadcrumbLinkActive {
+  color: $color-foreground;
+  font-weight: $font-weight-medium;
+}

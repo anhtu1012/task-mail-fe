@@ -1,0 +1,218 @@
+// ============================================================
+// Task Design System - Color Tokens
+// ============================================================
+// Primary font: Inter (Google Fonts)
+// All colors follow the Task Design Convention v1.0
+// ============================================================
+
+// ------------------------------------------------------------
+// 1. PRIMARY COLORS
+// ------------------------------------------------------------
+$color-primary: #0a436d; // Ocean Blue — main brand color
+$color-success: #2a9d8f; // Teal Green — success actions
+$color-danger: #e63946; // Red — danger/destructive actions
+$color-warning: #f4a261; // Amber Yellow — alerts, mandatory fields
+
+// Primary shades (light → dark)
+$color-primary-50: #e8f1f7;
+$color-primary-100: #c5dce9;
+$color-primary-200: #8bb9d4;
+$color-primary-300: #5196bf;
+$color-primary-400: #2d79a8;
+$color-primary-500: #0a436d; // = $color-primary
+$color-primary-600: #08375a;
+$color-primary-700: #062b47;
+$color-primary-800: #041f34;
+$color-primary-900: #021321;
+
+// Success shades
+$color-success-50: #e6f5f3;
+$color-success-100: #c0e8e3;
+$color-success-200: #80d1c7;
+$color-success-300: #40baab;
+$color-success-400: #2a9d8f; // = $color-success
+$color-success-500: #218077;
+$color-success-600: #19635e;
+
+// Danger shades
+$color-danger-50: #fde8ea;
+$color-danger-100: #f9c5c9;
+$color-danger-200: #f08b93;
+$color-danger-300: #e75a65;
+$color-danger-400: #e63946; // = $color-danger
+$color-danger-500: #c42f3b;
+$color-danger-600: #a22530;
+
+// Warning shades
+$color-warning-50: #fef4e8;
+$color-warning-100: #fce3c0;
+$color-warning-200: #f9c781;
+$color-warning-300: #f6ab42;
+$color-warning-400: #f4a261; // = $color-warning
+$color-warning-500: #e08c3a;
+$color-warning-600: #c47725;
+
+// Info shades (Blue/Sky)
+$color-info: #0ea5e9;
+$color-info-50: #f0f9ff;
+$color-info-100: #e0f2fe;
+$color-info-200: #bae6fd;
+$color-info-300: #7dd3fc;
+$color-info-400: #38bdf8;
+$color-info-500: #0ea5e9; // = $color-info
+$color-info-600: #0284c7;
+$color-info-700: #0369a1;
+
+// ------------------------------------------------------------
+// 2. NEUTRAL COLORS
+// ------------------------------------------------------------
+$color-background: #f7f8fa; // Page background
+$color-muted: #f0f2f5; // Hover states, disabled background
+$color-foreground: #333333; // Primary text
+$color-muted-foreground: #808080; // Secondary text, placeholders
+$color-white: #ffffff;
+$color-black: #000000;
+
+// Border colors
+$color-border: #e2e8f0; // Default border
+$color-border-light: #f0f2f5; // Subtle border
+$color-border-dark: #cbd5e1; // Emphasized border
+
+// Neutral scale
+$color-neutral-50: #fafbfc;
+$color-neutral-100: #f7f8fa; // = $color-background
+$color-neutral-200: #f0f2f5; // = $color-muted
+$color-neutral-300: #e2e8f0; // = $color-border
+$color-neutral-400: #cbd5e1;
+$color-neutral-500: #94a3b8;
+$color-neutral-600: #808080; // = $color-muted-foreground
+$color-neutral-700: #64748b;
+$color-neutral-800: #475569;
+$color-neutral-900: #333333; // = $color-foreground
+$color-neutral-950: #1e293b;
+
+// ------------------------------------------------------------
+// 3. STATUS COLORS (FunctionButton convention)
+// ------------------------------------------------------------
+// Primary Navy — Save, Search, Import
+$color-status-primary: $color-primary;
+// Success Teal — Add, Confirm, Calculate
+$color-status-success: $color-success;
+// Danger Red — Delete, Cancel
+$color-status-danger: $color-danger;
+// Warning Yellow — Alerts, Mandatory fields
+$color-status-warning: $color-warning;
+
+// ------------------------------------------------------------
+// 4. LEGACY COLORS (backward compatibility)
+// Keep these for existing SCSS usage, gradually migrate
+// ------------------------------------------------------------
+$primary_1: #062c60;
+$primary_2: #0a3a7b;
+$primary_3: #0e499a;
+$primary_4: #2c60a8;
+$primary_5: #4c79b7;
+$primary_6: #9adbff;
+
+$grey-60: #64748b;
+$grey-30: #e2e8f0;
+$grey-20: #f1f4f9;
+$primary-90: #005271;
+$primary-80: #006688;
+$primary-70: #207a9e;
+
+$secondary_1: #eace01;
+$secondary_2: #ffe730;
+$secondary_3: #ffec5c;
+
+$third_1: #ea2101;
+$third_2: #ff4c30;
+$third_3: #ff725c;
+
+$error: #ff5252;
+$success_legacy: #3aff36;
+$warning_legacy: #ffbf1a;
+$success_1: #50a81d;
+
+$bg: #eeeeee;
+
+$black: #000000;
+$white: #ffffff;
+$subtitle: #4d4d4d;
+$FormItemColor: #0e499acc;
+$subtitle_light: #dedede;
+$text-caption: #525252;
+$text-primary: #040f0f;
+$text-grey: #a3a3a3;
+$neultral_300: #d6d6d6;
+
+$slate-50: #f8fafc;
+$slate-100: #f1f5f9;
+$slate-200: #e2e8f0;
+$slate-300: #cbd5e1;
+$slate-500: #64748b;
+$slate-600: #475569;
+$slate-700: #334155;
+$slate-800: #1e293b;
+
+$primary_500: #004d9f;
+$primary_400: #3371b2;
+$primary_300: #6694c5;
+$primary_200: #99b8d8;
+
+$second_500: #fef200;
+$second_400: #fef668;
+$second_300: #fef996;
+$second_200: #fefbbc;
+
+$active_500: #ffc329;
+
+$dark: #04080cdc;
+$dark-background: #03081de2;
+$dark-border: #1e293b;
+$dark-layout: rgba(12, 20, 52, 0.919);
+
+// ------------------------------------------------------------
+// 5. UI GRADIENTS
+// ------------------------------------------------------------
+$gradient-primary: linear-gradient(
+  135deg,
+  $color-primary-400 0%,
+  $color-primary-500 100%
+);
+$gradient-success: linear-gradient(
+  135deg,
+  $color-success-400 0%,
+  $color-success-500 100%
+);
+$gradient-warning: linear-gradient(
+  135deg,
+  $color-warning-400 0%,
+  $color-warning-500 100%
+);
+$gradient-danger: linear-gradient(
+  135deg,
+  $color-danger-400 0%,
+  $color-danger-500 100%
+);
+$gradient-info: linear-gradient(
+  135deg,
+  $color-info-400 0%,
+  $color-info-500 100%
+);
+$gradient-secondary: linear-gradient(
+  135deg,
+  $color-neutral-500 0%,
+  $color-neutral-700 100%
+);
+$gradient-dark: linear-gradient(
+  135deg,
+  $color-neutral-800 0%,
+  $color-neutral-950 100%
+);
+$gradient-premium: linear-gradient(
+  135deg,
+  #6366f1 0%,
+  #a855f7 50%,
+  #ec4899 100%
+);

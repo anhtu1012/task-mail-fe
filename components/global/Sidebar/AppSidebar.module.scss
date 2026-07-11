@@ -1,0 +1,447 @@
+@use "../../../styles/variable" as *;
+@use "../../../styles/colors" as *;
+@use "../../../styles/mixins" as *;
+
+/* ============================================================
+   Sidebar — Dark Navy Theme (Primary: #1D3557)
+   ============================================================ */
+
+/* --- Sidebar tokens (dark theme) --- */
+$sidebar-bg: $color-primary-700;
+$sidebar-bg-hover: rgba($color-white, 0.08);
+$sidebar-bg-active: rgba($color-white, 0.12);
+$sidebar-text: rgba($color-white, 0.85);
+$sidebar-text-muted: rgba($color-white, 0.5);
+$sidebar-text-active: $color-white;
+$sidebar-border: rgba($color-white, 0.08);
+$sidebar-width: 260px;
+$sidebar-width-collapsed: 68px;
+
+/* ============================================================
+   .sidebar
+   ============================================================ */
+.sidebar {
+  @include flex(column, stretch, flex-start);
+  width: $sidebar-width;
+  min-width: $sidebar-width;
+  height: 100vh;
+  background: $color-primary;
+  overflow: hidden;
+  position: sticky;
+  top: 0;
+  z-index: $z-index-sticky;
+  @include transition(width $transition-slow);
+  will-change: width;
+}
+
+.sidebarCollapsed {
+  width: $sidebar-width-collapsed;
+  min-width: $sidebar-width-collapsed;
+}
+
+/* ============================================================
+   Company Header
+   ============================================================ */
+.companyHeader {
+  @include flex(row, center, flex-start);
+  gap: $spacing-3;
+  padding: $spacing-3 $spacing-4;
+  border-bottom: 1px solid $sidebar-border;
+  cursor: pointer;
+  @include transition-colors;
+  min-height: 56px;
+
+  &:hover {
+    background-color: $sidebar-bg-hover;
+  }
+
+  .sidebarCollapsed & {
+    justify-content: center;
+    padding: $spacing-3;
+  }
+}
+
+.companyLogo {
+  @include flex-center;
+  width: 32px;
+  height: 32px;
+  border-radius: $radius-md;
+  background-color: rgba($color-white, 0.15);
+  color: $color-white;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-bold;
+  flex-shrink: 0;
+  backdrop-filter: blur(4px);
+}
+
+.companyInfo {
+  @include flex(column, flex-start, center);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.companyName {
+  @include text(sm, semibold);
+  color: $sidebar-text-active;
+  line-height: $line-height-tight;
+  white-space: nowrap;
+}
+
+.companyPlan {
+  @include text(xs, regular);
+  color: $sidebar-text-muted;
+  line-height: $line-height-tight;
+  white-space: nowrap;
+}
+
+.companyChevron {
+  color: $sidebar-text-muted;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   Navigation
+   ============================================================ */
+.nav {
+  @include flex(column, stretch, flex-start);
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: $spacing-2 0;
+}
+
+.navGroup {
+  padding: $spacing-1 0;
+}
+
+.navGroupTitle {
+  display: block;
+  padding: $spacing-2 $spacing-4;
+  @include text(xs, semibold);
+  color: $sidebar-text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+.navGroupDivider {
+  height: 1px;
+  margin: $spacing-2 $spacing-3;
+  background-color: $sidebar-border;
+}
+
+.navGroupItems {
+  @include flex(column, stretch, flex-start);
+  gap: 1px;
+}
+
+/* ============================================================
+   Nav Item (shared)
+   ============================================================ */
+.navItem {
+  @include flex(row, center, flex-start);
+  gap: $spacing-3;
+  width: 100%;
+  padding: $spacing-2 $spacing-4;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  @include text(sm, regular);
+  color: $sidebar-text;
+  @include transition-colors;
+  border-radius: 0;
+  text-align: left;
+  white-space: normal;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $sidebar-bg-hover;
+    color: $sidebar-text-active;
+  }
+
+  .sidebarCollapsed & {
+    justify-content: center;
+    padding: $spacing-2 0;
+  }
+}
+
+.navItemActive {
+  background-color: $sidebar-bg-active;
+  color: $sidebar-text-active;
+  font-weight: $font-weight-medium;
+
+  .navItemIcon {
+    color: $sidebar-text-active;
+  }
+}
+
+.navItemIcon {
+  @include flex-center;
+  width: 20px;
+  height: 20px;
+  color: $sidebar-text-muted;
+  flex-shrink: 0;
+  @include transition-colors;
+
+  .navItem:hover & {
+    color: $sidebar-text-active;
+  }
+}
+
+.navItemLabel {
+  flex: 1;
+  white-space: normal;
+  word-wrap: break-word;
+  line-height: 1.4;
+}
+
+.navItemArrow {
+  color: $sidebar-text-muted;
+  opacity: 0;
+  @include transition(opacity $transition-fast);
+  flex-shrink: 0;
+
+  .navItem:hover & {
+    opacity: 1;
+  }
+}
+
+/* ============================================================
+   Collapsible parent
+   ============================================================ */
+.navItemParent {
+  position: relative;
+}
+
+.navItemParentOpen {
+  // No additional needed
+}
+
+.chevron {
+  color: $sidebar-text-muted;
+  flex-shrink: 0;
+  @include transition(transform $transition-normal);
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+/* ============================================================
+   Sub items
+   ============================================================ */
+.collapsible {
+  width: 100%;
+}
+
+.subItems {
+  @include flex(column, stretch, flex-start);
+}
+
+.subItem {
+  padding-left: calc($spacing-4 + $spacing-8);
+  @include text(sm, regular);
+  color: $sidebar-text-muted;
+  position: relative;
+
+  // Vertical connector line
+  &::before {
+    content: "";
+    position: absolute;
+    left: calc($spacing-4 + 9px);
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: $sidebar-border;
+  }
+
+  &:hover {
+    color: $sidebar-text-active;
+  }
+
+  &.navItemActive {
+    color: $sidebar-text-active;
+    font-weight: $font-weight-medium;
+    background-color: $sidebar-bg-active;
+  }
+}
+
+/* ============================================================
+   Collapse Toggle
+   ============================================================ */
+.collapseToggle {
+  @include flex(row, center, flex-start);
+  gap: $spacing-3;
+  width: 100%;
+  padding: $spacing-2 $spacing-4;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  @include text(xs, medium);
+  color: $sidebar-text-muted;
+  @include transition-colors;
+  border-top: 1px solid $sidebar-border;
+
+  &:hover {
+    background-color: $sidebar-bg-hover;
+    color: $sidebar-text-active;
+  }
+
+  .sidebarCollapsed & {
+    justify-content: center;
+    padding: $spacing-2 0;
+  }
+}
+
+.collapseLabel {
+  white-space: nowrap;
+}
+
+/* ============================================================
+   User Section
+   ============================================================ */
+.userSection {
+  position: relative;
+  border-top: 1px solid $sidebar-border;
+}
+
+.userTrigger {
+  @include flex(row, center, flex-start);
+  gap: $spacing-3;
+  width: 100%;
+  padding: $spacing-3 $spacing-4;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  @include transition-colors;
+
+  &:hover {
+    background-color: $sidebar-bg-hover;
+  }
+
+  .sidebarCollapsed & {
+    justify-content: center;
+    padding: $spacing-3;
+  }
+}
+
+.userAvatar {
+  @include flex-center;
+  width: 32px;
+  height: 32px;
+  border-radius: $radius-full;
+  background: linear-gradient(135deg, $color-primary-300, $color-success-400);
+  color: $color-white;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+  flex-shrink: 0;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.userInfo {
+  @include flex(column, flex-start, center);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.userName {
+  @include text(sm, semibold);
+  color: $sidebar-text-active;
+  line-height: $line-height-tight;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.userEmail {
+  @include text(xs, regular);
+  color: $sidebar-text-muted;
+  line-height: $line-height-tight;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.userChevron {
+  color: $sidebar-text-muted;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   User Dropdown
+   ============================================================ */
+.userDropdown {
+  position: absolute;
+  bottom: calc(100% + $spacing-2);
+  left: $spacing-3;
+  right: $spacing-3;
+  background-color: $color-white;
+  border: 1px solid $color-border;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-lg;
+  z-index: $z-index-dropdown;
+  padding: $spacing-1 0;
+  @include fadeIn($transition-fast);
+  min-width: 220px;
+
+  .sidebarCollapsed & {
+    left: calc(100% + $spacing-2);
+    right: auto;
+    bottom: 0;
+  }
+}
+
+.dropdownUserHeader {
+  @include flex(row, center, flex-start);
+  gap: $spacing-3;
+  padding: $spacing-3 $spacing-4;
+}
+
+.dropdownDivider {
+  height: 1px;
+  background-color: $color-border-light;
+  margin: $spacing-1 0;
+}
+
+.dropdownItem {
+  @include flex(row, center, flex-start);
+  gap: $spacing-3;
+  width: 100%;
+  padding: $spacing-2 $spacing-4;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  @include text(sm, regular);
+  color: $color-foreground;
+  @include transition-colors;
+
+  &:hover {
+    background-color: $color-muted;
+  }
+
+  svg {
+    color: $color-muted-foreground;
+    flex-shrink: 0;
+  }
+}
+
+/* --- Dropdown overrides for text colors (inside dropdown uses light theme) --- */
+.dropdownUserHeader {
+  .userName {
+    color: $color-foreground;
+  }
+  .userEmail {
+    color: $color-muted-foreground;
+  }
+}

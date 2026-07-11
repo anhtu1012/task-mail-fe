@@ -1,0 +1,85 @@
+@use "../colors";
+@use "../variable" as v;
+
+/**
+ * CDatePicker - Premium Ant Design DatePicker Overrides
+ */
+
+.c-datepicker {
+  &.ant-picker {
+    border-radius: v.$input-radius;
+    border: 1px solid colors.$color-border;
+    font-size: v.$font-size-sm;
+    height: v.$input-height !important;
+    min-height: v.$input-height !important;
+    padding: v.$input-padding-y v.$input-padding-x !important;
+    transition: all v.$transition-normal;
+
+    &.ant-picker-small {
+      height: 24px !important;
+      min-height: 24px !important;
+      padding: 0 7px !important;
+    }
+
+    &.ant-picker-large {
+      height: 40px !important;
+      min-height: 40px !important;
+      padding: 7px 11px !important;
+    }
+
+    &:hover {
+      border-color: colors.$color-primary-300;
+    }
+
+    &.ant-picker-focused {
+      border-color: colors.$color-primary;
+      box-shadow: 0 0 0 3px rgba(colors.$color-primary, 0.1);
+    }
+
+    &.ant-picker-disabled {
+      background-color: colors.$color-muted;
+      border-color: colors.$color-border-light;
+    }
+
+    // Status - Error
+    &.ant-picker-status-error {
+      border-color: colors.$color-danger !important;
+      &.ant-picker-focused {
+        box-shadow: 0 0 0 3px rgba(colors.$color-danger, 0.1) !important;
+      }
+    }
+
+    // Status - Warning
+    &.ant-picker-status-warning {
+      border-color: colors.$color-warning !important;
+      &.ant-picker-focused {
+        box-shadow: 0 0 0 3px rgba(colors.$color-warning, 0.12) !important;
+      }
+    }
+
+    .ant-picker-suffix {
+      color: colors.$color-muted-foreground;
+    }
+
+    .ant-picker-clear {
+      color: colors.$color-neutral-400;
+
+      &:hover {
+        color: colors.$color-danger;
+      }
+    }
+  }
+
+  // Custom Mandatory field styling
+  &.c-datepicker-mandatory {
+    &.ant-picker {
+      background-color: rgba(colors.$color-warning, 0.06);
+      border-color: rgba(colors.$color-warning, 0.4);
+
+      &.ant-picker-focused {
+        border-color: colors.$color-warning;
+        box-shadow: 0 0 0 3px rgba(colors.$color-warning, 0.12);
+      }
+    }
+  }
+}

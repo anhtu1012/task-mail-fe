@@ -1,0 +1,32 @@
+@use "../colors";
+@use "../variable" as v;
+
+/**
+ * CAutoComplete - Premium Ant Design AutoComplete Overrides
+ */
+
+.c-autocomplete {
+  &.ant-select {
+    height: v.$input-height !important;
+    min-height: v.$input-height !important;
+
+    .ant-select-selector {
+      border-radius: v.$input-radius !important;
+      border: 1px solid colors.$color-border !important;
+      height: 100% !important;
+      display: flex;
+      align-items: center;
+      padding: 0 v.$input-padding-x !important;
+      transition: all v.$transition-normal;
+    }
+
+    &:hover .ant-select-selector {
+      border-color: colors.$color-primary-300 !important;
+    }
+
+    &.ant-select-focused .ant-select-selector {
+      border-color: colors.$color-primary !important;
+      box-shadow: 0 0 0 3px rgba(colors.$color-primary, 0.1) !important;
+    }
+  }
+}

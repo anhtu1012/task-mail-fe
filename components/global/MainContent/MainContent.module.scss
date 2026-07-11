@@ -1,0 +1,21 @@
+@use "../../../styles/variable" as *;
+@use "../../../styles/colors" as *;
+@use "../../../styles/mixins" as *;
+
+/* ============================================================
+   MainContent — Content area wrapper
+   ============================================================ */
+
+.mainContent {
+  flex: 1;
+  padding: $spacing-5;
+  overflow-y: auto;
+  background-color: $color-background;
+  min-height: 0;
+}
+
+.mainContentDesktop {
+  padding: 0 !important;
+  overflow: hidden !important;
+  background-color: #0b0f19 !important;
+}

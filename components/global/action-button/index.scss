@@ -1,0 +1,42 @@
+.btn-add:hover {
+  background-color: #265b8e !important;
+  color: white !important;
+}
+
+.btn-save:hover {
+  background-color: #12825f !important;
+  color: white !important;
+}
+
+.btn-query:hover {
+  background-color: #efb008 !important;
+  color: white !important;
+}
+
+.btn-delete:hover {
+  background-color: #d83232 !important;
+  color: white !important;
+}
+
+.vertical-divider {
+  border-left: 1px solid #cbd4e1;
+}
+
+html.dark {
+  .btn-add {
+    background-color: #135db8 !important;
+    color: white !important;
+  }
+  .btn-save {
+    background-color: #12825f !important;
+    color: white !important;
+  }
+  .btn-query {
+    background-color: #efb008 !important;
+    color: white !important;
+  }
+  .btn-delete {
+    background-color: #d83232 !important;
+    color: white !important;
+  }
+}

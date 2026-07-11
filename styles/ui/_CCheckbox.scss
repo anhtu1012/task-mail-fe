@@ -1,0 +1,58 @@
+@use "../colors";
+@use "../variable" as v;
+
+/**
+ * CCheckbox - Premium Ant Design Checkbox Overrides
+ */
+
+.c-checkbox {
+  &.ant-checkbox-wrapper {
+    transition: color v.$transition-normal;
+
+    .ant-checkbox-inner {
+      border-radius: 4px;
+      border-color: colors.$color-border-dark;
+      transition: all v.$transition-normal;
+    }
+
+    &:hover .ant-checkbox-inner {
+      border-color: colors.$color-primary;
+    }
+
+    .ant-checkbox-checked .ant-checkbox-inner {
+      background-color: colors.$color-primary;
+      border-color: colors.$color-primary;
+    }
+  }
+
+  // Semantic color variants
+  &.c-checkbox-success .ant-checkbox-checked .ant-checkbox-inner {
+    background-color: colors.$color-success;
+    border-color: colors.$color-success;
+  }
+
+  &.c-checkbox-warning .ant-checkbox-checked .ant-checkbox-inner {
+    background-color: colors.$color-warning;
+    border-color: colors.$color-warning;
+  }
+
+  &.c-checkbox-danger .ant-checkbox-checked .ant-checkbox-inner {
+    background-color: colors.$color-danger;
+    border-color: colors.$color-danger;
+  }
+}
+
+.c-checkbox-group {
+  &.c-checkbox-group-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-2;
+  }
+
+  &.c-checkbox-group-horizontal {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: v.$spacing-3;
+  }
+}

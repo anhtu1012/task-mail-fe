@@ -1,0 +1,36 @@
+@use "../colors" as *;
+
+.c-segmented {
+  background-color: $color-neutral-200;
+  padding: 4px;
+  border-radius: 6px;
+
+  /* Handle Segmented Items */
+  .ant-segmented-item {
+    border-radius: 4px;
+    color: $color-neutral-700;
+    transition: all 0.3s;
+
+    &:hover {
+      color: $color-primary;
+    }
+
+    /* Selected Item state */
+    &.ant-segmented-item-selected {
+      background-color: $color-white;
+      color: $color-primary;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      font-weight: 500;
+    }
+  }
+
+  /* Handle Disabled state */
+  &.ant-segmented-disabled {
+    opacity: 0.6;
+    background-color: $color-neutral-100;
+
+    .ant-segmented-item {
+      color: $color-neutral-500;
+    }
+  }
+}

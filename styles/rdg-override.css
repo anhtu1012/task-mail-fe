@@ -1,0 +1,54 @@
+/* Override CSS cho react-data-grid v7 - import SAU styles.css của package */
+
+/* CSS variables */
+:root {
+  --rdg-border-color: #e1e1e1;
+  --rdg-border-width: 1px;
+}
+
+/* Thêm vào layer rdg để có độ ưu tiên phù hợp */
+@layer rdg {
+  /* Border cho tất cả cells */
+  [class*="rdg-"][class*="-Cell"] {
+    border-right: 1px solid #e1e1e1 !important;
+    border-bottom: 1px solid #e1e1e1 !important;
+  }
+
+  /* Border cho header cells */
+  [class*="rdg-"][class*="-HeaderRow"] [class*="rdg-"][class*="-Cell"] {
+    border-right: 1px solid #d0d0d0 !important;
+    border-bottom: 2px solid #d0d0d0 !important;
+    background-color: #f5f5f5;
+  }
+
+  /* Border cho data row cells */
+  [class*="rdg-"][class*="-Row"]:not([class*="-HeaderRow"]) [class*="rdg-"][class*="-Cell"] {
+    border-right: 1px solid #e1e1e1 !important;
+    border-bottom: 1px solid #e1e1e1 !important;
+  }
+
+  /* Background trắng cho frozen cells */
+  [class*="rdg-"][class*="-Cell"][class*="-frozen"],
+  [class*="rdg-"][class*="-Cell"].rdg-cell-frozen {
+    background-color: #fff !important;
+  }
+
+  /* Cell STT fill 100% */
+  [class*="rdg-"][class*="-Cell"].STT {
+    padding: 0px !important;
+  }
+
+  [class*="rdg-"][class*="-Cell"].STT > div {
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background-color: inherit !important;
+  }
+
+  /* Border cho toàn bộ grid container */
+  [class*="rdg-"][class*="-Root"] {
+    border: 1px solid #e1e1e1;
+  }
+}

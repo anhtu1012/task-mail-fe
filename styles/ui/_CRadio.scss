@@ -1,0 +1,80 @@
+@use "../colors";
+@use "../variable" as v;
+
+/**
+ * CRadio - Premium Ant Design Radio Overrides
+ */
+
+.c-radio-group {
+  &.ant-radio-group {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: v.$spacing-4;
+  }
+}
+
+.c-radio {
+  &.ant-radio-wrapper {
+    margin-inline-end: 0;
+    font-size: v.$font-size-sm;
+    color: colors.$color-foreground;
+    display: inline-flex;
+    align-items: center;
+
+    .ant-radio {
+      & + span {
+        padding-inline-start: v.$spacing-2;
+      }
+
+      .ant-radio-inner {
+        width: 18px;
+        height: 18px;
+        border-color: colors.$color-border;
+        background-color: colors.$color-white;
+        transition: all v.$transition-normal;
+
+        &::after {
+          width: 10px;
+          height: 10px;
+          background-color: colors.$color-white;
+          transform: scale(0);
+          transition: transform v.$transition-normal;
+        }
+      }
+
+      &.ant-radio-checked {
+        .ant-radio-inner {
+          border-color: colors.$color-primary;
+          background-color: colors.$color-primary;
+
+          &::after {
+            transform: scale(1);
+          }
+        }
+
+        &:after {
+          border-color: colors.$color-primary;
+        }
+      }
+
+      &:hover .ant-radio-inner {
+        border-color: colors.$color-primary-300;
+      }
+    }
+
+    &.ant-radio-wrapper-disabled {
+      color: colors.$color-neutral-400;
+
+      .ant-radio-inner {
+        background-color: colors.$color-muted;
+        border-color: colors.$color-border-light;
+      }
+
+      &.ant-radio-wrapper-checked .ant-radio-inner {
+        &::after {
+          background-color: colors.$color-neutral-400;
+        }
+      }
+    }
+  }
+}

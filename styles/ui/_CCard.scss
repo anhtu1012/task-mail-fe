@@ -1,0 +1,81 @@
+@use "../colors" as *;
+
+.c-card {
+  border-radius: 8px;
+  border: 1px solid $color-border;
+  background-color: $color-white;
+  transition: all 0.3s ease;
+
+  &.ant-card-hoverable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: $color-primary-200;
+  }
+
+  .ant-card-head {
+    border-bottom: 1px solid $color-border-light;
+    min-height: 48px;
+    padding: 0 16px;
+
+    .ant-card-head-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: $color-foreground;
+    }
+  }
+
+  .ant-card-body {
+    padding: 16px;
+  }
+
+  // Type: Information
+  &.c-card-info {
+    background-color: $color-info-50;
+    border-color: $color-info-200;
+
+    .ant-card-head {
+      border-bottom-color: $color-info-100;
+      
+      .ant-card-head-title {
+        color: $color-info-700;
+      }
+    }
+
+    &.ant-card-hoverable:hover {
+      border-color: $color-info-400;
+      background-color: $color-info-50; // Keep light background
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
+    }
+  }
+
+  // Type: Normal
+  &.c-card-normal {
+    // Default styles are already normal
+  }
+}
+
+// Card List Grid
+.c-card-list {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+
+  @for $i from 1 through 6 {
+    &.c-card-list-cols-#{$i} {
+      grid-template-columns: repeat(#{$i}, minmax(0, 1fr));
+    }
+  }
+
+  // Responsive adjustments
+  @media (max-width: 1200px) {
+    &.c-card-list[class*="c-card-list-cols-"] {
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+  }
+
+  @media (max-width: 576px) {
+    &.c-card-list[class*="c-card-list-cols-"] {
+      grid-template-columns: 1fr;
+    }
+  }
+}

@@ -1,0 +1,322 @@
+@use "variable" as v;
+@use "colors" as c;
+
+// ============================================================
+// Task Design System - Mixins
+// ============================================================
+
+// ------------------------------------------------------------
+// 1. TYPOGRAPHY MIXINS
+// ------------------------------------------------------------
+
+// --- Heading presets ---
+@mixin heading-h1() {
+  font-size: v.$font-size-2xl;
+  font-weight: v.$font-weight-bold;
+  line-height: v.$line-height-tight;
+}
+
+@mixin heading-h2() {
+  font-size: v.$font-size-lg;
+  font-weight: v.$font-weight-bold;
+  line-height: v.$line-height-tight;
+}
+
+@mixin heading-h3() {
+  font-size: v.$font-size-base;
+  font-weight: v.$font-weight-semibold;
+  line-height: v.$line-height-tight;
+}
+
+// --- Body text ---
+@mixin text-body() {
+  font-size: v.$font-size-base;
+  font-weight: v.$font-weight-regular;
+  line-height: v.$line-height-normal;
+}
+
+// --- Label ---
+@mixin text-label() {
+  font-size: v.$font-size-sm;
+  font-weight: v.$font-weight-medium;
+  line-height: v.$line-height-normal;
+}
+
+// --- Helper / caption ---
+@mixin text-helper() {
+  font-size: v.$font-size-xs;
+  font-weight: v.$font-weight-regular;
+  line-height: v.$line-height-normal;
+  color: c.$color-muted-foreground;
+}
+
+// --- Generic text size + weight ---
+@mixin text($size: base, $weight: regular) {
+  @if $size == xs      { font-size: v.$font-size-xs; }
+  @else if $size == sm { font-size: v.$font-size-sm; }
+  @else if $size == base { font-size: v.$font-size-base; }
+  @else if $size == lg { font-size: v.$font-size-lg; }
+  @else if $size == xl { font-size: v.$font-size-xl; }
+  @else if $size == 2xl { font-size: v.$font-size-2xl; }
+
+  @if $weight == regular   { font-weight: v.$font-weight-regular; }
+  @else if $weight == medium { font-weight: v.$font-weight-medium; }
+  @else if $weight == semibold { font-weight: v.$font-weight-semibold; }
+  @else if $weight == bold { font-weight: v.$font-weight-bold; }
+  @else if $weight == extrabold { font-weight: v.$font-weight-extrabold; }
+}
+
+// ------------------------------------------------------------
+// 2. COMPONENT MIXINS
+// ------------------------------------------------------------
+
+// --- Input field ---
+@mixin input-field() {
+  height: v.$input-height;
+  padding: v.$input-padding-y v.$input-padding-x;
+  border: 1px solid c.$color-border;
+  border-radius: v.$input-radius;
+  font-size: v.$font-size-sm;
+  font-weight: v.$font-weight-regular;
+  color: c.$color-foreground;
+  background-color: c.$color-white;
+  transition: border-color v.$transition-normal, box-shadow v.$transition-normal;
+
+  &::placeholder {
+    color: c.$color-muted-foreground;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: c.$color-primary;
+    box-shadow: 0 0 0 2px rgba(c.$color-primary, 0.15);
+  }
+}
+
+// --- Input mandatory field ---
+@mixin input-mandatory() {
+  background-color: rgba(c.$color-warning, 0.08);
+  border-color: rgba(c.$color-warning, 0.5);
+}
+
+// --- Button sizes ---
+@mixin btn-sm() {
+  padding: v.$btn-padding-y-sm v.$btn-padding-x-sm;
+  font-size: v.$font-size-xs;
+  font-weight: v.$font-weight-medium;
+  border-radius: v.$btn-radius;
+}
+
+@mixin btn-md() {
+  padding: v.$btn-padding-y-md v.$btn-padding-x-md;
+  font-size: v.$font-size-sm;
+  font-weight: v.$font-weight-medium;
+  border-radius: v.$btn-radius;
+}
+
+@mixin btn-lg() {
+  padding: v.$btn-padding-y-lg v.$btn-padding-x-lg;
+  font-size: v.$font-size-base;
+  font-weight: v.$font-weight-medium;
+  border-radius: v.$btn-radius;
+}
+
+// --- Card ---
+@mixin card() {
+  padding: v.$card-padding;
+  border: 1px solid c.$color-border;
+  border-radius: v.$card-radius;
+  background-color: c.$color-white;
+  box-shadow: v.$shadow-xs;
+}
+
+// ------------------------------------------------------------
+// 3. LAYOUT MIXINS
+// ------------------------------------------------------------
+@mixin flex(
+  $direction: row,
+  $align-items: flex-start,
+  $justify-content: flex-start
+) {
+  display: flex;
+  justify-content: $justify-content;
+  align-items: $align-items;
+  flex-direction: $direction;
+}
+
+@mixin flex-center() {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between() {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin flex-direction($direction) {
+  flex-direction: $direction;
+}
+
+@mixin flex-with($args) {
+  flex: $args;
+}
+
+@mixin flex-wrap($args) {
+  flex-wrap: $args;
+}
+
+@mixin flex-basis($args) {
+  flex-basis: $args;
+}
+
+// ------------------------------------------------------------
+// 4. ANIMATION MIXINS
+// ------------------------------------------------------------
+@mixin transition($args) {
+  transition: $args;
+}
+
+@mixin transition-colors() {
+  transition: color v.$transition-normal,
+              background-color v.$transition-normal,
+              border-color v.$transition-normal,
+              box-shadow v.$transition-normal;
+}
+
+@mixin fadeIn($args) {
+  animation: fadein $args;
+
+  @keyframes fadein {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+}
+
+// ------------------------------------------------------------
+// 5. SCROLLBAR MIXIN
+// ------------------------------------------------------------
+@mixin scrollbars(
+  $size,
+  $foreground-color,
+  $background-color: mix($foreground-color, white, 50%)
+) {
+  ::-webkit-scrollbar {
+    width: $size;
+    height: $size;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: $size;
+    background: $foreground-color;
+  }
+
+  ::-webkit-scrollbar-track {
+    border-radius: $size;
+    background: $background-color;
+  }
+}
+
+// ------------------------------------------------------------
+// 6. RESPONSIVE BREAKPOINTS
+// ------------------------------------------------------------
+$max-small-mobile-width: 320px;
+$max-middle-mobile-width: 425px;
+$min-tablet-width: 768px;
+$max-tablet-width: 1024px;
+$min-medium-desktop: 1680px;
+$max-medium-desktop: 2160px;
+
+@mixin responsive($screen) {
+  @if $screen == mobile {
+    @media only screen and (max-width: ($min-tablet-width - 1)) {
+      @content;
+    }
+  }
+  @if $screen == tablet {
+    @media only screen and (min-width: $min-tablet-width) and (max-width: ($max-tablet-width - 1)) {
+      @content;
+    }
+  }
+  @if $screen == small_desktop {
+    @media only screen and (min-width: $max-tablet-width) and (max-width: ($min-medium-desktop - 1)) {
+      @content;
+    }
+  }
+  @if $screen == medium_desktop {
+    @media only screen and (min-width: $min-medium-desktop) and (max-width: ($max-medium-desktop - 1)) {
+      @content;
+    }
+  }
+  @if $screen == large_desktop {
+    @media only screen and (min-width: $max-medium-desktop) {
+      @content;
+    }
+  }
+}
+
+@mixin multiple-responsive($screens...) {
+  @each $screen in $screens {
+    @include responsive($screen) {
+      @content;
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// 7. UTILITY MIXINS
+// ------------------------------------------------------------
+@mixin placeholder {
+  &::placeholder {
+    @content;
+  }
+}
+
+@mixin ratio($height, $ratio) {
+  height: $height;
+  width: $ratio * $height;
+}
+
+@mixin toolbar_color($id, $color) {
+  #{$id} {
+    color: $color;
+    background-color: #fff;
+    border-color: $color !important;
+
+    &:hover {
+      background-color: $color !important;
+      color: #fff !important;
+    }
+  }
+
+  &.ant-btn-default:disabled {
+    #{$id} {
+      background-color: rgba(0, 0, 0, 0.04) !important;
+      color: rgba(0, 0, 0, 0.25) !important;
+      border-color: #d9d9d9 !important;
+    }
+  }
+}
+
+// --- Legacy text mixins (backward compat) ---
+@mixin text-base-thin()       { font-weight: 100; font-size: 16px; }
+@mixin text-base-extralight() { font-weight: 200; font-size: 16px; }
+@mixin text-base-light()      { font-weight: 300; font-size: 16px; }
+@mixin text-base-normal()     { font-weight: 400; font-size: 16px; }
+@mixin text-base-medium()     { font-weight: 500; font-size: 16px; }
+@mixin text-base-semibold()   { font-weight: 600; font-size: 16px; }
+@mixin text-base-bold()       { font-weight: 700; font-size: 16px; }
+@mixin text-base-extrabold()  { font-weight: 800; font-size: 16px; }
+@mixin text-base-black()      { font-weight: 900; font-size: 16px; }
+
+@mixin text-2xl-thin()        { font-weight: 100; font-size: 24px; }
+@mixin text-2xl-extralight()  { font-weight: 200; font-size: 24px; }
+@mixin text-2xl-light()       { font-weight: 300; font-size: 24px; }
+@mixin text-2xl-normal()      { font-weight: 400; font-size: 24px; }
+@mixin text-2xl-medium()      { font-weight: 500; font-size: 24px; }
+@mixin text-2xl-semibold()    { font-weight: 600; font-size: 24px; }
+@mixin text-2xl-bold()        { font-weight: 700; font-size: 24px; }
+@mixin text-2xl-extrabold()   { font-weight: 800; font-size: 24px; }
+@mixin text-2xl-black()       { font-weight: 900; font-size: 24px; }

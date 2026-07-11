@@ -1,0 +1,103 @@
+@use "../colors" as c;
+@use "../variable" as v;
+@use "../mixins" as m;
+
+.Task-modal-premium {
+  .ant-modal-content {
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    border: 1px solid c.$color-border;
+  }
+
+  .ant-modal-header {
+    margin-bottom: 20px;
+    border-bottom: none;
+    background: transparent;
+
+    .ant-modal-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: c.$color-foreground;
+    }
+  }
+
+  .ant-modal-close {
+    top: 16px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+
+    &:hover {
+      background-color: c.$color-muted;
+      color: c.$color-primary;
+    }
+
+    .Task-modal-close-icon {
+      color: c.$color-muted-foreground;
+    }
+  }
+
+  .ant-modal-footer {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid c.$color-border-light;
+    
+    .ant-btn {
+      height: 36px;
+      padding: 0 16px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+  }
+}
+
+.Task-alert-premium {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 12px 16px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+
+  .ant-alert-message {
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+
+  .ant-alert-description {
+    font-size: 0.8125rem;
+    margin-top: 2px;
+  }
+
+  &.Task-alert-info {
+    background-color: #f0f9ff;
+    border-color: #bae6fd;
+    color: #0369a1;
+    .ant-alert-icon { color: #0ea5e9; }
+  }
+
+  &.Task-alert-success {
+    background-color: #f0fdf4;
+    border-color: #bbf7d0;
+    color: #15803d;
+    .ant-alert-icon { color: #22c55e; }
+  }
+
+  &.Task-alert-warning {
+    background-color: #fffbeb;
+    border-color: #fef3c7;
+    color: #a16207;
+    .ant-alert-icon { color: #f59e0b; }
+  }
+
+  &.Task-alert-error {
+    background-color: #fef2f2;
+    border-color: #fee2e2;
+    color: #b91c1c;
+    .ant-alert-icon { color: #ef4444; }
+  }
+}

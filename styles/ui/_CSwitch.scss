@@ -1,0 +1,60 @@
+@use "../colors";
+@use "../variable" as v;
+
+/**
+ * CSwitch - Premium Ant Design Switch Overrides
+ */
+
+.c-switch {
+  &.ant-switch {
+    min-width: 44px;
+    height: 22px;
+    background-color: colors.$color-neutral-300;
+    transition: all v.$transition-normal;
+
+    &.ant-switch-checked {
+      background-color: colors.$color-primary;
+    }
+
+    .ant-switch-handle::before {
+      box-shadow: 0 2px 4px rgba(colors.$color-black, 0.15);
+    }
+  }
+
+  // Semantic color variants
+  &.c-switch-success.ant-switch.ant-switch-checked {
+    background-color: colors.$color-success;
+  }
+
+  &.c-switch-warning.ant-switch.ant-switch-checked {
+    background-color: colors.$color-warning;
+  }
+
+  &.c-switch-danger.ant-switch.ant-switch-checked {
+    background-color: colors.$color-danger;
+  }
+
+  &.c-switch-info.ant-switch.ant-switch-checked {
+    background-color: colors.$color-info;
+  }
+}
+
+.c-switch-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: v.$spacing-2;
+
+  &.c-switch-label-start {
+    flex-direction: row;
+  }
+
+  &.c-switch-label-end {
+    flex-direction: row;
+  }
+}
+
+.c-switch-label {
+  font-size: v.$font-size-sm;
+  color: colors.$color-foreground;
+  user-select: none;
+}

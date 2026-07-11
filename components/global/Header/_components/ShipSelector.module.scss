@@ -1,0 +1,105 @@
+@use "../../../../styles/variable" as *;
+@use "../../../../styles/colors" as *;
+@use "../../../../styles/mixins" as *;
+
+.selectorBtn {
+  @include flex(row, center, center);
+  gap: $spacing-2;
+  height: 34px;
+  padding: 0 $spacing-3;
+  background-color: $color-white;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  color: $color-primary;
+  font-weight: $font-weight-medium;
+  cursor: pointer;
+  transition: all $transition-normal;
+  outline: none;
+
+  &:hover {
+    background-color: rgba($color-primary, 0.04);
+    border-color: $color-primary-300;
+    box-shadow: $shadow-xs;
+  }
+
+  &:active {
+    background-color: rgba($color-primary, 0.08);
+  }
+}
+
+.shipIcon {
+  color: $color-primary;
+  flex-shrink: 0;
+}
+
+.shipName {
+  @include text(sm, medium);
+  color: $color-foreground;
+  white-space: nowrap;
+}
+
+.arrowIcon {
+  color: $color-muted-foreground;
+  flex-shrink: 0;
+  transition: transform $transition-normal;
+}
+
+.selectorBtn:hover .arrowIcon {
+  color: $color-foreground;
+}
+
+/* Modal styling helper classes */
+.modalContent {
+  padding-top: $spacing-3;
+}
+
+.helperText {
+  @include text(sm, regular);
+  color: $color-muted-foreground;
+  margin-bottom: $spacing-4;
+}
+
+.shipItem {
+  @include flex(row, center, space-between);
+  padding: $spacing-3 $spacing-4;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  cursor: pointer;
+  background-color: $color-white;
+  transition: all $transition-normal;
+
+  &:hover {
+    border-color: $color-primary-300;
+    background-color: rgba($color-primary, 0.02);
+  }
+
+  &.active {
+    border-color: $color-primary;
+    background-color: rgba($color-primary, 0.05);
+    box-shadow: 0 0 0 1px $color-primary;
+  }
+}
+
+.shipInfo {
+  @include flex(column, flex-start);
+  gap: 2px;
+}
+
+.shipCode {
+  @include text(sm, bold);
+  color: $color-foreground;
+}
+
+.shipFull {
+  @include text(xs, regular);
+  color: $color-muted-foreground;
+}
+
+.badgeActive {
+  background-color: $color-primary;
+  color: $color-white;
+  padding: calc($spacing-1 / 2) $spacing-2;
+  border-radius: $radius-full;
+  font-size: 11px;
+  font-weight: $font-weight-medium;
+}

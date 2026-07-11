@@ -1,0 +1,271 @@
+@use "../colors";
+@use "../variable" as v;
+
+/**
+ * CButton - Premium Ant Design Button Overrides
+ * Follows Task Design System v1.0
+ */
+
+.c-button {
+  transition: all v.$transition-normal;
+  font-weight: v.$font-weight-medium;
+  border-radius: v.$radius-sm;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: v.$spacing-2;
+  height: v.$input-height;
+  padding: v.$btn-padding-y-md v.$btn-padding-x-md;
+  box-shadow: none;
+  border: 1px solid transparent; 
+  backface-visibility: hidden;
+  will-change: transform, box-shadow;
+  vertical-align: middle;
+  
+  // Primary Style - Ocean Gradient
+  &.ant-btn-primary {
+    background: colors.$gradient-primary;
+    border-color: transparent;
+    box-shadow: 0 4px 12px -2px rgba(colors.$color-primary-500, 0.3);
+    color: colors.$color-white;
+    
+    &:hover {
+      background: linear-gradient(135deg, colors.$color-primary-400 0%, colors.$color-primary-500 100%) !important;
+      box-shadow: 0 6px 16px -2px rgba(colors.$color-primary-500, 0.4);
+      transform: translateY(-1px);
+      color: colors.$color-white !important;
+      border-color: transparent !important;
+    }
+    
+    &:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px -1px rgba(colors.$color-primary-500, 0.3);
+    }
+
+    &[disabled], &.ant-btn-disabled {
+      background: colors.$color-neutral-300 !important;
+      color: colors.$color-muted-foreground !important;
+      box-shadow: none !important;
+      transform: none !important;
+    }
+  }
+
+  // Default Style - Subtle Border
+  &.ant-btn-default {
+    border-color: colors.$color-border;
+    color: colors.$color-neutral-700;
+    background: colors.$color-white;
+    
+    &:hover {
+      border-color: colors.$color-primary-300 !important;
+      color: colors.$color-primary-500 !important;
+      background: colors.$color-primary-50 !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px -2px rgba(colors.$color-black, 0.05);
+    }
+    
+    &:active {
+      transform: translateY(0);
+    }
+
+    &[disabled], &.ant-btn-disabled {
+      border-color: colors.$color-border-light !important;
+      color: colors.$color-neutral-400 !important;
+      background: colors.$color-neutral-50 !important;
+      transform: none !important;
+    }
+  }
+
+  // Dashed Style
+  &.ant-btn-dashed {
+    border-color: colors.$color-border;
+    border-style: dashed;
+    
+    &:hover {
+      border-color: colors.$color-primary-300 !important;
+      color: colors.$color-primary-500 !important;
+      background: colors.$color-primary-50 !important;
+      transform: translateY(-1px);
+    }
+  }
+
+  // Text Style
+  &.ant-btn-text {
+    color: colors.$color-neutral-600;
+    border-color: transparent;
+    background: transparent;
+    
+    &:hover {
+      background: colors.$color-neutral-100 !important;
+      color: colors.$color-primary-500 !important;
+      transform: translateY(-1px);
+    }
+  }
+
+  // Link Style
+  &.ant-btn-link {
+    color: colors.$color-primary-500;
+    padding: 0;
+    height: auto;
+    border-color: transparent;
+    background: transparent;
+    
+    &:hover {
+      color: colors.$color-primary-400 !important;
+      text-decoration: underline !important;
+      background: transparent !important;
+      transform: translateY(-1px);
+    }
+  }
+
+  // Danger States (Error)
+  &.ant-btn-dangerous, &.c-button-error {
+    &.ant-btn-primary {
+      background: colors.$gradient-danger;
+      box-shadow: 0 4px 12px -2px rgba(colors.$color-danger-400, 0.3);
+      border-color: transparent;
+      
+      &:hover {
+        background: linear-gradient(135deg, colors.$color-danger-300 0%, colors.$color-danger-400 100%) !important;
+        box-shadow: 0 6px 16px -2px rgba(colors.$color-danger-400, 0.4);
+        color: colors.$color-white !important;
+        transform: translateY(-1px);
+        border-color: transparent !important;
+      }
+    }
+    
+    &.ant-btn-default {
+      color: colors.$color-danger-400;
+      border-color: colors.$color-danger-200;
+      
+      &:hover {
+        background: colors.$color-danger-50 !important;
+        border-color: colors.$color-danger-400 !important;
+        color: colors.$color-danger-500 !important;
+        transform: translateY(-1px);
+      }
+    }
+  }
+
+  // Semantic Status Variants
+  &.c-button-success {
+    background: colors.$gradient-success;
+    border-color: transparent;
+    box-shadow: 0 4px 12px -2px rgba(colors.$color-success-400, 0.3);
+    color: colors.$color-white;
+    
+    &:hover {
+      background: linear-gradient(135deg, colors.$color-success-300 0%, colors.$color-success-400 100%) !important;
+      box-shadow: 0 6px 16px -2px rgba(colors.$color-success-400, 0.4);
+      color: colors.$color-white !important;
+      transform: translateY(-1px);
+      border-color: transparent !important;
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  &.c-button-warning {
+    background: colors.$gradient-warning;
+    border-color: transparent;
+    box-shadow: 0 4px 12px -2px rgba(colors.$color-warning-400, 0.3);
+    color: colors.$color-white;
+    
+    &:hover {
+      background: linear-gradient(135deg, colors.$color-warning-300 0%, colors.$color-warning-400 100%) !important;
+      box-shadow: 0 6px 16px -2px rgba(colors.$color-warning-400, 0.4);
+      color: colors.$color-white !important;
+      transform: translateY(-1px);
+      border-color: transparent !important;
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  &.c-button-info {
+    background: colors.$gradient-info;
+    border-color: transparent;
+    box-shadow: 0 4px 12px -2px rgba(colors.$color-info-500, 0.3);
+    color: colors.$color-white;
+    &:hover {
+      background: linear-gradient(135deg, colors.$color-info-400 0%, colors.$color-info-500 100%) !important;
+      box-shadow: 0 6px 16px -2px rgba(colors.$color-info-500, 0.4);
+      transform: translateY(-1px);
+      color: colors.$color-white !important;
+    }
+  }
+
+  &.c-button-secondary {
+    background: colors.$gradient-secondary;
+    border-color: transparent;
+    box-shadow: 0 4px 12px -2px rgba(colors.$color-neutral-500, 0.3);
+    color: colors.$color-white;
+    &:hover {
+      background: linear-gradient(135deg, colors.$color-neutral-400 0%, colors.$color-neutral-500 100%) !important;
+      transform: translateY(-1px);
+      color: colors.$color-white !important;
+    }
+  }
+
+  &.c-button-dark {
+    background: colors.$gradient-dark;
+    border-color: transparent;
+    box-shadow: 0 4px 12px -2px rgba(colors.$color-neutral-800, 0.4);
+    color: colors.$color-white;
+    &:hover {
+      background: linear-gradient(135deg, colors.$color-neutral-700 0%, colors.$color-neutral-800 100%) !important;
+      transform: translateY(-1px);
+      color: colors.$color-white !important;
+    }
+  }
+
+  &.c-button-light {
+    background: linear-gradient(135deg, colors.$color-white 0%, colors.$color-neutral-100 100%);
+    border-color: colors.$color-border;
+    box-shadow: 0 4px 12px -2px rgba(colors.$color-black, 0.05);
+    color: colors.$color-neutral-700;
+    &:hover {
+      background: linear-gradient(135deg, colors.$color-neutral-50 0%, colors.$color-white 100%) !important;
+      border-color: colors.$color-border-dark !important;
+      transform: translateY(-1px);
+      color: colors.$color-neutral-900 !important;
+    }
+  }
+
+  &.c-button-gradient {
+    background: colors.$gradient-premium;
+    border-color: transparent;
+    box-shadow: 0 4px 15px -3px rgba(#A855F7, 0.4);
+    color: colors.$color-white;
+    &:hover {
+      background: linear-gradient(135deg, #818CF8 0%, #C084FC 50%, #F472B6 100%) !important;
+      box-shadow: 0 8px 20px -4px rgba(#A855F7, 0.5);
+      transform: translateY(-1px);
+      color: colors.$color-white !important;
+    }
+  }
+
+  // Size Overrides
+  &.ant-btn-sm {
+    height: 32px;
+    padding: v.$btn-padding-y-sm v.$btn-padding-x-sm;
+    font-size: v.$font-size-xs;
+  }
+
+  &.ant-btn-lg {
+    height: 48px;
+    padding: v.$btn-padding-y-lg v.$btn-padding-x-lg;
+    font-size: v.$font-size-lg;
+  }
+
+  // Block/Full Width
+  &.ant-btn-block {
+    width: 100%;
+    display: flex;
+  }
+}
+

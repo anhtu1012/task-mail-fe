@@ -1,0 +1,171 @@
+@use "../../../styles/_variable.scss" as *;
+
+.layoutContainer {
+  --layout-gap: #{$spacing-4};
+  --layout-columns: 1;
+
+  display: flex;
+  gap: var(--layout-gap);
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+
+  &.type-full {
+    flex-direction: column;
+  }
+
+  &.type-split-h {
+    flex-direction: row;
+    align-items: stretch;
+
+    > .layoutSection {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &.type-split-v {
+    flex-direction: column;
+    align-items: stretch;
+
+    > .layoutSection {
+      flex: 1;
+      min-height: 0;
+    }
+  }
+
+  &.type-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--layout-columns), 1fr);
+  }
+
+  &.type-dashboard {
+    display: grid;
+    grid-template-areas:
+      "header header"
+      "main aside"
+      "footer footer";
+    grid-template-columns: 1fr 300px;
+    grid-template-rows: auto 1fr auto;
+    height: 100%;
+
+    @media (max-width: 1024px) {
+      grid-template-areas:
+        "header"
+        "main"
+        "aside"
+        "footer";
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &.type-sidebar-main {
+    display: flex;
+    flex-direction: row;
+
+    > .layoutSection:first-child {
+      width: 260px;
+      flex-shrink: 0;
+    }
+
+    > .layoutSection:last-child {
+      flex-grow: 1;
+      min-width: 0;
+    }
+  }
+
+  &.type-three-columns {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &.type-holy-grail {
+    display: grid;
+    grid-template-areas:
+      "header header header"
+      "nav main aside"
+      "footer footer footer";
+    grid-template-columns: 200px 1fr 200px;
+    grid-template-rows: auto 1fr auto;
+    height: 100%;
+
+    @media (max-width: 1024px) {
+      grid-template-areas:
+        "header header"
+        "nav main"
+        "footer footer";
+      grid-template-columns: 200px 1fr;
+    }
+
+    @media (max-width: 768px) {
+      grid-template-areas:
+        "header"
+        "main"
+        "nav"
+        "aside"
+        "footer";
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &.type-sticky-header {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+
+    > .layoutSection:first-child {
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    > .layoutSection:last-child {
+      flex-grow: 1;
+      overflow-y: auto;
+    }
+  }
+
+  &.type-card-with-sidebar {
+    display: flex;
+    flex-direction: row;
+    background-color: white;
+    border-radius: $radius-lg;
+    box-shadow: $shadow-sm;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+
+    > .layoutSection:first-child {
+      width: 240px;
+      background-color: #fafafa;
+      border-right: 1px solid #f0f0f0;
+      padding: $spacing-4;
+    }
+
+    > .layoutSection:last-child {
+      flex-grow: 1;
+      padding: $spacing-6;
+    }
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      > .layoutSection:first-child {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #f0f0f0;
+      }
+    }
+  }
+}
+
+.layoutSection {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden; // Important for nested scrollable content like DataGrid
+}

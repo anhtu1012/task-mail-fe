@@ -1,0 +1,39 @@
+@use "../variable" as v;
+@use "../colors" as c;
+
+/**
+ * CForm - Premium Ant Design Form Overrides
+ * Follows Task Design System v1.0
+ */
+
+.c-form {
+  &.ant-form-vertical {
+    .ant-form-item-label {
+      padding-bottom: v.$form-label-margin-bottom !important;
+      
+      label {
+        font-weight: 500;
+        color: c.$color-foreground;
+        font-size: v.$font-size-sm;
+      }
+    }
+  }
+
+  .ant-form-item {
+    margin-bottom: v.$spacing-0; // 16px default
+    
+    &-explain-error {
+      font-size: v.$font-size-xs;
+      margin-top: 4px;
+    }
+  }
+
+  .form-dynamic-group {
+    margin-bottom: v.$spacing-4;
+    
+    &-title {
+      color: c.$color-primary !important;
+      margin-bottom: v.$spacing-4 !important;
+    }
+  }
+}

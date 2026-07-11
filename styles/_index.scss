@@ -1,0 +1,83 @@
+@forward "global";
+@forward "colors";
+@forward "mixins";
+@forward "variable";
+
+// components
+@use "./ui/Cbutton";
+@use "./ui/CInput";
+@use "./ui/CSegmented";
+@use "./ui/CSelect";
+@use "./ui/CCheckbox";
+@use "./ui/CSwitch";
+@use "./ui/CDatePicker";
+@use "./ui/CInputNumber";
+@use "./ui/CTimePicker";
+@use "./ui/CExtras";
+@use "./ui/CRadio";
+@use "./ui/CAutoComplete";
+@use "./ui/CCascader";
+@use "./ui/CTreeSelect";
+@use "./ui/CForm";
+@use "./ui/CCard";
+// pages
+// @forward "./pages/index.scss";
+
+/* CSS override cho react-data-grid v7 - ghi đè border */
+.rdg-cell {
+  border-inline-end: 1px solid var(--rdg-border-color, #e1e1e1) !important;
+  border-block-end: 1px solid var(--rdg-border-color, #e1e1e1) !important;
+  display: flex;
+  align-items: center;
+}
+
+/* Cell STT fill 100% */
+.rdg-cell.STT,
+.rdg-row .rdg-cell.STT {
+  padding: 0px !important;
+}
+
+.rdg-cell.STT > div,
+.rdg-row .rdg-cell.STT > div {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.rdg-header-row .rdg-cell {
+  border-inline-end: 1px solid #d0d0d0 !important;
+  border-block-end: 2px solid #d0d0d0 !important;
+  background-color: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rdg-row .rdg-cell {
+  border-inline-end: 1px solid #e1e1e1 !important;
+  border-block-end: 1px solid #e1e1e1 !important;
+  display: flex;
+  align-items: center;
+}
+
+/* Vessel Plan Table - grid fill 100% */
+.vessel-plan-table {
+  width: 100% !important;
+}
+.vessel-plan-table .table-grid,
+.vessel-plan-table .table-grid > .ant-col {
+  width: 100% !important;
+}
+.vessel-plan-table .rdg {
+  width: 100% !important;
+}
+.vessel-plan-table .rdg-header-row .rdg-cell {
+  white-space: normal !important;
+  line-height: 1.2 !important;
+}
+
+* {
+  box-sizing: border-box;
+}

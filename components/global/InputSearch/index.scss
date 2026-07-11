@@ -1,0 +1,298 @@
+@use "sass:color";
+@use "../../../styles/variable" as v;
+@use "../../../styles/colors" as c;
+@use "../../../styles/mixins" as m;
+
+// ============================================================
+// Wrapper
+// ============================================================
+.input-search-container {
+  display:        flex;
+  flex-direction: column;
+  width:          100%;
+}
+
+// ============================================================
+// Search bar
+// ============================================================
+.search {
+  width:            100%;
+  height:           38px;
+  background-color: c.$color-white !important;
+  display:          flex;
+  align-items:      center;
+  justify-content:  space-between;
+  border:           1px solid c.$color-primary !important;
+  gap:              v.$spacing-1;
+  border-radius:    v.$radius-md;
+  padding:          0 v.$spacing-4;
+  text-indent:      0 !important;
+  transition:       border-color v.$transition-normal,
+                    box-shadow   v.$transition-normal;
+  box-shadow:       v.$shadow-xs;
+
+  &:hover,
+  &:focus-within {
+    border-color: c.$color-info-200;
+    box-shadow:   0 v.$spacing-1 v.$spacing-2 rgba(c.$color-primary, 0.15);
+  }
+
+  // ── Search icon ──────────────────────────────────────────
+  &__icon {
+    color:      c.$color-primary;
+    cursor:     pointer;
+    transition: transform v.$transition-normal, color v.$transition-normal;
+
+    &:hover {
+      transform: scale(1.15);
+      color:     c.$color-primary-400;
+    }
+  }
+
+  // ── Input field ──────────────────────────────────────────
+  input {
+    flex-grow:   1;
+    font-size:   v.$font-size-sm;
+    border:      none;
+    outline:     none;
+    padding:     v.$spacing-2 0;
+    transition:  all v.$transition-fast;
+
+    &:focus {
+      border:  none;
+      outline: none;
+    }
+  }
+
+  // ── Filter icon container ─────────────────────────────────
+  .filter-icon-container {
+    @include m.flex-center();
+    gap:           6px;
+    cursor:        pointer;
+    transition:    all v.$transition-normal;
+    padding:       v.$spacing-1 v.$spacing-2;
+    border-radius: v.$radius-sm;
+    margin-right:  -4px;
+  }
+
+  // ── Filtered count ────────────────────────────────────────
+  .filtered-count-container {
+    position: relative;
+  }
+
+  // ── Reset filter button ───────────────────────────────────
+  .reset-filter-wrapper {
+    position: relative;
+    width:    16px;
+    height:   16px;
+
+    .reset-filter-icon {
+      position:         absolute;
+      top:              60%;
+      left:             50%;
+      transform:        translate(-50%, -50%);
+      color:            c.$color-danger;
+      cursor:           pointer;
+      transition:       all v.$transition-normal;
+      padding:          v.$spacing-0;
+      border-radius:    v.$radius-full;
+      background-color: rgba(c.$color-danger, 0.1);
+      z-index:          2;
+
+      &:hover {
+        color:            color.adjust(c.$color-danger, $lightness: -10%);
+        transform:        translate(-50%, -50%) scale(1.15);
+        background-color: rgba(c.$color-danger, 0.18);
+      }
+    }
+  }
+
+  // ── Filter with reset overlay ─────────────────────────────
+  .filter-with-reset {
+    position: relative;
+    display:  inline-block;
+    margin-top: v.$spacing-1;
+
+    .reset-button-overlay {
+      position:   absolute;
+      top:        50%;
+      right:      -16px !important;
+      transform:  translateY(-50%);
+      opacity:    0;
+      visibility: hidden;
+      transition: all v.$transition-normal;
+      z-index:    3;
+    }
+
+    &:hover .reset-button-overlay {
+      opacity:    1;
+      visibility: visible;
+      right:      -20px !important;
+    }
+  }
+
+  // ── Tooltip ───────────────────────────────────────────────
+  .tooltip {
+    position: relative;
+
+    &:hover .tooltip-text {
+      visibility: visible;
+      opacity:    1;
+      transform:  translateY(0);
+    }
+
+    .tooltip-text {
+      visibility:    hidden;
+      position:      absolute;
+      z-index:       v.$z-index-tooltip;
+      bottom:        125%;
+      left:          50%;
+      transform:     translateX(-50%) translateY(10px);
+      background-color: c.$color-neutral-900;
+      color:         c.$color-white;
+      text-align:    center;
+      border-radius: v.$radius-sm;
+      padding:       v.$spacing-1 v.$spacing-2;
+      font-size:     v.$font-size-xs;
+      white-space:   nowrap;
+      opacity:       0;
+      transition:    all v.$transition-slow;
+      box-shadow:    v.$shadow-md;
+
+      &::after {
+        content:        "";
+        position:       absolute;
+        top:            100%;
+        left:           50%;
+        margin-left:    -5px;
+        border-width:   5px;
+        border-style:   solid;
+        border-color:   c.$color-neutral-900 transparent transparent transparent;
+      }
+    }
+  }
+}
+
+// ============================================================
+// Filter summary pill
+// ============================================================
+.filter-summary-container {
+  margin-top: v.$spacing-1;
+  font-size:  v.$font-size-xs;
+}
+
+.filter-summary {
+  display:          inline-block;
+  background-color: c.$color-info-50;
+  border-radius:    v.$radius-sm;
+  padding:          v.$spacing-2;
+  color:            c.$color-info-600;
+  border:           1px solid c.$color-info-200;
+  white-space:      nowrap;
+  overflow:         hidden;
+  text-overflow:    ellipsis;
+  max-width:        100%;
+  cursor:           help;
+
+  [data-theme="dark"] & {
+    background-color: c.$color-primary-700;
+    color:            c.$color-info-200;
+    border-color:     c.$color-primary-600;
+  }
+}
+
+// ============================================================
+// Standalone filter controls (outside .search scope)
+// ============================================================
+.filter-icon-container {
+  cursor:      pointer;
+  @include m.flex-center();
+}
+
+.filter-with-reset {
+  position:    relative;
+  display:     flex;
+  align-items: center;
+  gap:         14px;
+}
+
+.reset-button-overlay {
+  position: absolute;
+  top:      -8px;
+  right:    -8px;
+  cursor:   pointer;
+}
+
+.reset-filter-icon:hover {
+  transform: scale(1.2);
+}
+
+// Placeholder color on search input
+#filter-text-box::placeholder {
+  color:          c.$color-primary;
+  opacity:        0.6;
+  letter-spacing: 0.5px;
+}
+
+// ============================================================
+// DARK THEME
+// ============================================================
+html.dark {
+  .filter-text-box::placeholder {
+    color: c.$color-white !important;
+  }
+
+  // Dark placeholder for search input
+  #filter-text-box::placeholder {
+    color:   c.$color-white !important;
+    opacity: 0.8;
+  }
+
+  .search {
+    background-color: var(--bg-card) !important;
+    border:           1px solid var(--bg-hover) !important;
+
+    input {
+      color:            var(--text-primary) !important;
+      background-color: var(--bg-card) !important;
+
+      &::placeholder {
+        color:   c.$color-white !important;
+        opacity: 0.8;
+      }
+    }
+
+    &:hover,
+    &:focus-within {
+      border-color: c.$color-primary-300;
+      box-shadow:   0 v.$spacing-1 v.$spacing-2 rgba(c.$color-black, 0.2);
+    }
+
+    &__icon {
+      color: var(--text-primary) !important;
+
+      &:hover {
+        color: c.$color-primary-300;
+      }
+    }
+
+    .filter-icon-container:hover {
+      background-color: rgba(c.$color-white, 0.08);
+    }
+
+    .reset-filter-icon {
+      color: c.$color-danger-300;
+
+      &:hover { color: c.$color-danger-400; }
+    }
+
+    .tooltip .tooltip-text {
+      background-color: c.$color-neutral-950;
+      box-shadow:       v.$shadow-lg;
+
+      &::after {
+        border-color: c.$color-neutral-950 transparent transparent transparent;
+      }
+    }
+  }
+}

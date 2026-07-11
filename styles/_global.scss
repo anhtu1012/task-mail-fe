@@ -1,0 +1,208 @@
+@font-face {
+  font-family: "Roboto-thin", sans-serif;
+  font-weight: 100;
+  font-style: normal;
+  src: url(/fonts/Roboto/Roboto-Thin.ttf) format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto-light", sans-serif;
+  font-weight: 300;
+  font-style: normal;
+  src: url(/fonts/Roboto/Roboto-Light.ttf) format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto-regular", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  src: url(/fonts/Roboto/Roboto-Regular.ttf) format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto-medium", sans-serif;
+  font-weight: 500;
+  font-style: normal;
+  src: url(/fonts/Roboto/Roboto-Medium.ttf) format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto-bold", sans-serif;
+  font-weight: 700;
+  font-style: normal;
+  src: url(/fonts/Roboto/Roboto-Bold.ttf) format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto-black", sans-serif;
+  font-weight: 900;
+  font-style: normal;
+  src: url(/fonts/Roboto/Roboto-Black.ttf) format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto-thin-italic", sans-serif;
+  font-weight: 100;
+  font-style: italic;
+  src: url(/fonts/Roboto/Roboto-ThinItalic.ttf) format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto-light-italic", sans-serif;
+  font-weight: 300;
+  font-style: italic;
+  src: url(/fonts/Roboto/Roboto-LightItalic.ttf) format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto-regular-italic", sans-serif;
+  font-weight: 400;
+  font-style: italic;
+  src: url(/fonts/Roboto/Roboto-Regular.ttf) format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto-medium-italic", sans-serif;
+  font-weight: 500;
+  font-style: italic;
+  src: url(/fonts/Roboto/Roboto-MediumItalic.ttf) format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto-bold-italic", sans-serif;
+  font-weight: 700;
+  font-style: italic;
+  src: url(/fonts/Roboto/Roboto-BoldItalic.ttf) format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto-black-italic", sans-serif;
+  font-weight: 900;
+  font-style: italic;
+  src: url(/fonts/Roboto/Roboto-BlackItalic.ttf) format("ttf");
+}
+
+html {
+  font-size: 16px;
+}
+
+/* CSS variables cho react-data-grid v7 */
+:root {
+  --rdg-border-color: #e1e1e1;
+  --rdg-border-width: 1px;
+  --rdg-background-color: #fff;
+  --rdg-selection-color: #0971ff;
+  --rdg-selection-width: 2px;
+  --rdg-checkbox-color: #0971ff;
+  --rdg-checkbox-focus-color: #0971ff;
+  --rdg-cell-frozen-box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.15);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  // font-family: "Roboto-regular", sans-serif !important;
+  padding: 0;
+  margin: 0;
+}
+
+/* Custom scrollbar for Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* Light Gray */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Standard scrollbar for Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+// nextjs-portal {
+//   display: none;
+// }
+
+.ant-modal-root :is(.ant-modal-mask, .ant-modal-wrap) {
+  z-index: 1002;
+}
+
+.ant-image-preview-operations-wrapper {
+  z-index: 2001 !important;
+}
+
+.rdg-header-row .rdg-cell {
+  backdrop-filter: blur(10px) !important;
+}
+
+.infor-modal {
+  .infor-modal_label {
+    text-align: left;
+    color: #94a3b8;
+    font-size: 14px;
+  }
+
+  .infor-modal_value {
+    text-align: right;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: bold;
+  }
+
+  .infor-modal_value.red_label {
+    color: red;
+  }
+
+  .infor-modal_footer_text {
+    font-weight: bold;
+    font-size: 15px;
+  }
+
+  .show-more-img {
+    .show-more-img-mask {
+      opacity: 5 !important;
+    }
+  }
+}
+
+.excel-dropdown-item {
+  display: flex !important;
+  align-items: center;
+  width: 100%;
+  padding: 4px 12px;
+  gap: 10px;
+  cursor: pointer;
+
+  .item-label {
+    flex: 1;
+    font-weight: 500;
+    color: #4b5563;
+  }
+
+  &:hover {
+    .item-label {
+      color: #1890ff;
+    }
+  }
+}
+
+.excel-upload-wrapper {
+  width: 100%;
+  .ant-upload {
+    width: 100%;
+    display: flex !important;
+    align-items: center;
+  }
+}

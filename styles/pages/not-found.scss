@@ -1,0 +1,48 @@
+@use "../variable" as *;
+@use "../colors" as *;
+@use "../mixins" as *;
+
+.not-found__page {
+  width: 100%;
+  height: 100vh;
+  justify-content: center;
+  background-color: $color-white;
+  .title {
+    font-size: 80px;
+    font-weight: 600;
+    // color: #0e499a;
+    line-height: 85px;
+    background: linear-gradient(
+      346deg,
+      rgba(2, 0, 36, 1) 11%,
+      rgba(9, 9, 121, 1) 38%,
+      rgba(0, 212, 255, 1) 94%
+    );
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .title-des {
+    font-size: 20px;
+    font-weight: 500;
+    color: #0e499a;
+  }
+  .des {
+    margin-top: 10px;
+    color: #0e499a;
+  }
+  .btn-back {
+    margin-top: 12px;
+    background-color: #0e499a;
+    color: #fff;
+    border-radius: 20px !important;
+    padding: 22px 30px !important;
+    font-size: 16px !important;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background-color: #0e489ae3 !important;
+      color: #fff !important;
+      border-color: unset !important;
+    }
+  }
+}

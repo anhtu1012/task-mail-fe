@@ -1,0 +1,115 @@
+@use "../colors";
+@use "../variable" as v;
+
+/**
+ * CSelect - Premium Ant Design Select Overrides
+ * Follows Task Design System v1.0
+ */
+
+.c-select {
+  &.ant-select {
+    height: v.$input-height !important;
+    min-height: v.$input-height !important;
+
+    .ant-select-selector {
+      border-radius: v.$input-radius !important;
+      border: 1px solid colors.$color-border !important;
+      font-size: v.$font-size-sm;
+      color: colors.$color-foreground;
+      background-color: colors.$color-white !important;
+      transition: all v.$transition-normal;
+      display: flex;
+      align-items: center;
+
+      height: 100% !important;
+      min-height: 100% !important;
+      padding: 0 v.$input-padding-x !important;
+    }
+
+    &.ant-select-sm {
+      height: 24px !important;
+      min-height: 24px !important;
+      .ant-select-selector {
+        padding: 0 7px !important;
+      }
+    }
+
+    &.ant-select-lg {
+      height: 40px !important;
+      min-height: 40px !important;
+      .ant-select-selector {
+        padding: 0 11px !important;
+      }
+    }
+
+    &:hover .ant-select-selector {
+      border-color: colors.$color-primary-300 !important;
+    }
+
+    &.ant-select-focused .ant-select-selector {
+      border-color: colors.$color-primary !important;
+      box-shadow: 0 0 0 3px rgba(colors.$color-primary, 0.1) !important;
+    }
+
+    &.ant-select-disabled .ant-select-selector {
+      background-color: colors.$color-muted !important;
+      color: colors.$color-neutral-400;
+      border-color: colors.$color-border-light !important;
+    }
+
+    // Status - Error
+    &.ant-select-status-error .ant-select-selector {
+      border-color: colors.$color-danger !important;
+    }
+    &.ant-select-status-error.ant-select-focused .ant-select-selector {
+      box-shadow: 0 0 0 3px rgba(colors.$color-danger, 0.1) !important;
+    }
+
+    // Status - Warning
+    &.ant-select-status-warning .ant-select-selector {
+      border-color: colors.$color-warning !important;
+    }
+    &.ant-select-status-warning.ant-select-focused .ant-select-selector {
+      box-shadow: 0 0 0 3px rgba(colors.$color-warning, 0.12) !important;
+    }
+
+    .ant-select-arrow {
+      color: colors.$color-muted-foreground;
+      transition: color v.$transition-normal;
+      right: v.$input-padding-x;
+    }
+
+    &:hover .ant-select-arrow {
+      color: colors.$color-primary;
+    }
+
+    // Multi-select tags
+    .ant-select-selection-item {
+      background-color: colors.$color-primary-50;
+      border-color: colors.$color-primary-200;
+      border-radius: 4px;
+      color: colors.$color-primary-500;
+    }
+
+    .ant-select-selection-item-remove {
+      color: colors.$color-primary-400;
+
+      &:hover {
+        color: colors.$color-danger;
+      }
+    }
+  }
+
+  // Custom Mandatory field styling
+  &.c-select-mandatory {
+    &.ant-select .ant-select-selector {
+      background-color: rgba(colors.$color-warning, 0.06) !important;
+      border-color: rgba(colors.$color-warning, 0.4) !important;
+    }
+
+    &.ant-select.ant-select-focused .ant-select-selector {
+      border-color: colors.$color-warning !important;
+      box-shadow: 0 0 0 3px rgba(colors.$color-warning, 0.12) !important;
+    }
+  }
+}

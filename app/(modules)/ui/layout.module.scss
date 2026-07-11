@@ -1,0 +1,23 @@
+@use "../../../styles/variable" as *;
+@use "../../../styles/colors" as *;
+@use "../../../styles/mixins" as *;
+
+/* ============================================================
+   CA Module — Layout
+   ============================================================ */
+
+.layoutWrapper {
+  @include flex(row, stretch, flex-start);
+  height: 100vh;
+  width: 100%;
+  background-color: $color-background;
+  overflow: hidden;
+}
+
+.layoutMain {
+  @include flex(column, stretch, flex-start);
+  flex: 1;
+  min-width: 0;
+  height: 100vh;
+  overflow: hidden;
+}

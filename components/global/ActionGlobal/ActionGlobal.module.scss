@@ -1,0 +1,608 @@
+@use "../../../styles/variable" as *;
+@use "../../../styles/colors" as *;
+@use "../../../styles/mixins" as *;
+
+// ── Toolbar container ──────────────────────────────────────────────────────
+.actionGlobalContainer {
+  @include flex(row, center, flex-start);
+  gap: 3px;
+  padding: 0 12px;
+  background-color: $color-white;
+  border-bottom: 1px solid $color-border;
+  width: 100%;
+  flex-wrap: nowrap;
+  min-height: 38px;
+  overflow: hidden;
+}
+
+// ── Khu vực actions (trái, cuộn ngang nếu tràn) ───────────────────────────
+.actionsArea {
+  @include flex(row, center, flex-start);
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none; // Firefox
+  -ms-overflow-style: none; // IE/Edge
+
+  &::-webkit-scrollbar {
+    display: none; // Chrome/Safari
+  }
+}
+
+// ── Khu vực toggle cố định bên phải ───────────────────────────────────────
+.toggleArea {
+  @include flex(row, center, center);
+  flex-shrink: 0;
+  padding-left: 8px;
+  border-left: 1px solid $color-border-light;
+  margin-left: 4px;
+}
+
+// ── Divider ────────────────────────────────────────────────────────────────
+.divider {
+  width: 1px;
+  height: 16px;
+  background-color: $color-border;
+  margin: 0 5px;
+  flex-shrink: 0;
+}
+
+// ── Action button — chế độ đơn giản (flat / text) ─────────────────────────
+.actionBtn {
+  @include flex(row, center, center);
+  gap: 5px;
+  height: 28px !important;
+  padding: 0 8px !important;
+  border-radius: 5px !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  color: $color-foreground !important;
+  border: none !important;
+  background: transparent !important;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease !important;
+  white-space: nowrap;
+
+  svg {
+    color: $color-neutral-700;
+    flex-shrink: 0;
+    transition: color 0.15s ease;
+  }
+
+  &:hover:not(:disabled) {
+    background: $color-muted !important;
+    color: $color-neutral-950 !important;
+
+    svg {
+      color: $color-neutral-950;
+    }
+  }
+
+  &:active:not(:disabled) {
+    background: $color-neutral-300 !important;
+  }
+
+  &:disabled,
+  &[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+// Danger variant (simple mode)
+.actionBtnDanger {
+  &:hover:not(:disabled) {
+    background: $color-danger-50 !important;
+    color: $color-danger !important;
+
+    svg {
+      color: $color-danger;
+    }
+  }
+}
+
+// ── Action button — chế độ đầy đủ (variant chip) ─────────────────────────
+.actionBtnFull {
+  @include flex(row, center, center);
+  gap: 5px;
+  height: 26px !important;
+  padding: 0 10px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: $color-neutral-800 !important;
+  border: 1px solid $color-border-dark !important;
+  background: $color-neutral-50 !important;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease !important;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+
+  svg {
+    color: $color-neutral-700;
+    flex-shrink: 0;
+    transition: color 0.15s ease;
+  }
+
+  &:hover:not(:disabled) {
+    background: $color-white !important;
+    border-color: $color-neutral-500 !important;
+    color: $color-neutral-950 !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+
+    svg {
+      color: $color-neutral-950;
+    }
+  }
+
+  &:active:not(:disabled) {
+    background: $color-neutral-100 !important;
+    box-shadow: none !important;
+  }
+
+  &:disabled,
+  &[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none !important;
+  }
+}
+
+// // Danger variant (full mode)
+// .actionBtnFullDanger {
+//   color: $color-danger-500 !important;
+//   border-color: $color-danger-100 !important;
+//   background: $color-danger-50 !important;
+
+//   svg {
+//     color: $color-danger-500;
+//   }
+
+//   &:hover:not(:disabled) {
+//     color: $color-danger-600 !important;
+//     border-color: $color-danger-200 !important;
+//     background: $color-danger-50 !important;
+//     box-shadow: 0 2px 6px rgba(230, 57, 70, 0.12) !important;
+
+//     svg {
+//       color: $color-danger-600;
+//     }
+//   }
+// }
+
+// Filter active state
+.filterActive {
+  background: $color-primary-50 !important;
+  color: $color-primary !important;
+  border-color: $color-primary-200 !important;
+
+  svg {
+    color: $color-primary;
+  }
+
+  &:hover:not(:disabled) {
+    background: $color-primary-100 !important;
+    border-color: $color-primary-300 !important;
+  }
+}
+
+// ── Action label ───────────────────────────────────────────────────────────
+.actionLabel {
+  line-height: 1;
+  user-select: none;
+}
+
+// ── Shortcut badge — dùng trong Tooltip (Ctrl + X) ────────────────────────
+.shortcutBadge {
+  @include flex(row, center, center);
+  gap: 1px;
+  margin-left: 3px;
+  flex-shrink: 0;
+}
+
+.shortcutKey {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: $color-neutral-200;
+  color: $color-neutral-700;
+  border: 1px solid $color-neutral-400;
+  box-shadow: 0 1px 0 $color-neutral-400;
+  letter-spacing: 0;
+  min-width: 18px;
+  text-align: center;
+}
+
+.shortcutPlus {
+  font-size: 9px;
+  color: $color-neutral-500;
+  padding: 0 1px;
+  user-select: none;
+}
+
+// ── Shortcut chip — inline trong nút chế độ đầy đủ (chỉ key đơn) ─────────
+.shortcutChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: $color-neutral-200;
+  color: $color-neutral-600;
+  border: 1px solid $color-neutral-300;
+  min-width: 16px;
+  text-align: center;
+  letter-spacing: 0;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+// ── Tooltip content (label + shortcut inline) ──────────────────────────────
+.tooltipContent {
+  @include flex(row, center, center);
+  gap: 8px;
+  white-space: nowrap;
+
+  // Override badge màu trong tooltip nền tối
+  .shortcutKey {
+    background: rgba(255, 255, 255, 0.15);
+    color: #e8e8e8;
+    border-color: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .shortcutPlus {
+    color: rgba(255, 255, 255, 0.5);
+  }
+}
+
+// ── Segmented toggle: Gọn / Đầy đủ ───────────────────────────────────────
+.modeToggle {
+  @include flex(row, center, center);
+  gap: 1px;
+  background: $color-neutral-200;
+  border: 1px solid $color-border-dark;
+  border-radius: 6px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.modeBtn {
+  @include flex(row, center, center);
+  gap: 4px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: $color-neutral-600;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  outline: none;
+  user-select: none;
+
+  svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+  }
+
+  &:hover {
+    color: $color-neutral-800;
+    background: rgba(0, 0, 0, 0.04);
+
+    svg {
+      opacity: 1;
+    }
+  }
+}
+
+.modeBtnActive {
+  background: $color-white !important;
+  color: $color-primary !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  svg {
+    opacity: 1 !important;
+    color: $color-primary;
+  }
+
+  &:hover {
+    background: $color-white !important;
+    color: $color-primary !important;
+  }
+}
+
+.actionBtnActive {
+  background: $color-primary-50 !important;
+  color: $color-primary !important;
+  border-color: $color-primary-200 !important;
+
+  svg {
+    color: $color-primary !important;
+  }
+}
+
+.actionBtnFullActive {
+  background: $color-primary-50 !important;
+  color: $color-primary !important;
+  border-color: $color-primary-300 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) inset !important;
+
+  svg {
+    color: $color-primary !important;
+  }
+}
+
+// ── Custom Semantic Variants for ActionGlobal (derived from CButton) ─────────
+
+// 1. SIMPLE MODE (Flat hovers with subtle background highlight)
+.actionBtnSuccess {
+  color: $color-success !important;
+  svg { color: $color-success !important; }
+  &:hover:not(:disabled) {
+    background: $color-success-50 !important;
+    color: $color-success-500 !important;
+    svg { color: $color-success-500 !important; }
+  }
+}
+
+.actionBtnWarning {
+  color: $color-warning !important;
+  svg { color: $color-warning !important; }
+  &:hover:not(:disabled) {
+    background: $color-warning-50 !important;
+    color: $color-warning-500 !important;
+    svg { color: $color-warning-500 !important; }
+  }
+}
+
+.actionBtnError {
+  color: $color-danger !important;
+  svg { color: $color-danger !important; }
+  &:hover:not(:disabled) {
+    background: $color-danger-50 !important;
+    color: $color-danger-500 !important;
+    svg { color: $color-danger-500 !important; }
+  }
+}
+
+.actionBtnInfo {
+  color: $color-info !important;
+  svg { color: $color-info !important; }
+  &:hover:not(:disabled) {
+    background: $color-info-50 !important;
+    color: $color-info-600 !important;
+    svg { color: $color-info-600 !important; }
+  }
+}
+
+.actionBtnSecondary {
+  color: $color-neutral-500 !important;
+  svg { color: $color-neutral-500 !important; }
+  &:hover:not(:disabled) {
+    background: $color-neutral-100 !important;
+    color: $color-neutral-700 !important;
+    svg { color: $color-neutral-700 !important; }
+  }
+}
+
+.actionBtnDark {
+  color: $color-neutral-800 !important;
+  svg { color: $color-neutral-800 !important; }
+  &:hover:not(:disabled) {
+    background: $color-neutral-100 !important;
+    color: $color-neutral-950 !important;
+    svg { color: $color-neutral-950 !important; }
+  }
+}
+
+.actionBtnLight {
+  color: $color-neutral-600 !important;
+  svg { color: $color-neutral-600 !important; }
+  &:hover:not(:disabled) {
+    background: $color-neutral-50 !important;
+    color: $color-neutral-800 !important;
+    svg { color: $color-neutral-800 !important; }
+  }
+}
+
+.actionBtnGradient {
+  color: #a855f7 !important;
+  svg { color: #a855f7 !important; }
+  &:hover:not(:disabled) {
+    background: rgba(168, 85, 247, 0.08) !important;
+    color: #8b5cf6 !important;
+    svg { color: #8b5cf6 !important; }
+  }
+}
+
+
+// 2. FULL MODE (Solid premium background colors and gradients)
+.actionBtnFullSuccess {
+  background: $gradient-success !important;
+  border-color: transparent !important;
+  color: $color-white !important;
+  box-shadow: 0 1px 3px rgba($color-success, 0.15) !important;
+
+  svg { color: $color-white !important; }
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, $color-success-300 0%, $color-success-400 100%) !important;
+    box-shadow: 0 3px 8px rgba($color-success, 0.3) !important;
+    transform: translateY(-1px);
+    color: $color-white !important;
+    border-color: transparent !important;
+    svg { color: $color-white !important; }
+  }
+  &:active:not(:disabled) { transform: translateY(0); }
+}
+
+.actionBtnFullWarning {
+  background: $gradient-warning !important;
+  border-color: transparent !important;
+  color: $color-white !important;
+  box-shadow: 0 1px 3px rgba($color-warning, 0.15) !important;
+
+  svg { color: $color-white !important; }
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, $color-warning-300 0%, $color-warning-400 100%) !important;
+    box-shadow: 0 3px 8px rgba($color-warning, 0.3) !important;
+    transform: translateY(-1px);
+    color: $color-white !important;
+    border-color: transparent !important;
+    svg { color: $color-white !important; }
+  }
+  &:active:not(:disabled) { transform: translateY(0); }
+}
+
+.actionBtnFullError {
+  background: $gradient-danger !important;
+  border-color: transparent !important;
+  color: $color-white !important;
+  box-shadow: 0 1px 3px rgba($color-danger, 0.15) !important;
+
+  svg { color: $color-white !important; }
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, $color-danger-300 0%, $color-danger-400 100%) !important;
+    box-shadow: 0 3px 8px rgba($color-danger, 0.3) !important;
+    transform: translateY(-1px);
+    color: $color-white !important;
+    border-color: transparent !important;
+    svg { color: $color-white !important; }
+  }
+  &:active:not(:disabled) { transform: translateY(0); }
+}
+
+.actionBtnFullInfo {
+  background: $gradient-info !important;
+  border-color: transparent !important;
+  color: $color-white !important;
+  box-shadow: 0 1px 3px rgba($color-info, 0.15) !important;
+
+  svg { color: $color-white !important; }
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, $color-info-400 0%, $color-info-500 100%) !important;
+    box-shadow: 0 3px 8px rgba($color-info, 0.3) !important;
+    transform: translateY(-1px);
+    color: $color-white !important;
+    border-color: transparent !important;
+    svg { color: $color-white !important; }
+  }
+  &:active:not(:disabled) { transform: translateY(0); }
+}
+
+.actionBtnFullSecondary {
+  background: $gradient-secondary !important;
+  border-color: transparent !important;
+  color: $color-white !important;
+  box-shadow: 0 1px 3px rgba($color-neutral-500, 0.15) !important;
+
+  svg { color: $color-white !important; }
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, $color-neutral-400 0%, $color-neutral-500 100%) !important;
+    box-shadow: 0 3px 8px rgba($color-neutral-500, 0.3) !important;
+    transform: translateY(-1px);
+    color: $color-white !important;
+    border-color: transparent !important;
+    svg { color: $color-white !important; }
+  }
+  &:active:not(:disabled) { transform: translateY(0); }
+}
+
+.actionBtnFullDark {
+  background: $gradient-dark !important;
+  border-color: transparent !important;
+  color: $color-white !important;
+  box-shadow: 0 1px 3px rgba($color-neutral-800, 0.2) !important;
+
+  svg { color: $color-white !important; }
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, $color-neutral-700 0%, $color-neutral-800 100%) !important;
+    box-shadow: 0 3px 8px rgba($color-neutral-800, 0.3) !important;
+    transform: translateY(-1px);
+    color: $color-white !important;
+    border-color: transparent !important;
+    svg { color: $color-white !important; }
+  }
+  &:active:not(:disabled) { transform: translateY(0); }
+}
+
+.actionBtnFullLight {
+  background: linear-gradient(135deg, $color-white 0%, $color-neutral-100 100%) !important;
+  border-color: $color-border !important;
+  color: $color-neutral-700 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+
+  svg { color: $color-neutral-700 !important; }
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, $color-neutral-50 0%, $color-white 100%) !important;
+    border-color: $color-border-dark !important;
+    color: $color-neutral-900 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+    svg { color: $color-neutral-900 !important; }
+  }
+  &:active:not(:disabled) { transform: translateY(0); }
+}
+
+.actionBtnFullGradient {
+  background: $gradient-premium !important;
+  border-color: transparent !important;
+  color: $color-white !important;
+  box-shadow: 0 1px 4px rgba(168, 85, 247, 0.2) !important;
+
+  svg { color: $color-white !important; }
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, #818CF8 0%, #C084FC 50%, #F472B6 100%) !important;
+    box-shadow: 0 3px 10px rgba(168, 85, 247, 0.3) !important;
+    transform: translateY(-1px);
+    color: $color-white !important;
+    border-color: transparent !important;
+    svg { color: $color-white !important; }
+  }
+  &:active:not(:disabled) { transform: translateY(0); }
+}
+
+// Overwrite shortcut badges inside solid semantic full buttons
+.actionBtnFullSuccess,
+.actionBtnFullWarning,
+.actionBtnFullError,
+.actionBtnFullDanger,
+.actionBtnFullInfo,
+.actionBtnFullSecondary,
+.actionBtnFullDark,
+.actionBtnFullGradient {
+  .shortcutChip {
+    background: rgba(255, 255, 255, 0.22) !important;
+    color: $color-white !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+  }
+}
+

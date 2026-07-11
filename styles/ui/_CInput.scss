@@ -1,0 +1,157 @@
+@use "../colors";
+@use "../variable" as v;
+
+/**
+ * CInput - Premium Ant Design Input Overrides
+ * Follows Task Design System v1.0
+ */
+
+.c-input {
+  &.ant-input,
+  &.ant-input-affix-wrapper,
+  &.ant-input-textarea {
+    border-radius: v.$input-radius;
+    border: 1px solid colors.$color-border;
+    font-size: v.$font-size-sm;
+    color: colors.$color-foreground;
+    background-color: colors.$color-white;
+    transition: all v.$transition-normal;
+    backface-visibility: hidden;
+
+    &.ant-input {
+      padding: v.$input-padding-y v.$input-padding-x !important;
+      height: v.$input-height !important;
+    }
+
+    &.ant-input-sm {
+      padding: 0 7px !important;
+      height: 24px !important;
+    }
+
+    &.ant-input-lg {
+      padding: 7px 11px !important;
+      height: 40px !important;
+    }
+
+    &.ant-input-affix-wrapper {
+      // padding-left: v.$input-padding-x !important;
+      // padding-right: v.$input-padding-x !important;
+      min-height: v.$input-height !important;
+      
+      > input.ant-input {
+        padding: 0 !important;
+        height: auto !important;
+      }
+
+      &.ant-input-affix-wrapper-sm {
+        padding-left: 7px !important;
+        padding-right: 7px !important;
+        min-height: 24px !important;
+      }
+
+      &.ant-input-affix-wrapper-lg {
+        padding-left: 11px !important;
+        padding-right: 11px !important;
+        min-height: 40px !important;
+      }
+    }
+
+    &::placeholder {
+      color: colors.$color-muted-foreground;
+    }
+
+    &:hover {
+      border-color: colors.$color-primary-300;
+    }
+
+    &:focus,
+    &.ant-input-affix-wrapper-focused {
+      border-color: colors.$color-primary;
+      box-shadow: 0 0 0 3px rgba(colors.$color-primary, 0.1);
+    }
+
+    &[disabled],
+    &.ant-input-disabled,
+    &.ant-input-affix-wrapper-disabled {
+      background-color: colors.$color-muted;
+      color: colors.$color-neutral-400;
+      border-color: colors.$color-border-light;
+      cursor: not-allowed;
+    }
+
+    // Ant Design Status - Error
+    &.ant-input-status-error,
+    &.ant-input-affix-wrapper-status-error {
+      border-color: colors.$color-danger !important;
+      &:focus,
+      &-focused {
+        box-shadow: 0 0 0 3px rgba(colors.$color-danger, 0.1) !important;
+      }
+    }
+
+    // Ant Design Status - Warning
+    &.ant-input-status-warning,
+    &.ant-input-affix-wrapper-status-warning {
+      border-color: colors.$color-warning !important;
+      &:focus,
+      &-focused {
+        box-shadow: 0 0 0 3px rgba(colors.$color-warning, 0.12) !important;
+      }
+    }
+  }
+
+  // Custom Mandatory field styling
+  &.c-input-mandatory {
+    &.ant-input,
+    &.ant-input-affix-wrapper {
+      background-color: rgba(colors.$color-warning, 0.06);
+      border-color: rgba(colors.$color-warning, 0.4);
+
+      &:focus,
+      &.ant-input-affix-wrapper-focused {
+        border-color: colors.$color-warning;
+        box-shadow: 0 0 0 3px rgba(colors.$color-warning, 0.12);
+      }
+    }
+  }
+}
+
+// Password visibility icon
+.c-password {
+  .ant-input-suffix {
+    color: colors.$color-muted-foreground;
+    cursor: pointer;
+    transition: color v.$transition-normal;
+
+    &:hover {
+      color: colors.$color-primary;
+    }
+  }
+}
+
+// Search input
+.c-search {
+  &.ant-input-search {
+    .ant-input-search-button {
+      background: colors.$gradient-primary;
+      border-color: transparent;
+      color: colors.$color-white;
+      border-radius: 0 v.$radius-sm v.$radius-sm 0;
+
+      &:hover {
+        background: linear-gradient(135deg, colors.$color-primary-400 0%, colors.$color-primary-500 100%);
+      }
+    }
+  }
+}
+
+// TextArea
+.c-textarea {
+  &.ant-input-textarea {
+    textarea.ant-input {
+      border-radius: v.$radius-sm;
+      min-height: 80px;
+      resize: vertical;
+    }
+  }
+}
