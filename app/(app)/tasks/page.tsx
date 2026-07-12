@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from "react";
 import {
+  App,
   Button,
   Card,
   DatePicker,
+  Dropdown,
   Input,
   Popconfirm,
   Segmented,
@@ -14,10 +16,26 @@ import {
   Tooltip,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import { useQueryClient } from "@tanstack/react-query";
 import dayjs, { Dayjs } from "dayjs";
-import { CheckCheck, Mail, Pencil, Plus, RotateCw, Trash2 } from "lucide-react";
+import {
+  CheckCheck,
+  ChevronDown,
+  Download,
+  Mail,
+  Pencil,
+  Plus,
+  RotateCw,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import TaskDetailDrawer from "@/components/tasks/TaskDetailDrawer";
 import TaskFormModal from "@/components/tasks/TaskFormModal";
+import TaskFilterPresets from "@/components/tasks/TaskFilterPresets";
+import { taskApi } from "@/apis/task.api";
+import { getApiErrorMessage } from "@/utils/client/apiError";
+import { exportTasksToCsv } from "@/utils/client/exportTasksToCsv";
 import {
   useCompleteTask,
   useDeleteTask,
@@ -39,10 +57,22 @@ import {
   isAdminRole,
 } from "@/models/task";
 
+/** Chạy các API call theo từng lô nhỏ để tránh vượt rate-limit backend (20 req/60s) */
+async function runInBatches<T>(
+  items: T[],
+  worker: (item: T) => Promise<unknown>,
+  batchSize = 5,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map(worker));
+  }
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type Filters = {
+export type Filters = {
   status?: TaskStatus;
   priority?: TaskPriority;
   category?: TaskCategory;
@@ -50,9 +80,13 @@ type Filters = {
   sourceMailAccountId?: string;
   assigneeId?: string;
   range?: [Dayjs | null, Dayjs | null] | null;
+  /** Tìm theo mã/tiêu đề — lọc phía client trên trang dữ liệu hiện tại */
+  search?: string;
 };
 
 export default function TasksPage() {
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
   const { data: me } = useMe();
   const admin = isAdminRole(me?.role);
 
@@ -62,6 +96,9 @@ export default function TasksPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -92,6 +129,83 @@ export default function TasksPage() {
   const { data: mailAccounts } = useMailAccounts();
   const completeTask = useCompleteTask();
   const deleteTask = useDeleteTask();
+
+  // Search theo mã/tiêu đề/mô tả — lọc client-side trên trang dữ liệu đang tải
+  const displayedItems = useMemo(() => {
+    const items = data?.items ?? [];
+    const keyword = filters.search?.trim().toLowerCase();
+    if (!keyword) return items;
+    return items.filter(
+      (t) =>
+        t.code.toLowerCase().includes(keyword) ||
+        t.title.toLowerCase().includes(keyword) ||
+        (t.description ?? "").toLowerCase().includes(keyword),
+    );
+  }, [data?.items, filters.search]);
+
+  const invalidateAfterBulk = () => {
+    queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["task-stats"] });
+  };
+
+  const handleBulkStatus = async (status: TaskStatus) => {
+    const ids = selectedRowKeys as string[];
+    setBulkLoading(true);
+    try {
+      await runInBatches(ids, (id) => taskApi.update(id, { status }));
+      message.success(`Đã cập nhật trạng thái cho ${ids.length} công việc`);
+      setSelectedRowKeys([]);
+      invalidateAfterBulk();
+    } catch (error) {
+      message.error(getApiErrorMessage(error));
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkPriority = async (priority: TaskPriority) => {
+    const ids = selectedRowKeys as string[];
+    setBulkLoading(true);
+    try {
+      await runInBatches(ids, (id) => taskApi.update(id, { priority }));
+      message.success(`Đã cập nhật độ ưu tiên cho ${ids.length} công việc`);
+      setSelectedRowKeys([]);
+      invalidateAfterBulk();
+    } catch (error) {
+      message.error(getApiErrorMessage(error));
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = selectedRowKeys as string[];
+    setBulkLoading(true);
+    try {
+      await runInBatches(ids, (id) => taskApi.remove(id));
+      message.success(`Đã xoá ${ids.length} công việc`);
+      setSelectedRowKeys([]);
+      invalidateAfterBulk();
+    } catch (error) {
+      message.error(getApiErrorMessage(error));
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      // Lấy toàn bộ dữ liệu khớp filter hiện tại (không chỉ trang đang xem)
+      const all = await taskApi.list({ ...queryParams, page: 1, limit: 1000 });
+      exportTasksToCsv(all.items, taskTypes ?? []);
+      message.success(`Đã xuất ${all.items.length} công việc ra CSV`);
+    } catch (error) {
+      message.error(getApiErrorMessage(error));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Task đang xem trong drawer luôn lấy bản mới nhất từ list
   const liveViewingTask =
@@ -277,10 +391,25 @@ export default function TasksPage() {
           ]}
         />
         <div className="flex items-center gap-2">
+          <Input
+            allowClear
+            placeholder="Tìm theo mã / tiêu đề / mô tả"
+            prefix={<Search size={14} className="text-slate-400" />}
+            style={{ width: 240 }}
+            value={filters.search}
+            onChange={(e) => setFilter("search", e.target.value)}
+          />
           <Tooltip title="Làm mới">
             <Button
               icon={<RotateCw size={15} className={isFetching ? "animate-spin" : ""} />}
               onClick={() => refetch()}
+            />
+          </Tooltip>
+          <Tooltip title="Xuất CSV theo bộ lọc hiện tại">
+            <Button
+              icon={<Download size={15} />}
+              loading={exporting}
+              onClick={handleExport}
             />
           </Tooltip>
           <Button type="primary" icon={<Plus size={16} />} onClick={openCreate}>
@@ -292,6 +421,7 @@ export default function TasksPage() {
       {/* ===== Filters ===== */}
       <Card variant="borderless" styles={{ body: { padding: 16 } }}>
         <div className="flex flex-wrap items-center gap-2.5">
+          <TaskFilterPresets filters={filters} onApply={setFilters} />
           <Select
             allowClear
             placeholder="Độ ưu tiên"
@@ -363,14 +493,81 @@ export default function TasksPage() {
         </div>
       </Card>
 
+      {/* ===== Bulk action bar ===== */}
+      {selectedRowKeys.length > 0 && (
+        <Card
+          variant="borderless"
+          styles={{ body: { padding: 12 } }}
+          style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}
+        >
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-sm font-medium text-slate-700">
+              Đã chọn {selectedRowKeys.length} công việc
+            </span>
+            <Dropdown
+              trigger={["click"]}
+              disabled={bulkLoading}
+              menu={{
+                items: Object.values(TaskStatus).map((s) => ({
+                  key: s,
+                  label: STATUS_META[s].label,
+                  onClick: () => handleBulkStatus(s),
+                })),
+              }}
+            >
+              <Button loading={bulkLoading}>
+                Đổi trạng thái <ChevronDown size={14} />
+              </Button>
+            </Dropdown>
+            <Dropdown
+              trigger={["click"]}
+              disabled={bulkLoading}
+              menu={{
+                items: Object.values(TaskPriority).map((p) => ({
+                  key: p,
+                  label: PRIORITY_META[p].label,
+                  onClick: () => handleBulkPriority(p),
+                })),
+              }}
+            >
+              <Button loading={bulkLoading}>
+                Đổi ưu tiên <ChevronDown size={14} />
+              </Button>
+            </Dropdown>
+            <Popconfirm
+              title={`Xoá ${selectedRowKeys.length} công việc đã chọn?`}
+              okText="Xoá"
+              okButtonProps={{ danger: true, loading: bulkLoading }}
+              cancelText="Huỷ"
+              onConfirm={handleBulkDelete}
+            >
+              <Button danger icon={<Trash2 size={14} />} loading={bulkLoading}>
+                Xoá
+              </Button>
+            </Popconfirm>
+            <Button
+              type="text"
+              icon={<X size={14} />}
+              onClick={() => setSelectedRowKeys([])}
+            >
+              Bỏ chọn
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* ===== Table ===== */}
       <Card variant="borderless" styles={{ body: { padding: 0 } }}>
         <Table<Task>
           rowKey="id"
           columns={columns}
-          dataSource={data?.items}
+          dataSource={displayedItems}
           loading={isLoading}
           size="middle"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
+          }}
           onRow={(task) => ({
             onClick: () => setViewingTask(task),
             style: { cursor: "pointer" },

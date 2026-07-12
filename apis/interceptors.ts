@@ -187,7 +187,9 @@ export const setupResponseInterceptor = (
           // Chạy lại chính API vừa bị lỗi
           return http(originalRequest);
         } catch (refreshError: any) {
-          console.error("Refresh token failed:", refreshError);
+          if (process.env.NODE_ENV !== "production") {
+            console.error("Refresh token failed:", refreshError);
+          }
           // Hủy toàn bộ Queue
           processQueue(refreshError, null);
           handleSessionExpired();

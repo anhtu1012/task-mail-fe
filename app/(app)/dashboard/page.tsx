@@ -11,6 +11,7 @@ import {
   Mail,
   TrendingUp,
 } from "lucide-react";
+import TaskDistributionCharts from "@/components/dashboard/TaskDistributionCharts";
 import { useTaskStats, useTasks } from "@/hooks/useTaskApp";
 import {
   DEADLINE_META,
@@ -76,6 +77,11 @@ export default function DashboardPage() {
 
   // Task mới nhất
   const { data: recent, isLoading: recentLoading } = useTasks({ limit: 6 });
+
+  // Mẫu task để tính phân bố trạng thái/ưu tiên (giới hạn 200 -> không phá rate-limit)
+  const { data: distributionSample, isLoading: distributionLoading } = useTasks({
+    limit: 200,
+  });
 
   const upcomingOpen = (upcoming?.items ?? []).filter(
     (t) => t.status !== TaskStatus.DONE && t.status !== TaskStatus.CANCELLED,
@@ -159,6 +165,19 @@ export default function DashboardPage() {
           </Card>
         </Col>
       </Row>
+
+      {/* ===== Biểu đồ phân bố ===== */}
+      <div>
+        <TaskDistributionCharts
+          tasks={distributionSample?.items ?? []}
+          loading={distributionLoading}
+        />
+        {(distributionSample?.total ?? 0) > 200 && (
+          <div className="text-xs text-slate-400 mt-1.5">
+            * Biểu đồ tính trên mẫu 200/{distributionSample?.total} công việc gần nhất
+          </div>
+        )}
+      </div>
 
       {/* ===== Lists ===== */}
       <Row gutter={[16, 16]}>
