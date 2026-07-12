@@ -16,8 +16,6 @@ import dayjs from "dayjs";
 import "dayjs/locale/vi";
 import "dayjs/locale/en";
 
-import { WindowModeProvider } from "./WindowModeContext";
-
 const Provider = ({ children }: { children: ReactNode }) => {
   const [queryClient] = useState(
     () =>
@@ -25,7 +23,7 @@ const Provider = ({ children }: { children: ReactNode }) => {
         defaultOptions: {
           queries: {
             refetchOnWindowFocus: false,
-            refetchOnMount: false,
+            refetchOnMount: true,
           },
         },
       }),
@@ -60,9 +58,7 @@ const Provider = ({ children }: { children: ReactNode }) => {
                   direction={direction as "ltr" | "rtl"}
                 >
                   <AntdRegistry>
-                    <App>
-                      <WindowModeProvider>{children}</WindowModeProvider>
-                    </App>
+                    <App>{children}</App>
                   </AntdRegistry>
                 </ConfigProvider>
               );

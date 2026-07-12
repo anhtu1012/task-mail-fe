@@ -10,8 +10,6 @@ import CollapsibleNavItem from "./_components/CollapsibleNavItem";
 import UserDropdown from "./_components/UserDropdown";
 import styles from "./AppSidebar.module.scss";
 
-import { useWindowMode } from "@/contexts/WindowModeContext";
-
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
 /* ------------------------------------------------------------------ */
@@ -43,14 +41,9 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
   onToggleCollapsed,
 }) => {
   const router = useRouter();
-  const { layoutMode, openWindow } = useWindowMode();
   const activeKey = usePathname().split("/").filter(Boolean).pop() || "";
 
   const handleSelect = (key: string, href?: string) => {
-    if (layoutMode === "desktop") {
-      openWindow(key);
-      return;
-    }
     if (href && href !== "#") {
       router.push(href);
     }
@@ -89,12 +82,6 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
                   <Link
                     key={item.key}
                     href={item.href || "#"}
-                    onClick={(e) => {
-                      if (layoutMode === "desktop") {
-                        e.preventDefault();
-                        openWindow(item.key, item.label);
-                      }
-                    }}
                     className={`${styles.navItem} ${
                       activeKey === item.key ? styles.navItemActive : ""
                     }`}

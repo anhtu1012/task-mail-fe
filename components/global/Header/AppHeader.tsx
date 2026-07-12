@@ -3,18 +3,12 @@
 import React, { useEffect } from "react";
 import { PanelLeft } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useAppDispatch } from "@/store/hooks";
-import { clearShipData } from "@/store/slices/shipDataSlice";
 import type { NavGroup } from "@/components/global/Sidebar/_types/types";
 import type { BreadcrumbItem } from "./_types/types";
 import { autoBuildBreadcrumbs, findNavChain } from "./utils";
 import Breadcrumbs from "./_components/Breadcrumbs";
 import SearchBar from "./_components/SearchBar";
 import styles from "./AppHeader.module.scss";
-
-import { useWindowMode } from "@/contexts/WindowModeContext";
-import { CSegmented } from "@/components/ui";
-import { Layout, AppWindow } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
@@ -46,7 +40,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   extra,
 }) => {
   const pathname = usePathname();
-  const { layoutMode, setLayoutMode } = useWindowMode();
 
   // Auto breadcrumbs: use manual if provided, otherwise auto-build
   const breadcrumbs =
@@ -76,36 +69,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       </div>
 
       <div className={styles.headerRight}>
-        <CSegmented
-          value={layoutMode}
-          onChange={(val) => setLayoutMode(val as "normal" | "desktop")}
-          options={[
-            {
-              label: (
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
-                  title="Chế độ thường"
-                >
-                  <Layout size={14} />
-                  <span>Thường</span>
-                </div>
-              ),
-              value: "normal",
-            },
-            {
-              label: (
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
-                  title="Chế độ đa nhiệm cửa sổ"
-                >
-                  <AppWindow size={14} />
-                  <span>Đa nhiệm</span>
-                </div>
-              ),
-              value: "desktop",
-            },
-          ]}
-        />
         <SearchBar />
         {extra}
       </div>
