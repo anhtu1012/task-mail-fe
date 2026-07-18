@@ -305,7 +305,7 @@ export default function IntegrationsPage() {
             </span>
           }
         >
-          <div className="flex items-center gap-8">
+          <div className="flex flex-wrap items-center gap-8">
             <Statistic
               title="Kết nối"
               valueRender={() =>

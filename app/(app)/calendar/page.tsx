@@ -7,6 +7,7 @@ import {
   Button,
   Drawer,
   Empty,
+  Grid,
   List,
   Radio,
   Tag,
@@ -39,6 +40,7 @@ const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 
 export default function CalendarPage() {
   const { message } = App.useApp();
+  const screens = Grid.useBreakpoint();
   const queryClient = useQueryClient();
   const { data: me } = useMe();
   const admin = isAdminRole(me?.role);
@@ -218,7 +220,8 @@ export default function CalendarPage() {
       </div>
 
       {/* ===== Month grid ===== */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="min-w-[560px]">
         {/* Weekday header */}
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/70">
           {WEEKDAYS.map((weekday, index) => (
@@ -376,13 +379,14 @@ export default function CalendarPage() {
             );
           })}
         </div>
+        </div>
       </div>
 
       {/* ===== Drawer danh sách task của 1 ngày ===== */}
       <Drawer
         open={!!selectedDay}
         onClose={() => setSelectedDay(null)}
-        width={440}
+        width={screens.sm ? 440 : "100%"}
         title={
           selectedDay && (
             <span>

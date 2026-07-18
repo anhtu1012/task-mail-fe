@@ -39,6 +39,47 @@ $sidebar-width-collapsed: 68px;
   min-width: $sidebar-width-collapsed;
 }
 
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -100%;
+    width: $sidebar-width;
+    min-width: $sidebar-width;
+    z-index: $z-index-modal + 10;
+    box-shadow: $shadow-lg;
+    @include transition(left $transition-slow);
+  }
+
+  .sidebarMobileOpen {
+    left: 0;
+  }
+
+  .sidebarCollapsed {
+    // Trên mobile luôn hiển thị đầy đủ label khi mở, không dùng chế độ thu gọn icon-only
+    width: $sidebar-width;
+    min-width: $sidebar-width;
+  }
+}
+
+.backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: $z-index-modal + 5;
+  }
+
+  .backdropVisible {
+    display: block;
+  }
+}
+
 /* ============================================================
    Company Header
    ============================================================ */

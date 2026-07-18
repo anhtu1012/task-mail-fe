@@ -139,6 +139,7 @@ export default function TaskTypesPage() {
           loading={isLoading}
           pagination={false}
           size="middle"
+          scroll={{ x: 480 }}
           locale={{
             emptyText: (
               <Empty

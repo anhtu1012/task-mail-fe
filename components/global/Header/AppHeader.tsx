@@ -22,8 +22,10 @@ interface AppHeaderProps {
   rootLabel?: string;
   /** Root path for the module */
   rootPath?: string;
-  /** Toggle sidebar callback */
+  /** Toggle sidebar callback (desktop: collapse/expand) */
   onToggleSidebar?: () => void;
+  /** Mở sidebar off-canvas trên mobile (dưới 768px) */
+  onOpenMobile?: () => void;
   /** Extra content rendered on the right side */
   extra?: React.ReactNode;
 }
@@ -37,6 +39,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   rootLabel = "Dashboard",
   rootPath = "/ca",
   onToggleSidebar,
+  onOpenMobile,
   extra,
 }) => {
   const pathname = usePathname();
@@ -52,7 +55,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         {onToggleSidebar && (
           <button
             className={styles.sidebarToggle}
-            onClick={onToggleSidebar}
+            onClick={() => {
+              const isMobile = window.matchMedia("(max-width: 768px)").matches;
+              if (isMobile) {
+                onOpenMobile?.();
+              } else {
+                onToggleSidebar();
+              }
+            }}
             aria-label="Toggle sidebar"
           >
             <PanelLeft size={18} />

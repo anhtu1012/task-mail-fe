@@ -37,6 +37,10 @@
   &.type-grid {
     display: grid;
     grid-template-columns: repeat(var(--layout-columns), 1fr);
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
   }
 
   &.type-dashboard {
@@ -71,6 +75,14 @@
     > .layoutSection:last-child {
       flex-grow: 1;
       min-width: 0;
+    }
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+
+      > .layoutSection:first-child {
+        width: 100%;
+      }
     }
   }
 

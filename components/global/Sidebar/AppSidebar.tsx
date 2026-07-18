@@ -22,6 +22,10 @@ interface AppSidebarProps {
   collapsed: boolean;
   /** Controlled: toggle callback */
   onToggleCollapsed: () => void;
+  /** Mobile off-canvas: có đang mở hay không (dưới 768px) */
+  mobileOpen?: boolean;
+  /** Mobile off-canvas: đóng lại (bấm backdrop hoặc chọn 1 mục nav) */
+  onCloseMobile?: () => void;
 }
 
 const defaultUser: UserInfo = {
@@ -39,6 +43,8 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
   companyPlan = "Enterprise",
   collapsed,
   onToggleCollapsed,
+  mobileOpen = false,
+  onCloseMobile,
 }) => {
   const router = useRouter();
   const activeKey = usePathname().split("/").filter(Boolean).pop() || "";
@@ -47,12 +53,20 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
     if (href && href !== "#") {
       router.push(href);
     }
+    onCloseMobile?.();
   };
 
   return (
-    <aside
-      className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""}`}
-    >
+    <>
+      <div
+        className={`${styles.backdrop} ${mobileOpen ? styles.backdropVisible : ""}`}
+        onClick={onCloseMobile}
+      />
+      <aside
+        className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""} ${
+          mobileOpen ? styles.sidebarMobileOpen : ""
+        }`}
+      >
       {/* Company header */}
       <SidebarHeader
         companyName={companyName}
@@ -86,6 +100,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
                       activeKey === item.key ? styles.navItemActive : ""
                     }`}
                     title={collapsed ? item.label : undefined}
+                    onClick={() => onCloseMobile?.()}
                   >
                     <span className={styles.navItemIcon}>{item.icon}</span>
                     {!collapsed && (
@@ -122,7 +137,8 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
 
       {/* User section */}
       <UserDropdown user={user} collapsed={collapsed} />
-    </aside>
+      </aside>
+    </>
   );
 };
 

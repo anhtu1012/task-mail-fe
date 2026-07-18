@@ -171,7 +171,7 @@ export default function KanbanPage() {
             allowClear
             placeholder="Tìm tiêu đề, mã task..."
             prefix={<Search size={14} className="text-slate-400" />}
-            style={{ width: 220 }}
+            className="w-full sm:w-[220px]"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />

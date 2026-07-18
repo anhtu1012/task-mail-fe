@@ -211,6 +211,7 @@ const uiNavGroups: NavGroup[] = [
 /* ------------------------------------------------------------------ */
 export default function UiLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const toggleSidebar = () => setCollapsed((c) => !c);
 
   return (
@@ -221,6 +222,8 @@ export default function UiLayout({ children }: { children: React.ReactNode }) {
         companyPlan="UI Design System"
         collapsed={collapsed}
         onToggleCollapsed={toggleSidebar}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
       />
       <div className={styles.layoutMain}>
         <AppHeader
@@ -228,6 +231,7 @@ export default function UiLayout({ children }: { children: React.ReactNode }) {
           rootLabel="UI Components"
           rootPath="/ui"
           onToggleSidebar={toggleSidebar}
+          onOpenMobile={() => setMobileNavOpen(true)}
         />
         <div id="action-global-portal-root"></div>
         <MainContent>{children}</MainContent>

@@ -127,6 +127,21 @@
   }
 }
 
+@media (max-width: 640px) {
+  .header {
+    padding: 0 $spacing-3;
+  }
+
+  .searchBar {
+    min-width: 0;
+    max-width: none;
+  }
+
+  .searchKbd {
+    display: none;
+  }
+}
+
 /* ============================================================
    Breadcrumbs
    ============================================================ */

@@ -390,12 +390,12 @@ export default function TasksPage() {
             })),
           ]}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <Input
             allowClear
             placeholder="Tìm theo mã / tiêu đề / mô tả"
             prefix={<Search size={14} className="text-slate-400" />}
-            style={{ width: 240 }}
+            className="w-full sm:w-[240px]"
             value={filters.search}
             onChange={(e) => setFilter("search", e.target.value)}
           />
@@ -564,6 +564,7 @@ export default function TasksPage() {
           dataSource={displayedItems}
           loading={isLoading}
           size="middle"
+          scroll={{ x: 900 }}
           rowSelection={{
             selectedRowKeys,
             onChange: setSelectedRowKeys,
