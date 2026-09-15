@@ -382,7 +382,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
           pushHistory({
             label: "thêm việc",
             undo: () => boardApi.deleteCard(card.id),
-            redo: () => boardApi.restoreCard(card.id),
+            redo: () => boardApi.restoreCard(card.id, true),
           });
         })
         .catch(onFail);
@@ -424,8 +424,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
           if (Object.keys(inverse).length === 0) return;
           pushHistory({
             label: "sửa việc",
-            undo: () => boardApi.updateCard(cardId, inverse),
-            redo: () => boardApi.updateCard(cardId, patch),
+            undo: () => boardApi.updateCard(cardId, inverse, true),
+            redo: () => boardApi.updateCard(cardId, patch, true),
           });
         })
         .catch(onFail);
@@ -447,7 +447,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
           if (!card) return;
           pushHistory({
             label: "xoá việc",
-            undo: () => boardApi.restoreCard(cardId),
+            undo: () => boardApi.restoreCard(cardId, true),
             redo: () => boardApi.deleteCard(cardId),
           });
         })
@@ -499,8 +499,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
             }));
             pushHistory({
               label: "mở lại việc",
-              undo: () => boardApi.completeCard(cardId),
-              redo: () => boardApi.reopenCard(cardId),
+              undo: () => boardApi.completeCard(cardId, true),
+              redo: () => boardApi.reopenCard(cardId, true),
             });
           })
           .catch(onFail);
@@ -522,10 +522,32 @@ export function BoardProvider({ children }: { children: ReactNode }) {
               ? `${completed.code} đã hoàn thành 🎉 — đã tạo lượt kế tiếp ${next.code}`
               : `${completed.code} đã hoàn thành 🎉`,
           );
+
+          /**
+           * Việc có `repeat` sinh ngay thẻ kế tiếp. Backend không lần ngược
+           * được vì không lưu quan hệ cha–con, nên hoàn tác phải tự xoá thẻ đó
+           * — nếu không, mỗi lần bấm nhầm "Hoàn thành" rồi Ctrl+Z lại để lại
+           * một việc thừa trong bảng.
+           *
+           * `spawned` là biến đóng (closure) chứ không phải hằng số: redo gọi
+           * lại `complete` sẽ sinh thẻ MỚI với id khác, phải ghi đè để lần
+           * hoàn tác sau xoá đúng thẻ.
+           */
+          let spawned = next?.id ?? null;
+
           pushHistory({
             label: "hoàn thành việc",
-            undo: () => boardApi.reopenCard(cardId),
-            redo: () => boardApi.completeCard(cardId),
+            undo: async () => {
+              await boardApi.reopenCard(cardId, true);
+              if (spawned) {
+                await boardApi.deleteCard(spawned);
+                spawned = null;
+              }
+            },
+            redo: async () => {
+              const again = await boardApi.completeCard(cardId);
+              spawned = again.next?.id ?? null;
+            },
           });
         })
         .catch(onFail);
@@ -564,8 +586,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
           if (before === undefined) return;
           pushHistory({
             label: "đổi tên danh sách",
-            undo: () => boardApi.updateList(listId, { title: before }),
-            redo: () => boardApi.updateList(listId, { title }),
+            undo: () => boardApi.updateList(listId, { title: before }, true),
+            redo: () => boardApi.updateList(listId, { title }, true),
           });
         })
         .catch(onFail);
@@ -587,8 +609,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
           message.success("Đã lưu trữ danh sách, các việc quay về Hộp thư đến");
           pushHistory({
             label: "lưu trữ danh sách",
-            undo: () => boardApi.updateList(listId, { archived: false }),
-            redo: () => boardApi.updateList(listId, { archived: true }),
+            undo: () => boardApi.updateList(listId, { archived: false }, true),
+            redo: () => boardApi.updateList(listId, { archived: true }, true),
           });
           invalidate();
         })

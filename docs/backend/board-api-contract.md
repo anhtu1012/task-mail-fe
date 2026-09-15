@@ -534,10 +534,47 @@ Ba ràng buộc mục 5.7 đều đã thoả:
    checklist lẫn ghi chú.
 2. **Lặp lại được** — gọi `move` hai lần với cùng `listId` + `position` đều thành
    công, cho cùng kết quả. Có unit test.
-3. **`?undo=true`** để bỏ ghi nhật ký, hỗ trợ trên:
-   - `PATCH /tasks/:id/move?undo=true`
-   - `PATCH /tasks/:id/snooze?undo=true`
-   - `PATCH /checklist-items/:id?undo=true`
+3. **`?undo=true`** để bỏ bước ghi nhật ký.
+
+**Mọi endpoint ghi đều nhận cờ này** — kể cả những endpoint hiện chưa ghi nhật ký
+gì. FE cứ gửi đồng loạt, không cần nhớ endpoint nào hỗ trợ endpoint nào không:
+
+| Endpoint | `?undo=true` làm gì |
+|---|---|
+| `PATCH /tasks/:id/move` | bỏ `CARD_MOVED` |
+| `PATCH /tasks/:id/snooze` | bỏ `SNOOZED` |
+| `PATCH /checklist-items/:id` | bỏ `CHECKLIST_ITEM_CHECKED` |
+| `PATCH /tasks/:id/complete` | bỏ `CARD_COMPLETED` **và không sinh lại thẻ lặp** (xem dưới) |
+| `PATCH /tasks/:id/reopen` | bỏ `CARD_REOPENED` |
+| `PATCH /tasks/:id` | bỏ `DUE_CHANGED` |
+| `PATCH /lists/:id` | endpoint này không ghi nhật ký — cờ là no-op, nhận để FE gửi đồng loạt |
+| `POST /tasks/:id/restore` | khôi phục không ghi nhật ký — cờ là no-op |
+| `DELETE /tasks/:id` | xoá không ghi nhật ký — không cần gửi cờ |
+
+Giá trị hợp lệ: `?undo=true` hoặc `?undo=1`. Mọi giá trị khác (kể cả
+`?undo=false`) đều hiểu là **không** undo.
+
+> ⚠️ **Hai điều chỉnh so với bản bàn giao trước, FE nên biết:**
+>
+> 1. `?undo=true` ở **`/snooze` trước đây không có tác dụng**. Tham số query
+>    được khai báo bằng intersection type của TypeScript nên Nest không nhận ra
+>    là DTO, `undo` nằm lại dạng chuỗi `'true'` và phép so sánh luôn sai. Đã sửa.
+> 2. `?undo=false` trước đây bị hiểu **ngược thành có undo** ở cả 3 endpoint cũ.
+>    Đã sửa. Nếu FE đang gửi `undo=false` ở nhánh "làm thật" thì giờ mới chạy đúng.
+
+**`PATCH /tasks/:id` giờ ghi `DUE_CHANGED`.** Trước đây endpoint này không ghi
+nhật ký gì cả — bảng trong `board-next-steps.md` mô tả là đã ghi, nhưng thực tế
+chưa. Nay đã có: đổi `deadline` thì ghi một dòng `DUE_CHANGED` với câu
+`"Đổi hạn sang 23:13 16/09/2026"`. Đổi các trường khác (tiêu đề, ưu tiên, bìa)
+**không** ghi gì.
+
+> ⚠️ **Hoàn tác một lần "hoàn thành" không xoá thẻ lặp đã sinh.** Nếu việc có
+> `repeat`, `PATCH /complete` sinh ngay thẻ kế tiếp và trả trong `next`. Khi
+> người dùng Ctrl+Z, `reopen` chỉ mở lại thẻ gốc — **thẻ kế tiếp vẫn còn**.
+> Backend không lần ngược được vì không lưu quan hệ cha–con giữa hai thẻ.
+> **FE xử lý được dễ hơn:** giữ lại `next.id` từ response của `/complete`, và
+> khi undo thì gọi thêm `DELETE /tasks/{next.id}`. Nếu FE muốn backend tự làm
+> thì cần thêm cột `repeatSourceId` — báo lại nếu cần.
 
 ---
 
@@ -638,11 +675,21 @@ Migration đã chạy trên DB Supabase dev, sau đó boot app thật và gọi 
 > `<p>&nbsp;</p>` (Postgres `btrim` không cắt ký tự U+00A0 mà `sanitize-html`
 > sinh ra). Đã sửa. Unit test và typecheck **không** bắt được lỗi này.
 
-**Chưa kiểm được:**
+**Ba ô còn treo nay đã kiểm xong** (seed 230 thẻ trên một tài khoản dùng một
+lần, đo xong xoá sạch):
+
+| Ô nghiệm thu | Kết quả |
+|---|---|
+| Phản hồi dưới 400 ms với bảng 200 thẻ | ✅ đo 5 lần: 195 / 213 / 219 / 253 / 255 ms, **trung vị 219 ms** — đã tính cả độ trễ mạng tới Supabase Singapore |
+| `/agenda` trả thẻ thứ 25 của một cột | ✅ thẻ đó **không** nằm trong 20 thẻ đầu của cột (`/lists/:id/cards` không trả), nhưng `/agenda` vẫn trả về — đúng lý do endpoint này tồn tại |
+| Lưu trữ danh sách → thẻ về Hộp thư đến | ✅ 70 thẻ chuyển hết về inbox, tổng số thẻ không đổi (230), cột vẫn còn trong `lists` với `archived: true` |
+
+**Cơ chế undo cũng đã kiểm trên DB thật:** `complete`/`reopen` có và không có cờ,
+`complete?undo=true` không nhân đôi thẻ lặp, `PATCH /tasks/:id` ghi `DUE_CHANGED`
+đúng câu và im lặng khi có cờ, `restore` không ghi gì.
+
+**Còn lại chưa làm được:**
 
 | Việc | Vì sao |
 |---|---|
-| Mốc 400 ms với bảng 200 thẻ | DB dev mới có 23 task |
-| `/agenda` với thẻ thứ 25 của một cột | Chưa có cột nào đủ dài |
-| Lưu trữ danh sách (thẻ quay về Hộp thư đến) | Chưa test, code đã có |
-| Upload đính kèm | Chờ chốt chỗ lưu file (câu hỏi 9.3) |
+| Upload đính kèm | Chờ chốt chỗ lưu file (câu hỏi 9.3 — xem `board-next-steps.md` mục 2) |

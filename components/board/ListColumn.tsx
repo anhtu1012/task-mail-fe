@@ -131,7 +131,10 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
                 : undefined
           }
         >
-          {filterActive && total !== cards.length ? `${cards.length}/${total}` : cards.length}
+          {/* Hiện "đã tải / tổng thật" bất cứ khi nào hai số khác nhau — vì lọc,
+              hoặc vì /full chỉ trả 20 thẻ đầu mỗi cột. Chỉ hiện một số thì
+              người dùng tưởng cột chỉ có ngần đó việc. */}
+          {total !== cards.length ? `${cards.length}/${total}` : cards.length}
         </span>
 
         <Dropdown

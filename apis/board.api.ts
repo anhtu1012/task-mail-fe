@@ -42,6 +42,13 @@ const clean = <T extends object>(obj: T): Partial<T> => {
   return out as Partial<T>;
 };
 
+/**
+ * Nối `?undo=true` khi đang replay một thao tác Ctrl+Z.
+ * Backend nhận cờ này ở MỌI endpoint ghi (kể cả nơi nó là no-op) nên FE không
+ * phải nhớ chỗ nào hỗ trợ chỗ nào không. Chỉ `true` / `1` mới được tính là undo.
+ */
+const undoQuery = (undo?: boolean) => (undo ? "?undo=true" : "");
+
 const params = (obj: Record<string, unknown>): URLSearchParams => {
   const search = new URLSearchParams();
   Object.entries(obj).forEach(([k, v]) => {
@@ -96,9 +103,13 @@ class BoardApi extends AxiosService {
     );
   }
 
-  public updateList(listId: string, input: UpdateListInput): Promise<BoardList> {
+  public updateList(
+    listId: string,
+    input: UpdateListInput,
+    undo = false,
+  ): Promise<BoardList> {
     return this.patch<BoardList, UpdateListInput>(
-      API_ENDPOINTS.LISTS.DETAIL(listId),
+      `${API_ENDPOINTS.LISTS.DETAIL(listId)}${undoQuery(undo)}`,
       clean(input),
     );
   }
@@ -159,9 +170,8 @@ class BoardApi extends AxiosService {
     body: { listId: string | null; position: number },
     undo = false,
   ): Promise<MoveCardResult> {
-    const query = undo ? "?undo=true" : "";
     return this.patch<MoveCardResult, typeof body>(
-      `${API_ENDPOINTS.CARDS.MOVE(cardId)}${query}`,
+      `${API_ENDPOINTS.CARDS.MOVE(cardId)}${undoQuery(undo)}`,
       body,
     );
   }
@@ -182,22 +192,34 @@ class BoardApi extends AxiosService {
     return this.get<CardDetail>(API_ENDPOINTS.CARDS.DETAIL(cardId));
   }
 
-  public updateCard(cardId: string, input: UpdateCardInput): Promise<unknown> {
+  public updateCard(
+    cardId: string,
+    input: UpdateCardInput,
+    undo = false,
+  ): Promise<unknown> {
     return this.patch<unknown, UpdateCardInput>(
-      API_ENDPOINTS.TASKS.DETAIL(cardId),
+      `${API_ENDPOINTS.TASKS.DETAIL(cardId)}${undoQuery(undo)}`,
       clean(input),
     );
   }
 
-  public completeCard(cardId: string): Promise<CompleteCardResponse> {
+  /**
+   * Việc có `repeat` sẽ sinh luôn thẻ kế tiếp và trả trong `next`.
+   * Với `undo = true` backend KHÔNG sinh thẻ lặp — dùng khi replay redo để
+   * không nhân đôi việc.
+   */
+  public completeCard(cardId: string, undo = false): Promise<CompleteCardResponse> {
     return this.patch<CompleteCardResponse, object>(
-      API_ENDPOINTS.TASKS.COMPLETE(cardId),
+      `${API_ENDPOINTS.TASKS.COMPLETE(cardId)}${undoQuery(undo)}`,
       {},
     );
   }
 
-  public reopenCard(cardId: string): Promise<CardSummary> {
-    return this.patch<CardSummary, object>(API_ENDPOINTS.CARDS.REOPEN(cardId), {});
+  public reopenCard(cardId: string, undo = false): Promise<CardSummary> {
+    return this.patch<CardSummary, object>(
+      `${API_ENDPOINTS.CARDS.REOPEN(cardId)}${undoQuery(undo)}`,
+      {},
+    );
   }
 
   /** Xoá mềm — khôi phục được bằng `restoreCard` (§9) */
@@ -205,8 +227,11 @@ class BoardApi extends AxiosService {
     return this.delete<void>(API_ENDPOINTS.TASKS.DETAIL(cardId));
   }
 
-  public restoreCard(cardId: string): Promise<CardSummary> {
-    return this.post<CardSummary, object>(API_ENDPOINTS.CARDS.RESTORE(cardId), {});
+  public restoreCard(cardId: string, undo = false): Promise<CardSummary> {
+    return this.post<CardSummary, object>(
+      `${API_ENDPOINTS.CARDS.RESTORE(cardId)}${undoQuery(undo)}`,
+      {},
+    );
   }
 
   public setCardLabels(cardId: string, labelIds: string[]): Promise<CardSummary> {
@@ -246,9 +271,8 @@ class BoardApi extends AxiosService {
     input: { checked?: boolean; content?: string; position?: number },
     undo = false,
   ): Promise<ChecklistItem> {
-    const query = undo ? "?undo=true" : "";
     return this.patch<ChecklistItem, typeof input>(
-      `${API_ENDPOINTS.CHECKLIST_ITEMS.DETAIL(itemId)}${query}`,
+      `${API_ENDPOINTS.CHECKLIST_ITEMS.DETAIL(itemId)}${undoQuery(undo)}`,
       clean(input),
     );
   }
