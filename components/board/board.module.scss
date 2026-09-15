@@ -1,0 +1,282 @@
+@use "../../styles/colors" as *;
+
+/* ============================================================
+   Board — giao diện kính (glassmorphism) trên ảnh nền cảng
+   ------------------------------------------------------------
+   Công thức để chữ vẫn đọc được trên kính trong suốt:
+     1. ảnh nền PHẢI bị phủ một lớp tối đậm — kính trong mà nền sáng
+        lộn xộn thì chữ nào cũng chìm;
+     2. panel kính dùng nền TRẮNG độ mờ thấp + blur mạnh, nên nó sáng
+        hơn nền tối phía sau -> tự tách khỏi ảnh;
+     3. chữ chuyển sang trắng. Đo ở vùng SÁNG NHẤT của ảnh (trường hợp xấu
+        nhất) với lớp phủ 0.86 và nền kính trắng 15%:
+          chữ trắng    7.96:1
+          textSoft .84 6.20:1
+          textMuted .74 5.24:1
+        WCAG AA cần 4.5:1 — cả ba đều đạt. Hạ lớp phủ xuống 0.78 thì
+        textMuted rớt còn 3.63:1, nên ĐỪNG làm nền sáng thêm.
+   ============================================================ */
+
+/* Nền + lớp phủ */
+.boardRoot {
+  position: relative;
+  margin: -24px;
+  padding: 24px;
+  height: calc(100vh - 64px);
+  min-height: 460px;
+  overflow: hidden;
+  background-image: url("/images/bg.webp");
+  background-size: cover;
+  background-position: center 40%;
+  background-repeat: no-repeat;
+
+  @media (max-width: 767px) {
+    margin: -12px;
+    padding: 12px;
+  }
+}
+
+/* Chế độ toàn màn hình: thoát khỏi sidebar + header của layout */
+.boardFullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  margin: 0;
+  padding: 20px;
+  height: 100vh;
+}
+
+/* Lớp phủ tối — là div thật chứ không phải ::before, để chắc chắn
+   không bị pseudo-element nào của Tailwind/antd đè lên */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 20% 0%, rgba(10, 67, 109, 0.45) 0%, transparent 60%),
+    linear-gradient(
+      165deg,
+      rgba(2, 19, 33, 0.86) 0%,
+      rgba(3, 26, 45, 0.88) 45%,
+      rgba(4, 31, 52, 0.92) 100%
+    );
+}
+
+.boardLayer {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------
+   Các bề mặt kính
+   ------------------------------------------------------------ */
+.glassPanel {
+  background: rgba(255, 255, 255, 0.11);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  box-shadow:
+    0 8px 32px rgba(2, 19, 33, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.column {
+  width: 292px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  box-shadow:
+    0 8px 32px rgba(2, 19, 33, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.columnOver {
+  border-color: rgba(163, 209, 235, 0.75);
+  box-shadow:
+    0 8px 32px rgba(2, 19, 33, 0.3),
+    0 0 0 3px rgba(163, 209, 235, 0.3);
+}
+
+/* Thẻ sáng hơn cột một bậc để nổi lên khỏi cột */
+.card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 11px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transition:
+    background 0.13s ease,
+    border-color 0.13s ease,
+    box-shadow 0.13s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.24);
+    border-color: rgba(255, 255, 255, 0.42);
+    box-shadow:
+      0 6px 20px rgba(2, 19, 33, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: rgba(190, 224, 244, 0.95);
+    box-shadow: 0 0 0 3px rgba(163, 209, 235, 0.32);
+  }
+}
+
+.cardOverlay {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 18px 40px rgba(2, 19, 33, 0.45);
+}
+
+/* Thẻ đã hoàn thành — chìm bớt nhưng vẫn đọc được */
+.cardDone {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Ô nhập trên nền kính */
+.glassInput {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+  color: #fff;
+  outline: none;
+  transition:
+    background 0.13s ease,
+    border-color 0.13s ease,
+    box-shadow 0.13s ease;
+
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  &:focus {
+    background: rgba(255, 255, 255, 0.22);
+    border-color: rgba(190, 224, 244, 0.9);
+    box-shadow: 0 0 0 3px rgba(163, 209, 235, 0.25);
+  }
+}
+
+/* Nút chìm trên nền kính */
+.glassBtn {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    background 0.13s ease,
+    border-color 0.13s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.24);
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+}
+
+.glassGhost {
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.78);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+  }
+}
+
+/* ------------------------------------------------------------
+   Thanh cuộn
+   ------------------------------------------------------------ */
+.scrollArea {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.15s ease;
+
+  &:hover {
+    scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
+  }
+
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+  }
+  &:hover::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.4);
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.6);
+  }
+}
+
+.canvasScroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.42) rgba(255, 255, 255, 0.12);
+
+  &::-webkit-scrollbar {
+    height: 10px;
+  }
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.42);
+    border-radius: 999px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.62);
+  }
+}
+
+/* ------------------------------------------------------------
+   Màn chi tiết việc — KHÔNG dùng kính.
+   Đây là nơi đọc và viết đoạn dài, nền đục mới đỡ mỏi mắt.
+   ------------------------------------------------------------ */
+.cardDetailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+  }
+}
+
+.detailScroll {
+  scrollbar-width: thin;
+  scrollbar-color: $color-border-dark transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: $color-border-dark;
+    border-radius: 999px;
+  }
+}

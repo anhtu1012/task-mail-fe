@@ -16,6 +16,7 @@ import {
 import {
   CalendarDays,
   ClipboardList,
+  Columns3,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -82,6 +83,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         label: "Bảng Kanban",
       },
       {
+        key: "/boards",
+        icon: <Columns3 size={17} />,
+        label: "Bảng công việc",
+      },
+      {
         key: "/calendar",
         icon: <CalendarDays size={17} />,
         label: "Lịch",
@@ -93,8 +99,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       },
     ];
     if (admin) {
-      // Chỉ admin được CRUD loại công việc
-      items.splice(4, 0, {
+      // Chỉ admin được CRUD loại công việc — chèn ngay trước mục Tích hợp
+      items.splice(items.findIndex((i) => i.key === "/integrations"), 0, {
         key: "/task-types",
         icon: <Tags size={17} />,
         label: "Loại công việc",

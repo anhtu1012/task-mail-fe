@@ -110,8 +110,14 @@ export function useCompleteTask() {
   const invalidate = useInvalidateTasks();
   return useMutation({
     mutationFn: (id: string) => taskApi.complete(id),
-    onSuccess: (task) => {
-      message.success(`${task.code} đã hoàn thành 🎉`);
+    onSuccess: ({ completed, next }) => {
+      // `next` chỉ có khi việc được đặt lặp lại — báo luôn để người dùng biết
+      // đã có thẻ mới, khỏi tưởng hệ thống tự nhân đôi việc
+      message.success(
+        next
+          ? `${completed.code} đã hoàn thành 🎉 — đã tạo lượt kế tiếp ${next.code}`
+          : `${completed.code} đã hoàn thành 🎉`,
+      );
       invalidate();
     },
     onError: (error) => message.error(getApiErrorMessage(error)),

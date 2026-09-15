@@ -1,0 +1,183 @@
+/* ============================================================
+   Quill (theme snow) chỉnh theo Task Design System
+   Không dùng CSS module vì phải ghi đè class toàn cục của Quill
+   (.ql-toolbar, .ql-editor...). Toàn bộ bọc trong .taskEditor nên
+   không rò ra phần còn lại của ứng dụng.
+   ============================================================ */
+
+.taskEditor {
+  --editor-border: #e2e8f0;
+  --editor-border-focus: #5196bf;
+  --editor-fg: #333333;
+  --editor-muted: #808080;
+  --editor-muted-bg: #f0f2f5;
+  --editor-primary: #0a436d;
+}
+
+.taskEditor .ql-toolbar.ql-snow {
+  border: 1px solid var(--editor-border);
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  background: #fafbfc;
+  padding: 6px 8px;
+}
+
+.taskEditor .ql-container.ql-snow {
+  border: 1px solid var(--editor-border);
+  border-radius: 0 0 10px 10px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+/* Viền sáng lên khi con trỏ đang ở trong vùng soạn thảo */
+.taskEditor:focus-within .ql-toolbar.ql-snow,
+.taskEditor:focus-within .ql-container.ql-snow {
+  border-color: var(--editor-border-focus);
+}
+.taskEditor:focus-within .ql-container.ql-snow {
+  box-shadow: 0 0 0 3px rgba(10, 67, 109, 0.1);
+}
+
+.taskEditor .ql-editor {
+  min-height: var(--editor-min-h, 220px);
+  max-height: 46vh;
+  overflow-y: auto;
+  color: var(--editor-fg);
+  line-height: 1.6;
+  padding: 12px 14px;
+}
+
+.taskEditor .ql-editor.ql-blank::before {
+  color: var(--editor-muted);
+  font-style: normal;
+  left: 14px;
+  right: 14px;
+}
+
+/* --- Nút trên toolbar --- */
+.taskEditor .ql-snow .ql-stroke {
+  stroke: #64748b;
+}
+.taskEditor .ql-snow .ql-fill,
+.taskEditor .ql-snow .ql-stroke.ql-fill {
+  fill: #64748b;
+}
+.taskEditor .ql-snow .ql-picker-label {
+  color: #64748b;
+}
+
+.taskEditor .ql-snow button:hover,
+.taskEditor .ql-snow button.ql-active,
+.taskEditor .ql-snow .ql-picker-label:hover,
+.taskEditor .ql-snow .ql-picker-label.ql-active,
+.taskEditor .ql-snow .ql-picker-item:hover,
+.taskEditor .ql-snow .ql-picker-item.ql-selected {
+  color: var(--editor-primary);
+}
+.taskEditor .ql-snow button:hover .ql-stroke,
+.taskEditor .ql-snow button.ql-active .ql-stroke,
+.taskEditor .ql-snow .ql-picker-label:hover .ql-stroke,
+.taskEditor .ql-snow .ql-picker-label.ql-active .ql-stroke {
+  stroke: var(--editor-primary);
+}
+.taskEditor .ql-snow button:hover .ql-fill,
+.taskEditor .ql-snow button.ql-active .ql-fill {
+  fill: var(--editor-primary);
+}
+
+/* --- Nội dung --- */
+.taskEditor .ql-editor h1,
+.taskEditor .ql-editor h2,
+.taskEditor .ql-editor h3,
+.taskEditor .ql-editor h4,
+.taskEditor .ql-editor h5,
+.taskEditor .ql-editor h6 {
+  color: var(--editor-fg);
+  font-weight: 700;
+  margin: 0.6em 0 0.35em;
+}
+
+.taskEditor .ql-editor a {
+  color: var(--editor-primary);
+  text-decoration: underline;
+}
+
+.taskEditor .ql-editor blockquote {
+  border-left: 3px solid var(--editor-border-focus);
+  background: #f7f8fa;
+  border-radius: 0 8px 8px 0;
+  padding: 8px 12px;
+  margin: 8px 0;
+  color: #475569;
+}
+
+.taskEditor .ql-editor pre.ql-syntax {
+  background: #041f34;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  font-size: 13px;
+}
+
+.taskEditor .ql-editor img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+/* Danh sách dạng checkbox */
+.taskEditor .ql-editor ul[data-checked="true"] > li::before,
+.taskEditor .ql-editor ul[data-checked="false"] > li::before {
+  color: var(--editor-primary);
+}
+.taskEditor .ql-editor ul[data-checked="true"] > li {
+  color: var(--editor-muted);
+  text-decoration: line-through;
+}
+
+/* Bảng chọn màu/cỡ chữ nổi lên trên modal */
+.taskEditor .ql-snow .ql-picker-options {
+  border-radius: 8px;
+  border: 1px solid var(--editor-border);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  z-index: 30;
+}
+
+/* Thanh nhập link */
+.taskEditor .ql-snow .ql-tooltip {
+  border-radius: 8px;
+  border: 1px solid var(--editor-border);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+  color: var(--editor-fg);
+  z-index: 30;
+}
+.taskEditor .ql-snow .ql-tooltip input[type="text"] {
+  border: 1px solid var(--editor-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+/* --- Chế độ chỉ đọc: bỏ toolbar và khung --- */
+.taskEditorReadOnly .ql-toolbar.ql-snow {
+  display: none;
+}
+.taskEditorReadOnly .ql-container.ql-snow {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+.taskEditorReadOnly .ql-editor {
+  min-height: 0;
+  padding: 0;
+  /* Ở chế độ đọc để nội dung trôi tự nhiên — cột bên ngoài đã có thanh cuộn rồi,
+     cuộn lồng trong cuộn rất khó dùng */
+  max-height: none;
+  overflow: visible;
+  cursor: text;
+}
+
+/* Quill vẫn chèn ô nhập link ẩn ở chế độ đọc, không cần tới */
+.taskEditorReadOnly .ql-tooltip {
+  display: none;
+}

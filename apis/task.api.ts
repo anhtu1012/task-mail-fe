@@ -1,3 +1,4 @@
+import { CompleteCardResponse } from "@/models/board";
 import {
   CreateTaskInput,
   QueryTaskParams,
@@ -50,8 +51,12 @@ class TaskApi extends AxiosService {
     );
   }
 
-  public async complete(id: string): Promise<Task> {
-    return this.patch<Task, Record<string, never>>(
+  /**
+   * Từ đợt bảng công việc cá nhân, endpoint này trả `{ completed, next }`
+   * chứ không còn trả thẳng task — xem docs/backend/board-api-contract.md 4.5.
+   */
+  public async complete(id: string): Promise<CompleteCardResponse> {
+    return this.patch<CompleteCardResponse, Record<string, never>>(
       API_ENDPOINTS.TASKS.COMPLETE(id),
       {},
     );
