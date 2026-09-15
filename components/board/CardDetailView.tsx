@@ -3,16 +3,15 @@
 /**
  * Chi tiết một việc, hiện trong hộp thoại lớn đè lên bảng.
  *
- * Dùng chung cho 2 nơi: modal (bấm từ bảng, route bị intercept) và trang riêng
- * (mở thẳng link / F5). Nhờ vậy link của việc luôn chia sẻ được mà không phải
- * viết hai lần giao diện.
+ * Dữ liệu tải riêng qua `GET /tasks/:id/detail` (xem useCardDetail) chứ không
+ * lấy từ snapshot của bảng — snapshot cố tình không mang mô tả / checklist /
+ * ghi chú để không phình response.
  *
- * Cột phải là GHI CHÚ CỦA TÔI — không phải bình luận của người khác. Đây là
- * công cụ cá nhân: thứ có giá trị là những gì mình tự nhắc mình, kèm nhật ký
- * thao tác của chính mình để nhớ lại đã xử lý việc này thế nào.
+ * Cột phải là GHI CHÚ CỦA TÔI, không phải bình luận của người khác: đây là công
+ * cụ cá nhân, thứ có giá trị là những gì mình tự nhắc mình.
  */
 import { useState } from "react";
-import { Dropdown, Progress } from "antd";
+import { Dropdown, Progress, Spin } from "antd";
 import {
   AlignLeft,
   ArrowLeft,
@@ -37,13 +36,13 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { BoardCard, repeatText } from "@/models/board";
+import { COVER_PRESETS, CardDetail, Checklist, repeatText } from "@/models/board";
 import { PRIORITY_META, TaskPriority } from "@/models/task";
-import { COVER_PRESETS } from "@/mocks/board.mock";
+import { isRichTextEmpty } from "@/utils/client/richText";
 import { useBoard } from "./BoardStore";
+import { useCardDetail } from "./useCardDetail";
 import { SNOOZE_OPTIONS } from "./snooze";
 import { RichTextEditor } from "./RichTextEditor";
-import { isRichTextEmpty } from "@/utils/client/richText";
 import { C, LabelChip, fmtBytes, fmtDateTime, fmtShort } from "./ui";
 import styles from "./board.module.scss";
 
@@ -55,42 +54,49 @@ const fmtDuration = (min: number) =>
       : `${Math.floor(min / 60)}h${min % 60}`;
 
 export function CardDetailView({
-  card,
+  cardId,
   onClose,
 }: {
-  card: BoardCard;
+  cardId: string;
   onClose: () => void;
 }) {
-  const { lists, labelById, dispatch } = useBoard();
+  const { lists, labelById, snoozeCard, toggleComplete, deleteCard } = useBoard();
+  const detail = useCardDetail(cardId);
+  const card = detail.card;
+
+  if (detail.isLoading) {
+    return (
+      <div className="h-full grid place-items-center bg-white">
+        <Spin />
+      </div>
+    );
+  }
+
+  if (!card) {
+    return (
+      <div className="h-full grid place-items-center bg-white">
+        <div className="text-center">
+          <div className="font-semibold mb-1" style={{ color: C.foreground }}>
+            Không tải được việc này
+          </div>
+          <div className="text-[13px] mb-3" style={{ color: C.mutedForeground }}>
+            Có thể nó đã bị xoá hoặc bạn không có quyền xem.
+          </div>
+          <button
+            onClick={onClose}
+            className="h-8 px-3 rounded-lg border-0 text-white text-[13px] cursor-pointer"
+            style={{ background: C.primary }}
+          >
+            Quay lại bảng
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const list = lists.find((l) => l.id === card.listId);
   const done = card.completedAt !== null;
   const overdue = card.deadlineStatus === "LATE" && !done;
-
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(card.title);
-  const [editingDesc, setEditingDesc] = useState(false);
-  const [descDraft, setDescDraft] = useState(card.description ?? "");
-
-  const hasDescription = !isRichTextEmpty(card.description);
-
-  const openDescEditor = () => {
-    setDescDraft(card.description ?? "");
-    setEditingDesc(true);
-  };
-
-  const saveDesc = () => {
-    dispatch({
-      type: "UPDATE_CARD",
-      cardId: card.id,
-      patch: { description: isRichTextEmpty(descDraft) ? null : descDraft },
-    });
-    setEditingDesc(false);
-  };
-
-  const cancelDesc = () => {
-    setDescDraft(card.description ?? "");
-    setEditingDesc(false);
-  };
 
   const labels = card.labelIds
     .map((id) => labelById.get(id))
@@ -112,12 +118,7 @@ export function CardDetailView({
       ),
       onClick: () => {
         const target = opt.resolve(new Date());
-        dispatch({
-          type: "SNOOZE_CARD",
-          cardId: card.id,
-          deadline: target ? target.toISOString() : null,
-          label: opt.label.toLowerCase(),
-        });
+        snoozeCard(card.id, target ? target.toISOString() : null, opt.label.toLowerCase());
       },
     })),
   };
@@ -151,10 +152,7 @@ export function CardDetailView({
           style={{ color: C.mutedForeground }}
         >
           trong
-          <span
-            className="inline-flex items-center gap-0.5 font-medium"
-            style={{ color: C.neutral700 }}
-          >
+          <span className="inline-flex items-center gap-0.5 font-medium" style={{ color: C.neutral700 }}>
             {list?.title ?? "Hộp thư đến"}
             <ChevronDown size={13} />
           </span>
@@ -162,7 +160,6 @@ export function CardDetailView({
 
         <div className="flex-1" />
 
-        {/* Dời hạn — thao tác hay dùng nhất nên để ngoài, không giấu trong menu */}
         {!done && (
           <Dropdown trigger={["click"]} placement="bottomRight" menu={snoozeMenu}>
             <button
@@ -176,7 +173,7 @@ export function CardDetailView({
         )}
 
         <button
-          onClick={() => dispatch({ type: "TOGGLE_COMPLETE", cardId: card.id })}
+          onClick={() => toggleComplete(card.id)}
           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border-0 cursor-pointer text-[13px] font-medium"
           style={
             done
@@ -201,13 +198,12 @@ export function CardDetailView({
                     Ảnh bìa {i + 1}
                   </span>
                 ),
-                onClick: () => dispatch({ type: "UPDATE_CARD", cardId: card.id, patch: { cover } }),
+                onClick: () => detail.updateCard.mutate({ cover }),
               })),
               {
                 key: "no-cover",
                 label: "Bỏ ảnh bìa",
-                onClick: () =>
-                  dispatch({ type: "UPDATE_CARD", cardId: card.id, patch: { cover: null } }),
+                onClick: () => detail.updateCard.mutate({ cover: null }),
               },
               { type: "divider" as const },
               {
@@ -216,7 +212,7 @@ export function CardDetailView({
                 icon: <Trash2 size={14} />,
                 label: "Xoá việc này",
                 onClick: () => {
-                  dispatch({ type: "DELETE_CARD", cardId: card.id });
+                  deleteCard(card.id);
                   onClose();
                 },
               },
@@ -244,58 +240,11 @@ export function CardDetailView({
 
       {card.cover && <div className="shrink-0" style={{ background: card.cover, height: 88 }} />}
 
-      {/* ===== Thân 2 cột, mỗi cột cuộn riêng ===== */}
+      {/* ===== Thân 2 cột ===== */}
       <div className={`${styles.cardDetailGrid} flex-1 min-h-0`}>
-        {/* ---------- Cột trái ---------- */}
         <div className={`${styles.detailScroll} overflow-y-auto px-4 sm:px-8 py-6`}>
           <div className="max-w-[720px] mx-auto flex flex-col gap-6">
-            {editingTitle ? (
-              <textarea
-                autoFocus
-                rows={2}
-                value={titleDraft}
-                onChange={(e) => setTitleDraft(e.target.value)}
-                onBlur={() => {
-                  const next = titleDraft.trim();
-                  if (next) {
-                    dispatch({ type: "UPDATE_CARD", cardId: card.id, patch: { title: next } });
-                  } else {
-                    setTitleDraft(card.title);
-                  }
-                  setEditingTitle(false);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    e.currentTarget.blur();
-                  }
-                  if (e.key === "Escape") {
-                    setTitleDraft(card.title);
-                    setEditingTitle(false);
-                  }
-                }}
-                className="w-full resize-none rounded-lg px-2.5 py-1.5 text-[24px] font-bold outline-none"
-                style={{
-                  color: C.foreground,
-                  border: `1px solid ${C.primary300}`,
-                  boxShadow: "0 0 0 3px rgba(10,67,109,.1)",
-                }}
-              />
-            ) : (
-              <h1
-                onClick={() => {
-                  setTitleDraft(card.title);
-                  setEditingTitle(true);
-                }}
-                className="m-0 text-[24px] font-bold leading-snug cursor-text rounded-lg px-2.5 py-1.5 -mx-2.5 hover:bg-[#f7f8fa]"
-                style={{
-                  color: done ? C.mutedForeground : C.foreground,
-                  textDecoration: done ? "line-through" : undefined,
-                }}
-              >
-                {card.title}
-              </h1>
-            )}
+            <CardTitle card={card} done={done} detail={detail} />
 
             {/* Thuộc tính */}
             <div className="flex flex-wrap gap-x-8 gap-y-4">
@@ -325,13 +274,7 @@ export function CardDetailView({
                     return (
                       <button
                         key={p}
-                        onClick={() =>
-                          dispatch({
-                            type: "UPDATE_CARD",
-                            cardId: card.id,
-                            patch: { priority: p },
-                          })
-                        }
+                        onClick={() => detail.updateCard.mutate({ priority: p })}
                         className="h-7 px-2 rounded-lg text-[12px] font-medium border-0 cursor-pointer transition-colors"
                         style={{
                           background: on ? `${PRIORITY_META[p].color}1f` : C.muted,
@@ -379,87 +322,31 @@ export function CardDetailView({
               )}
             </div>
 
-            {/* Nguồn email — thứ Trello không có */}
-            {card.sourceMail && (
+            {/* Nguồn — thứ Trello không có */}
+            {card.source !== "MANUAL" && (
               <div
                 className="rounded-xl p-3.5"
                 style={{ background: C.primary50, border: `1px solid ${C.primary100}` }}
               >
                 <div
-                  className="flex items-center gap-2 text-[12.5px] font-semibold mb-1.5"
+                  className="flex items-center gap-2 text-[12.5px] font-semibold"
                   style={{ color: C.primary }}
                 >
-                  <Mail size={14} /> Việc này được tạo tự động từ email
+                  <Mail size={14} />
+                  {card.source === "EMAIL"
+                    ? "Việc này được tạo tự động từ email"
+                    : "Việc này được tạo tự động từ tin nhắn Zalo"}
                 </div>
-                <div className="text-[13.5px] font-medium" style={{ color: C.foreground }}>
-                  {card.sourceMail.subject}
-                </div>
-                <div className="text-[12px] mt-0.5" style={{ color: C.mutedForeground }}>
-                  {card.sourceMail.accountEmail} · nhận lúc{" "}
-                  {fmtDateTime(card.sourceMail.receivedAt)}
-                </div>
+                {card.attachmentLinks.length > 0 && (
+                  <div className="text-[12px] mt-1.5" style={{ color: C.mutedForeground }}>
+                    {card.attachmentLinks.length} liên kết bóc ra từ nội dung gốc
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Mô tả — chỉ hiện trình soạn thảo khi bấm vào */}
-            <Section
-              icon={<AlignLeft size={16} />}
-              title="Mô tả chi tiết"
-              action={
-                !editingDesc && hasDescription ? (
-                  <button
-                    onClick={openDescEditor}
-                    className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border-0 text-[12.5px] cursor-pointer"
-                    style={{ background: C.muted, color: C.neutral700 }}
-                  >
-                    <Pencil size={13} /> Sửa
-                  </button>
-                ) : null
-              }
-            >
-              {editingDesc ? (
-                <div className="flex flex-col gap-2">
-                  <RichTextEditor autoFocus value={descDraft} onChange={setDescDraft} />
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={saveDesc}
-                      className="h-8 px-3 rounded-lg border-0 text-white text-[13px] font-medium cursor-pointer"
-                      style={{ background: C.primary }}
-                    >
-                      Lưu
-                    </button>
-                    <button
-                      onClick={cancelDesc}
-                      className="h-8 px-3 rounded-lg border-0 bg-transparent text-[13px] cursor-pointer hover:bg-[#f0f2f5]"
-                      style={{ color: C.neutral700 }}
-                    >
-                      Huỷ
-                    </button>
-                  </div>
-                </div>
-              ) : hasDescription ? (
-                /* Chế độ đọc: vẫn là Quill nhưng readOnly, nên nội dung HTML do
-                   backend/email sinh ra được Quill lọc lại theo đúng danh sách
-                   định dạng cho phép — không cắm thẳng HTML lạ vào DOM. */
-                <div
-                  onClick={openDescEditor}
-                  className="rounded-lg px-3 py-2.5 cursor-text transition-colors hover:bg-[#f7f8fa]"
-                  style={{ border: `1px solid transparent` }}
-                >
-                  <RichTextEditor readOnly value={card.description ?? ""} />
-                </div>
-              ) : (
-                <button
-                  onClick={openDescEditor}
-                  className="w-full text-left rounded-lg px-3 py-2.5 border-0 cursor-pointer text-[14px] min-h-[56px]"
-                  style={{ background: C.muted, color: C.mutedForeground }}
-                >
-                  Thêm mô tả chi tiết hơn...
-                </button>
-              )}
-            </Section>
+            <DescriptionSection card={card} detail={detail} />
 
-            {/* Đính kèm */}
             {card.attachments.length > 0 && (
               <Section icon={<Paperclip size={16} />} title="Tệp đính kèm">
                 <div className="flex flex-col gap-2">
@@ -483,10 +370,7 @@ export function CardDetailView({
                         )}
                       </span>
                       <div className="min-w-0">
-                        <div
-                          className="text-[13.5px] font-medium truncate"
-                          style={{ color: C.foreground }}
-                        >
+                        <div className="text-[13.5px] font-medium truncate" style={{ color: C.foreground }}>
                           {att.name}
                         </div>
                         <div className="text-[12px]" style={{ color: C.mutedForeground }}>
@@ -502,13 +386,11 @@ export function CardDetailView({
             )}
 
             {card.checklists.map((cl) => (
-              <ChecklistBlock key={cl.id} cardId={card.id} checklist={cl} />
+              <ChecklistBlock key={cl.id} checklist={cl} detail={detail} />
             ))}
 
             <button
-              onClick={() =>
-                dispatch({ type: "ADD_CHECKLIST", cardId: card.id, title: "Việc cần làm" })
-              }
+              onClick={() => detail.addChecklist.mutate("Việc cần làm")}
               className="self-start inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border-0 text-[13px] cursor-pointer"
               style={{ background: C.muted, color: C.neutral700 }}
             >
@@ -517,15 +399,159 @@ export function CardDetailView({
           </div>
         </div>
 
-        {/* ---------- Cột phải: ghi chú của tôi ---------- */}
-        <NotesColumn card={card} />
+        <NotesColumn card={card} detail={detail} />
       </div>
     </div>
   );
 }
 
+type DetailApi = ReturnType<typeof useCardDetail>;
+
 // ==========================================
-// CÁC KHỐI CON
+// TIÊU ĐỀ
+// ==========================================
+function CardTitle({
+  card,
+  done,
+  detail,
+}: {
+  card: CardDetail;
+  done: boolean;
+  detail: DetailApi;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(card.title);
+
+  if (!editing) {
+    return (
+      <h1
+        onClick={() => {
+          setDraft(card.title);
+          setEditing(true);
+        }}
+        className="m-0 text-[24px] font-bold leading-snug cursor-text rounded-lg px-2.5 py-1.5 -mx-2.5 hover:bg-[#f7f8fa]"
+        style={{
+          color: done ? C.mutedForeground : C.foreground,
+          textDecoration: done ? "line-through" : undefined,
+        }}
+      >
+        {card.title}
+      </h1>
+    );
+  }
+
+  return (
+    <textarea
+      autoFocus
+      rows={2}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const next = draft.trim();
+        if (next && next !== card.title) detail.updateCard.mutate({ title: next });
+        setEditing(false);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+        if (e.key === "Escape") {
+          setDraft(card.title);
+          setEditing(false);
+        }
+      }}
+      className="w-full resize-none rounded-lg px-2.5 py-1.5 text-[24px] font-bold outline-none"
+      style={{
+        color: C.foreground,
+        border: `1px solid ${C.primary300}`,
+        boxShadow: "0 0 0 3px rgba(10,67,109,.1)",
+      }}
+    />
+  );
+}
+
+// ==========================================
+// MÔ TẢ
+// ==========================================
+function DescriptionSection({ card, detail }: { card: CardDetail; detail: DetailApi }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(card.description ?? "");
+  const hasDescription = !isRichTextEmpty(card.description);
+
+  const open = () => {
+    setDraft(card.description ?? "");
+    setEditing(true);
+  };
+
+  const save = () => {
+    detail.updateCard.mutate({
+      description: isRichTextEmpty(draft) ? null : draft,
+    });
+    setEditing(false);
+  };
+
+  return (
+    <Section
+      icon={<AlignLeft size={16} />}
+      title="Mô tả chi tiết"
+      action={
+        !editing && hasDescription ? (
+          <button
+            onClick={open}
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border-0 text-[12.5px] cursor-pointer"
+            style={{ background: C.muted, color: C.neutral700 }}
+          >
+            <Pencil size={13} /> Sửa
+          </button>
+        ) : null
+      }
+    >
+      {editing ? (
+        <div className="flex flex-col gap-2">
+          <RichTextEditor autoFocus value={draft} onChange={setDraft} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={save}
+              className="h-8 px-3 rounded-lg border-0 text-white text-[13px] font-medium cursor-pointer"
+              style={{ background: C.primary }}
+            >
+              Lưu
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              className="h-8 px-3 rounded-lg border-0 bg-transparent text-[13px] cursor-pointer hover:bg-[#f0f2f5]"
+              style={{ color: C.neutral700 }}
+            >
+              Huỷ
+            </button>
+          </div>
+        </div>
+      ) : hasDescription ? (
+        /* Chế độ đọc vẫn dùng Quill readOnly: HTML do backend/email sinh ra được
+           Quill dựng lại theo đúng danh sách định dạng cho phép, không cắm thẳng
+           HTML lạ vào DOM. */
+        <div
+          onClick={open}
+          className="rounded-lg px-3 py-2.5 cursor-text transition-colors hover:bg-[#f7f8fa]"
+        >
+          <RichTextEditor readOnly value={card.description ?? ""} />
+        </div>
+      ) : (
+        <button
+          onClick={open}
+          className="w-full text-left rounded-lg px-3 py-2.5 border-0 cursor-pointer text-[14px] min-h-[56px]"
+          style={{ background: C.muted, color: C.mutedForeground }}
+        >
+          Thêm mô tả chi tiết hơn...
+        </button>
+      )}
+    </Section>
+  );
+}
+
+// ==========================================
+// KHỐI DÙNG CHUNG
 // ==========================================
 function Field({
   icon,
@@ -558,7 +584,6 @@ function Section({
 }: {
   icon: React.ReactNode;
   title: string;
-  /** Nút/ghi chú hiện bên phải tiêu đề mục */
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -574,14 +599,10 @@ function Section({
   );
 }
 
-function ChecklistBlock({
-  cardId,
-  checklist,
-}: {
-  cardId: string;
-  checklist: BoardCard["checklists"][number];
-}) {
-  const { dispatch } = useBoard();
+// ==========================================
+// CHECKLIST
+// ==========================================
+function ChecklistBlock({ checklist, detail }: { checklist: Checklist; detail: DetailApi }) {
   const [hideChecked, setHideChecked] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
@@ -594,7 +615,7 @@ function ChecklistBlock({
   const addItem = () => {
     const content = draft.trim();
     if (!content) return;
-    dispatch({ type: "ADD_CHECKLIST_ITEM", cardId, checklistId: checklist.id, content });
+    detail.addChecklistItem.mutate({ checklistId: checklist.id, content });
     setDraft("");
   };
 
@@ -618,10 +639,7 @@ function ChecklistBlock({
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
-          <span
-            className="text-[11.5px] tabular-nums w-8 shrink-0"
-            style={{ color: C.mutedForeground }}
-          >
+          <span className="text-[11.5px] tabular-nums w-8 shrink-0" style={{ color: C.mutedForeground }}>
             {percent}%
           </span>
           <Progress
@@ -640,7 +658,9 @@ function ChecklistBlock({
             <input
               type="checkbox"
               checked={item.checked}
-              onChange={() => dispatch({ type: "TOGGLE_CHECKLIST_ITEM", cardId, itemId: item.id })}
+              onChange={() =>
+                detail.toggleChecklistItem.mutate({ itemId: item.id, checked: !item.checked })
+              }
               className="mt-0.5 size-4 shrink-0 cursor-pointer"
               style={{ accentColor: C.primary }}
             />
@@ -655,7 +675,7 @@ function ChecklistBlock({
             </span>
             <button
               aria-label="Xoá mục"
-              onClick={() => dispatch({ type: "DELETE_CHECKLIST_ITEM", cardId, itemId: item.id })}
+              onClick={() => detail.deleteChecklistItem.mutate(item.id)}
               className="opacity-0 group-hover/item:opacity-100 grid place-items-center size-6
                 rounded border-0 bg-transparent cursor-pointer"
               style={{ color: C.neutral500 }}
@@ -718,20 +738,19 @@ function ChecklistBlock({
   );
 }
 
-function NotesColumn({ card }: { card: BoardCard }) {
-  const { dispatch } = useBoard();
+// ==========================================
+// GHI CHÚ CỦA TÔI
+// ==========================================
+function NotesColumn({ card, detail }: { card: CardDetail; detail: DetailApi }) {
   const [draft, setDraft] = useState("");
   const [showLog, setShowLog] = useState(false);
 
   const submit = () => {
     const content = draft.trim();
     if (!content) return;
-    dispatch({ type: "ADD_NOTE", cardId: card.id, content });
+    detail.addNote.mutate(content);
     setDraft("");
   };
-
-  const notes = [...card.notes].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const log = [...card.activities].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   return (
     <div
@@ -743,12 +762,12 @@ function NotesColumn({ card }: { card: BoardCard }) {
         <span className="font-semibold text-[15px] flex-1" style={{ color: C.foreground }}>
           Ghi chú của tôi
         </span>
-        {notes.length > 0 && (
+        {card.notes.length > 0 && (
           <span
             className="text-[11.5px] font-semibold tabular-nums px-1.5 h-5 grid place-items-center rounded-md"
             style={{ background: C.muted, color: C.neutral700 }}
           >
-            {notes.length}
+            {card.notes.length}
           </span>
         )}
       </div>
@@ -779,14 +798,14 @@ function NotesColumn({ card }: { card: BoardCard }) {
         </span>
       </div>
 
-      {notes.length === 0 && !draft && (
+      {card.notes.length === 0 && !draft && (
         <p className="text-[12.5px] leading-relaxed m-0" style={{ color: C.mutedForeground }}>
           Chưa có ghi chú nào. Chỗ này để bạn tự nhắc mình — không ai khác đọc được.
         </p>
       )}
 
       <div className="flex flex-col gap-2">
-        {notes.map((note) => (
+        {card.notes.map((note) => (
           <div
             key={note.id}
             className="group/note rounded-xl bg-white px-3 py-2.5"
@@ -801,10 +820,11 @@ function NotesColumn({ card }: { card: BoardCard }) {
             <div className="flex items-center justify-between mt-1.5">
               <span className="text-[11.5px]" style={{ color: C.mutedForeground }}>
                 {fmtDateTime(note.createdAt)}
+                {note.editedAt && " · đã sửa"}
               </span>
               <button
                 aria-label="Xoá ghi chú"
-                onClick={() => dispatch({ type: "DELETE_NOTE", cardId: card.id, noteId: note.id })}
+                onClick={() => detail.deleteNote.mutate(note.id)}
                 className="opacity-0 group-hover/note:opacity-100 grid place-items-center size-6
                   rounded border-0 bg-transparent cursor-pointer"
                 style={{ color: C.neutral500 }}
@@ -816,7 +836,7 @@ function NotesColumn({ card }: { card: BoardCard }) {
         ))}
       </div>
 
-      {/* Nhật ký gập lại mặc định: đây là thông tin tra cứu, không phải thông tin chính */}
+      {/* Nhật ký gập lại mặc định: thông tin tra cứu, không phải thông tin chính */}
       <div className="mt-1" style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
         <button
           onClick={() => setShowLog((v) => !v)}
@@ -831,12 +851,12 @@ function NotesColumn({ card }: { card: BoardCard }) {
               transition: "transform .15s",
             }}
           />
-          Nhật ký ({log.length})
+          Nhật ký ({card.activities.length})
         </button>
 
         {showLog && (
           <div className="flex flex-col gap-2 mt-2 pl-1">
-            {log.map((entry) => (
+            {card.activities.map((entry) => (
               <div key={entry.id} className="flex flex-col">
                 <span className="text-[12.5px] leading-snug" style={{ color: C.neutral700 }}>
                   {entry.message}

@@ -6,7 +6,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { Dropdown } from "antd";
 import { GripVertical, MoreHorizontal, Plus } from "lucide-react";
-import { BoardCard, BoardList } from "@/models/board";
+import { BoardList, CardSummary } from "@/models/board";
 import { useBoard } from "./BoardStore";
 import { CardTile } from "./CardTile";
 import { Composer } from "./Composer";
@@ -15,14 +15,14 @@ import styles from "./board.module.scss";
 
 type Props = {
   list: BoardList;
-  cards: BoardCard[];
+  cards: CardSummary[];
   /** Phím tắt N yêu cầu mở ô thêm việc ở danh sách này */
   autoAdd?: boolean;
   onAutoAddDone?: () => void;
 };
 
 function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) {
-  const { dispatch, totalByList, filterActive } = useBoard();
+  const { addCard, renameList, archiveList, totalByList, filterActive } = useBoard();
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState(list.title);
@@ -84,7 +84,7 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
             onBlur={() => {
               const next = draftTitle.trim();
               if (next && next !== list.title) {
-                dispatch({ type: "RENAME_LIST", listId: list.id, title: next });
+                renameList(list.id, next);
               } else {
                 setDraftTitle(list.title);
               }
@@ -145,7 +145,7 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
                 key: "archive",
                 danger: true,
                 label: "Lưu trữ danh sách",
-                onClick: () => dispatch({ type: "ARCHIVE_LIST", listId: list.id }),
+                onClick: () => archiveList(list.id),
               },
             ],
           }}
@@ -198,7 +198,7 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
             parse
             placeholder="Việc cần làm... (vd: Gọi khách hàng mai 9h !gấp)"
             submitLabel="Thêm việc"
-            onSubmit={(text) => dispatch({ type: "ADD_CARD", listId: list.id, text })}
+            onSubmit={(text) => addCard(list.id, text)}
             onCancel={() => {
               setAdding(false);
               onAutoAddDone?.();

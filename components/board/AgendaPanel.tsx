@@ -3,81 +3,66 @@
 /**
  * Lịch hôm nay — cột bên phải, xếp việc đến hạn trong ngày theo giờ.
  *
- * Bảng kanban trả lời "mình có những việc gì", nhưng không trả lời được
- * "hôm nay mấy giờ làm gì và có kịp không". Cột này lấy `deadline` làm mốc,
- * `estimateMinutes` làm độ dài, rồi so tổng thời lượng với số giờ còn lại
- * trong ngày — nếu vượt thì báo ngay, chứ không để 6 giờ chiều mới biết.
- *
- * Việc quá hạn gom lên đầu vì đó là thứ phải xử lý trước mọi lịch trong ngày.
+ * Gọi `GET /boards/me/agenda` chứ KHÔNG gom từ dữ liệu của `/full`: `/full` chỉ
+ * trả 20 thẻ đầu mỗi cột, mà việc đến hạn hôm nay nằm rải rác ở mọi cột và có
+ * thể rơi ngoài 20 thẻ đó. Gom ở client sẽ thiếu việc mà màn vẫn trông bình
+ * thường — loại lỗi rất khó phát hiện.
  */
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Tooltip } from "antd";
 import { AlertTriangle, CalendarClock, PanelRightClose, Timer } from "lucide-react";
-import { BoardCard } from "@/models/board";
+import { boardApi } from "@/apis/board.api";
+import { CardSummary } from "@/models/board";
 import { PRIORITY_META } from "@/models/task";
 import { useBoard } from "./BoardStore";
 import { G } from "./ui";
 import styles from "./board.module.scss";
 
 /** Khung giờ làm việc hiển thị trên trục */
-const DAY_START = 7;
 const DAY_END = 20;
-
-const isSameDay = (iso: string, ref: Date) => {
-  const d = new Date(iso);
-  return (
-    d.getFullYear() === ref.getFullYear() &&
-    d.getMonth() === ref.getMonth() &&
-    d.getDate() === ref.getDate()
-  );
-};
 
 const fmtDuration = (min: number) =>
   min < 60 ? `${min}p` : min % 60 === 0 ? `${min / 60}h` : `${Math.floor(min / 60)}h${min % 60}`;
 
 export function AgendaPanel() {
   const router = useRouter();
-  const { cardById, board, agendaOpen, setAgendaOpen } = useBoard();
+  const { board, agendaOpen, setAgendaOpen } = useBoard();
 
-  const { overdue, slots, load } = useMemo(() => {
-    const now = new Date();
-    const cards = Array.from(cardById.values()).filter((c) => !c.completedAt);
+  const { data, isLoading } = useQuery({
+    queryKey: ["board", "agenda"],
+    queryFn: () => boardApi.agenda(),
+    staleTime: 60_000,
+    enabled: agendaOpen,
+  });
 
-    const overdue = cards
-      .filter((c) => c.deadlineStatus === "LATE")
-      .sort((a, b) => (a.deadline ?? "").localeCompare(b.deadline ?? ""));
-
-    const todays = cards
-      .filter((c) => c.deadline && isSameDay(c.deadline, now) && c.deadlineStatus !== "LATE")
-      .sort((a, b) => (a.deadline ?? "").localeCompare(b.deadline ?? ""));
-
+  const slots = useMemo(() => {
     // Gom theo giờ để không vẽ 13 dòng trống khi chỉ có 2 việc
-    const byHour = new Map<number, BoardCard[]>();
-    todays.forEach((c) => {
-      const h = new Date(c.deadline!).getHours();
-      const key = Math.min(Math.max(h, DAY_START), DAY_END);
-      if (!byHour.has(key)) byHour.set(key, []);
-      byHour.get(key)!.push(c);
+    const byHour = new Map<number, CardSummary[]>();
+    (data?.dueToday ?? []).forEach((c) => {
+      if (!c.deadline) return;
+      const h = new Date(c.deadline).getHours();
+      if (!byHour.has(h)) byHour.set(h, []);
+      byHour.get(h)!.push(c);
     });
+    return [...byHour.entries()].sort((a, b) => a[0] - b[0]);
+  }, [data]);
 
-    const planned = todays.reduce((sum, c) => sum + (c.estimateMinutes ?? 0), 0);
+  const load = useMemo(() => {
+    const now = new Date();
     // Số phút còn lại tới cuối khung giờ làm việc
-    const remaining = Math.max(
-      0,
-      (DAY_END - now.getHours()) * 60 - now.getMinutes(),
-    );
-
-    return {
-      overdue,
-      slots: [...byHour.entries()].sort((a, b) => a[0] - b[0]),
-      load: { planned, remaining, over: planned > remaining && remaining > 0 },
-    };
-  }, [cardById]);
+    const remaining = Math.max(0, (DAY_END - now.getHours()) * 60 - now.getMinutes());
+    // plannedMinutes lấy nguyên của server — nó tính trên TOÀN BỘ việc đến hạn
+    // hôm nay kể cả việc đã quá hạn, không phải tổng của mảng dueToday.
+    const planned = data?.plannedMinutes ?? 0;
+    return { planned, remaining, over: planned > remaining && remaining > 0 };
+  }, [data]);
 
   if (!agendaOpen) return null;
 
-  const open = (id: string) => router.push(`/boards/${board.id}/cards/${id}`);
+  const open = (id: string) => board && router.push(`/boards/${board.id}/cards/${id}`);
+  const overdue = data?.overdue ?? [];
 
   return (
     <div className={`${styles.glassPanel} w-[264px] shrink-0 hidden xl:flex flex-col overflow-hidden`}>
@@ -133,7 +118,12 @@ export function AgendaPanel() {
       </div>
 
       <div className={`${styles.scrollArea} flex-1 min-h-0 overflow-y-auto px-3 py-2.5 flex flex-col gap-3`}>
-        {/* Quá hạn luôn lên đầu */}
+        {isLoading && (
+          <div className="text-[12.5px] text-center mt-4" style={{ color: G.textMuted }}>
+            Đang tải lịch...
+          </div>
+        )}
+
         {overdue.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <div
@@ -164,7 +154,7 @@ export function AgendaPanel() {
           </div>
         ))}
 
-        {overdue.length === 0 && slots.length === 0 && (
+        {!isLoading && overdue.length === 0 && slots.length === 0 && (
           <div className="mt-6 text-center flex flex-col items-center gap-2">
             <span
               className="grid place-items-center size-11 rounded-full"
@@ -188,7 +178,7 @@ function AgendaItem({
   onOpen,
   overdue = false,
 }: {
-  card: BoardCard;
+  card: CardSummary;
   onOpen: (id: string) => void;
   overdue?: boolean;
 }) {

@@ -10,7 +10,7 @@ import { useBoardShortcuts } from "./useBoardShortcuts";
 import styles from "./board.module.scss";
 
 export function BoardCanvas() {
-  const { lists, cardsByList, dispatch, undo, redo, setPaletteOpen, fullscreen, setFullscreen } =
+  const { lists, cardsByList, addList, undo, redo, setPaletteOpen, fullscreen, setFullscreen } =
     useBoard();
   const [addingList, setAddingList] = useState(false);
   // Danh sách đang được phím tắt N yêu cầu mở ô nhập
@@ -50,7 +50,7 @@ export function BoardCanvas() {
               <Composer
                 placeholder="Nhập tên danh sách..."
                 submitLabel="Thêm danh sách"
-                onSubmit={(title) => dispatch({ type: "ADD_LIST", title })}
+                onSubmit={(title) => addList(title)}
                 onCancel={() => setAddingList(false)}
               />
             </div>

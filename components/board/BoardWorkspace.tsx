@@ -9,7 +9,7 @@
  *   - "list-drop-<listId>" -> thả vào thân danh sách (kể cả danh sách rỗng)
  *   - "inbox-drop"         -> trả thẻ về Hộp thư đến
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -21,7 +21,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { BoardCard, byPosition } from "@/models/board";
+import { CardSummary, byPosition } from "@/models/board";
 import { useBoard } from "./BoardStore";
 import { BoardCanvas } from "./BoardCanvas";
 import { BoardToolbar } from "./BoardToolbar";
@@ -34,9 +34,13 @@ const LIST_DROP_PREFIX = "list-drop-";
 export const INBOX_DROP_ID = "inbox-drop";
 
 export function BoardWorkspace() {
-  const { lists, cardsByList, inboxCards, cardById, dispatch } = useBoard();
-  const [activeCard, setActiveCard] = useState<BoardCard | null>(null);
+  const { lists, cardsByList, inboxCards, cardById, previewMove, commitMove, moveList } =
+    useBoard();
+  const [activeCard, setActiveCard] = useState<CardSummary | null>(null);
   const [activeListId, setActiveListId] = useState<string | null>(null);
+  // Vị trí thẻ TRƯỚC khi kéo — chỉ gọi API một lần lúc thả, và cần chỗ cũ
+  // để đăng ký bước hoàn tác
+  const dragOrigin = useRef<{ listId: string | null; position: number } | null>(null);
 
   // Ngưỡng 6px: dưới ngưỡng coi là click mở thẻ, trên ngưỡng mới tính là kéo.
   // Thiếu cái này thì mọi cú click vào thẻ đều bị nuốt thành thao tác kéo.
@@ -45,7 +49,7 @@ export function BoardWorkspace() {
   );
 
   const cardsOf = useCallback(
-    (listId: string | null): BoardCard[] =>
+    (listId: string | null): CardSummary[] =>
       listId === null ? inboxCards : (cardsByList.get(listId) ?? []),
     [cardsByList, inboxCards],
   );
@@ -65,7 +69,13 @@ export function BoardWorkspace() {
 
   const onDragStart = (event: DragStartEvent) => {
     const type = event.active.data.current?.type;
-    if (type === "card") setActiveCard(cardById.get(String(event.active.id)) ?? null);
+    if (type === "card") {
+      const card = cardById.get(String(event.active.id)) ?? null;
+      setActiveCard(card);
+      dragOrigin.current = card
+        ? { listId: card.listId, position: card.position }
+        : null;
+    }
     if (type === "list") setActiveListId(String(event.active.id));
   };
 
@@ -98,16 +108,23 @@ export function BoardWorkspace() {
       toIndex = overIndex + (below ? 1 : 0);
     }
 
-    dispatch({ type: "MOVE_CARD", cardId: activeId, toListId, toIndex });
+    previewMove(activeId, toListId, toIndex);
   };
 
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    const origin = dragOrigin.current;
+    dragOrigin.current = null;
     setActiveCard(null);
     setActiveListId(null);
-    if (!over) return;
 
-    // Thẻ đã đặt đúng chỗ trong onDragOver rồi, ở đây chỉ còn xử lý kéo danh sách
+    // Thẻ: onDragOver đã xê dịch trong cache rồi, giờ mới ghi xuống server
+    if (active.data.current?.type === "card") {
+      if (origin) commitMove(String(active.id), origin);
+      return;
+    }
+
+    if (!over) return;
     if (active.data.current?.type !== "list") return;
 
     const activeId = String(active.id);
@@ -118,7 +135,7 @@ export function BoardWorkspace() {
     const toIndex = others.findIndex((l) => l.id === targetListId);
     if (toIndex === -1) return;
 
-    dispatch({ type: "MOVE_LIST", listId: activeId, toIndex });
+    moveList(activeId, toIndex);
   };
 
   const activeListTitle = useMemo(
@@ -134,6 +151,12 @@ export function BoardWorkspace() {
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDragCancel={() => {
+        // Huỷ giữa chừng: trả thẻ về chỗ cũ trong cache, không gọi API
+        const origin = dragOrigin.current;
+        if (origin && activeCard) {
+          previewMove(activeCard.id, origin.listId, Number.MAX_SAFE_INTEGER);
+        }
+        dragOrigin.current = null;
         setActiveCard(null);
         setActiveListId(null);
       }}

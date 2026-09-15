@@ -29,7 +29,7 @@ const MIN_WIDTH = 248;
 const MAX_WIDTH = 420;
 
 export function InboxPanel() {
-  const { inboxCards, dispatch } = useBoard();
+  const { inboxCards, inboxTotal, addCard, filterActive } = useBoard();
   const [width, setWidth] = useState(292);
   const [collapsed, setCollapsed] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -82,13 +82,13 @@ export function InboxPanel() {
         </Tooltip>
         <div className="relative">
           <Inbox size={17} style={{ color: G.textMuted }} />
-          {inboxCards.length > 0 && (
+          {inboxTotal > 0 && (
             <span
               className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 grid place-items-center
                 rounded-full text-white text-[10px] font-bold"
               style={{ background: "rgba(163,209,235,.85)", color: "#062b47" }}
             >
-              {inboxCards.length}
+              {inboxTotal}
             </span>
           )}
         </div>
@@ -113,8 +113,11 @@ export function InboxPanel() {
           <span
             className="text-[11.5px] font-semibold tabular-nums px-1.5 h-5 grid place-items-center rounded-md"
             style={{ color: G.textSoft, background: G.fill }}
+            title="Số việc đã tải / tổng thật"
           >
-            {inboxCards.length}
+            {filterActive || inboxCards.length !== inboxTotal
+              ? `${inboxCards.length}/${inboxTotal}`
+              : inboxTotal}
           </span>
           <Tooltip title="Thu gọn">
             <button
@@ -135,7 +138,7 @@ export function InboxPanel() {
               parse
               placeholder="Việc cần làm... (vd: Gọi khách hàng mai 9h !gấp)"
               submitLabel="Thêm"
-              onSubmit={(text) => dispatch({ type: "ADD_CARD", listId: null, text, atTop: true })}
+              onSubmit={(text) => addCard(null, text, true)}
               onCancel={() => setAdding(false)}
             />
           ) : (

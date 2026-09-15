@@ -23,9 +23,11 @@ import {
   Search,
   Undo2,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { boardApi } from "@/apis/board.api";
 import { deaccent } from "@/utils/client/quickParse";
+import useDebounce from "@/hooks/useDebounce";
 import { useBoard } from "./BoardStore";
-import { richTextToPlain } from "@/utils/client/richText";
 import { Badge, C, LabelChip, fmtShort } from "./ui";
 
 type Command = {
@@ -57,7 +59,7 @@ function PaletteBody() {
     canUndo,
     undo,
     lastLabel,
-    dispatch,
+    addCard,
   } = useBoard();
 
   const [query, setQuery] = useState("");
@@ -66,24 +68,26 @@ function PaletteBody() {
 
   const cards = useMemo(() => Array.from(cardById.values()), [cardById]);
 
+  // Tìm ở SERVER chứ không lọc mảng đã tải: /full chỉ trả 20 thẻ đầu mỗi cột,
+  // lọc phía client sẽ bỏ sót việc mà không có dấu hiệu gì.
+  const debounced = useDebounce(query.trim(), 250);
+  const { data: searchResult, isFetching: searching } = useQuery({
+    queryKey: ["board", "search", debounced],
+    queryFn: () => boardApi.search(debounced, 8),
+    enabled: debounced.length > 0,
+    staleTime: 15_000,
+  });
+
   const matchedCards = useMemo(() => {
-    const q = deaccent(query.trim());
-    if (!q) {
-      // Chưa gõ gì -> gợi ý việc quá hạn và đến hạn sớm nhất
+    if (!debounced) {
+      // Chưa gõ gì -> gợi ý việc sắp đến hạn, lấy từ dữ liệu đã có sẵn
       return cards
         .filter((c) => !c.completedAt && c.deadline)
         .sort((a, b) => (a.deadline ?? "").localeCompare(b.deadline ?? ""))
         .slice(0, 6);
     }
-    return cards
-      .filter(
-        (c) =>
-          deaccent(c.title).includes(q) ||
-          deaccent(c.code).includes(q) ||
-          deaccent(richTextToPlain(c.description)).includes(q),
-      )
-      .slice(0, 8);
-  }, [cards, query]);
+    return searchResult?.items ?? [];
+  }, [cards, debounced, searchResult]);
 
   const commands = useMemo<Command[]>(() => {
     const all: Command[] = [
@@ -95,7 +99,7 @@ function PaletteBody() {
         run: () => {
           const text = query.trim();
           if (!text) return;
-          dispatch({ type: "ADD_CARD", listId: lists[0]?.id ?? null, text, atTop: true });
+          addCard(lists[0]?.id ?? null, text, true);
           setPaletteOpen(false);
         },
       },
@@ -154,7 +158,7 @@ function PaletteBody() {
     canUndo,
     lastLabel,
     undo,
-    dispatch,
+    addCard,
     lists,
     setPaletteOpen,
   ]);
@@ -180,7 +184,7 @@ function PaletteBody() {
       return;
     }
     setPaletteOpen(false);
-    router.push(`/boards/${board.id}/cards/${row.id}`);
+    if (board) router.push(`/boards/${board.id}/cards/${row.id}`);
   };
 
   // Cuộn dòng đang chọn vào tầm nhìn
@@ -271,7 +275,7 @@ function PaletteBody() {
           ))}
 
           {matchedCards.length > 0 && (
-            <SectionLabel>{query.trim() ? "Việc khớp" : "Sắp đến hạn"}</SectionLabel>
+            <SectionLabel>{debounced ? `Việc khớp${searchResult ? ` (${searchResult.total})` : ""}` : "Sắp đến hạn"}</SectionLabel>
           )}
           {matchedCards.map((card, i) => {
             const idx = commands.length + i;
@@ -322,7 +326,7 @@ function PaletteBody() {
               className="px-4 py-6 text-center text-[13px]"
               style={{ color: C.mutedForeground }}
             >
-              Không tìm thấy gì khớp “{query}”
+              {searching ? "Đang tìm..." : `Không tìm thấy gì khớp “${query}”`}
             </div>
           )}
         </div>

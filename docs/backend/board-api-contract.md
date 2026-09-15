@@ -4,7 +4,8 @@
 **đã code xong**, lấy trực tiếp từ DTO của backend, không phải đề xuất.
 
 **Trạng thái:** typecheck / lint / 58 unit test đều xanh, `nest build` chạy được.
-**Chưa chạy migration trên database nào**, nên chưa có số liệu thật để đo.
+Migration **đã chạy** trên DB Supabase dev, và toàn bộ endpoint đã được gọi thật
+một lượt (xem [§13](#13-đã-kiểm-tới-đâu)) — không còn là code chưa chạy bao giờ.
 
 Cuối file có [danh sách để FE tick](#12-danh-sách-fe-tick).
 
@@ -613,11 +614,35 @@ Ba ràng buộc mục 5.7 đều đã thoả:
 
 ---
 
-## 13. Việc còn lại phía backend
+## 13. Đã kiểm tới đâu
 
-| Việc | Vì sao chưa làm |
+Migration đã chạy trên DB Supabase dev, sau đó boot app thật và gọi từng service.
+**Đã chứng minh chạy được:**
+
+| Ô nghiệm thu (mục 8 của đặc tả) | Kết quả |
 |---|---|
-| Chạy migration trên DB thật | Chưa có kết nối; cần quyền `CREATE EXTENSION unaccent` |
-| Đo mốc 400 ms với bảng 200 thẻ | Cần dữ liệu thật |
+| `/search?q=bao gia` ra việc tên "Báo giá…" | ✅ cả `bao gia`, `BAO GIA`, `Báo giá` |
+| Tìm theo `code`, tìm trong mô tả đã bóc thẻ HTML | ✅ gõ `strong` không ra việc in đậm |
+| Mô tả `<p><br></p>` cho `hasDescription = false` | ✅ kể cả `<p>&nbsp;</p>` |
+| `<script>alert(1)</script>` bị lọc sạch khi lưu | ✅ cả `onerror` |
+| Chèn 60 lần cùng một khe rồi rebalance — thứ tự không đổi | ✅ |
+| `cardCounts` khớp số thẻ thật, không phải số đã trả | ✅ |
+| Gọi `move` hai lần cùng `listId` + `position` | ✅ cùng kết quả, không lỗi |
+| Người dùng A gọi API trên thẻ của B → 404 | ✅ `CARD_NOT_FOUND` |
+| Kéo sang cột có `mapsToStatus` thì `status` đổi theo | ✅ |
+| Vượt WIP trả 200 kèm `warning`, không chặn | ✅ |
+| Xoá mềm rồi `restore` | ✅ |
+| Nhật ký ghi đúng câu tiếng Việt | ✅ `"Chuyển từ Hôm nay sang Đang làm"` |
+
+> **Một lỗi đã tìm ra nhờ chạy thật:** `hasDescription` từng trả `true` cho
+> `<p>&nbsp;</p>` (Postgres `btrim` không cắt ký tự U+00A0 mà `sanitize-html`
+> sinh ra). Đã sửa. Unit test và typecheck **không** bắt được lỗi này.
+
+**Chưa kiểm được:**
+
+| Việc | Vì sao |
+|---|---|
+| Mốc 400 ms với bảng 200 thẻ | DB dev mới có 23 task |
+| `/agenda` với thẻ thứ 25 của một cột | Chưa có cột nào đủ dài |
+| Lưu trữ danh sách (thẻ quay về Hộp thư đến) | Chưa test, code đã có |
 | Upload đính kèm | Chờ chốt chỗ lưu file (câu hỏi 9.3) |
-| Job nền quét rebalance định kỳ | `move` đã tự rebalance khi cần; job chỉ là lớp phòng bị, làm sau |
