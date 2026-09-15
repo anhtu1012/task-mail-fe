@@ -1,487 +1,68 @@
 "use client";
 
 /**
- * Store cho bảng công việc cá nhân, chạy trên MOCK.
+ * Store của bảng công việc — chạy trên API THẬT.
  *
- * Mỗi action ở đây là 1 lời gọi API trong tương lai — tên action đặt trùng tên
- * endpoint trong docs/backend/board-spec.md, để lúc nối BE chỉ cần thay thân
- * reducer bằng mutation của React Query, component không đổi một dòng nào.
+ * Kiến trúc:
+ *   - Một query duy nhất `GET /boards/me/full` dựng cả màn (§3.1 hợp đồng).
+ *   - Mọi thao tác ghi đều cập nhật lạc quan thẳng vào cache trước, gọi API sau.
+ *     Kéo thả mà phải đợi mạng thì cảm giác như bị treo.
+ *   - Lỗi thì không tự vá lại cache bằng tay mà `invalidate` để tải lại sự thật
+ *     từ server. Vá tay dễ tạo ra trạng thái lệch mà không ai phát hiện.
+ *
+ * Hoàn tác: KHÔNG lưu snapshot như bản mock nữa, vì dữ liệu giờ nằm ở server.
+ * Mỗi thao tác tự đăng ký một cặp hàm nghịch đảo (undo/redo) gọi lại API —
+ * backend đã làm sẵn `?undo=true`, `restore`, `reopen` đúng cho việc này (§9).
  */
 import {
   ReactNode,
   createContext,
+  useCallback,
   useContext,
   useMemo,
-  useReducer,
   useState,
 } from "react";
+import { App } from "antd";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { boardApi } from "@/apis/board.api";
 import {
   Board,
-  BoardCard,
   BoardLabel,
   BoardList,
   BoardSnapshot,
+  CardSummary,
+  CreateCardInput,
+  INBOX_KEY,
+  TodayStats,
+  UpdateCardInput,
   byPosition,
   computePosition,
 } from "@/models/board";
-import { TaskCategory, TaskPriority } from "@/models/task";
-import { getMockSnapshot } from "@/mocks/board.mock";
+import { TaskPriority } from "@/models/task";
+import { getApiErrorMessage } from "@/utils/client/apiError";
 import { quickParse } from "@/utils/client/quickParse";
-import { richTextToPlain } from "@/utils/client/richText";
 import { useStickyState } from "./useStickyState";
 
-// ==========================================
-// ACTIONS
-// ==========================================
-export type BoardAction =
-  /** PATCH /cards/:id/move */
-  | { type: "MOVE_CARD"; cardId: string; toListId: string | null; toIndex: number }
-  /** POST /lists/:id/cards — text đi qua quickParse để tách hạn/ưu tiên/nhãn */
-  | { type: "ADD_CARD"; listId: string | null; text: string; atTop?: boolean }
-  /** PATCH /cards/:id */
-  | { type: "UPDATE_CARD"; cardId: string; patch: Partial<BoardCard> }
-  /** DELETE /cards/:id */
-  | { type: "DELETE_CARD"; cardId: string }
-  /** PATCH /cards/:id/snooze — dời hạn sang mốc mới */
-  | { type: "SNOOZE_CARD"; cardId: string; deadline: string | null; label: string }
-  /** POST /boards/:id/lists */
-  | { type: "ADD_LIST"; title: string }
-  /** PATCH /lists/:id */
-  | { type: "RENAME_LIST"; listId: string; title: string }
-  /** PATCH /lists/:id { archived: true } */
-  | { type: "ARCHIVE_LIST"; listId: string }
-  /** PATCH /lists/:id/move */
-  | { type: "MOVE_LIST"; listId: string; toIndex: number }
-  /** PATCH /checklist-items/:id */
-  | { type: "TOGGLE_CHECKLIST_ITEM"; cardId: string; itemId: string }
-  /** POST /checklists/:id/items */
-  | { type: "ADD_CHECKLIST_ITEM"; cardId: string; checklistId: string; content: string }
-  /** DELETE /checklist-items/:id */
-  | { type: "DELETE_CHECKLIST_ITEM"; cardId: string; itemId: string }
-  /** POST /cards/:id/checklists */
-  | { type: "ADD_CHECKLIST"; cardId: string; title: string }
-  /** POST /cards/:id/notes */
-  | { type: "ADD_NOTE"; cardId: string; content: string }
-  /** DELETE /notes/:id */
-  | { type: "DELETE_NOTE"; cardId: string; noteId: string }
-  /** PATCH /cards/:id/complete */
-  | { type: "TOGGLE_COMPLETE"; cardId: string }
-  /** PATCH /boards/:id */
-  | { type: "TOGGLE_STAR" };
+export const BOARD_QUERY_KEY = ["board", "snapshot"] as const;
 
 // ==========================================
-// HELPERS
+// HOÀN TÁC
 // ==========================================
-let idCounter = 0;
-/** Id tạm cho bản ghi optimistic — BE trả id thật thì thay lại */
-const tmpId = (prefix: string) => `${prefix}-tmp-${++idCounter}`;
+type UndoEntry = {
+  label: string;
+  undo: () => Promise<unknown>;
+  redo: () => Promise<unknown>;
+};
 
-/** Chỉ sinh khi người dùng thao tác, nên không ảnh hưởng SSR */
-const now = () => new Date().toISOString();
-
-/**
- * Tính position khi thả thẻ vào vị trí `toIndex` của danh sách đích.
- * Chỉ nhìn 2 hàng xóm -> đúng 1 row bị ghi, không re-index cả danh sách.
- */
-const positionAt = (siblings: BoardCard[], toIndex: number): number =>
-  computePosition(siblings[toIndex - 1]?.position, siblings[toIndex]?.position);
-
-const replaceCard = (
-  cards: BoardCard[],
-  cardId: string,
-  update: (card: BoardCard) => BoardCard,
-): BoardCard[] =>
-  cards.map((c) => (c.id === cardId ? { ...update(c), updatedAt: now() } : c));
-
-/** Ghi một dòng nhật ký cho thẻ */
-const logActivity = (
-  card: BoardCard,
-  action: BoardCard["activities"][number]["action"],
-  message: string,
-): BoardCard => ({
-  ...card,
-  activities: [
-    ...card.activities,
-    { id: tmpId("act"), cardId: card.id, action, message, createdAt: now() },
-  ],
-});
-
-// ==========================================
-// REDUCER
-// ==========================================
-function reducer(state: BoardSnapshot, action: BoardAction): BoardSnapshot {
-  switch (action.type) {
-    case "MOVE_CARD": {
-      const card = state.cards.find((c) => c.id === action.cardId);
-      if (!card) return state;
-
-      // Anh em ở danh sách đích, đã bỏ chính thẻ đang kéo ra
-      const siblings = state.cards
-        .filter((c) => c.listId === action.toListId && c.id !== action.cardId)
-        .sort(byPosition);
-
-      const position = positionAt(siblings, action.toIndex);
-      if (card.listId === action.toListId && card.position === position) return state;
-
-      const changedList = card.listId !== action.toListId;
-      const toName =
-        action.toListId === null
-          ? "Hộp thư đến"
-          : (state.lists.find((l) => l.id === action.toListId)?.title ?? "danh sách khác");
-      const fromName =
-        card.listId === null
-          ? "Hộp thư đến"
-          : (state.lists.find((l) => l.id === card.listId)?.title ?? "danh sách cũ");
-
-      return {
-        ...state,
-        cards: replaceCard(state.cards, action.cardId, (c) => {
-          const moved = { ...c, listId: action.toListId, position };
-          return changedList
-            ? logActivity(moved, "CARD_MOVED", `Chuyển từ ${fromName} sang ${toName}`)
-            : moved;
-        }),
-      };
-    }
-
-    case "ADD_CARD": {
-      // Tách hạn / ưu tiên / nhãn / thời lượng ngay từ dòng người dùng gõ
-      const parsed = quickParse(action.text);
-      const labelIds = parsed.labelSlugs
-        .map((slug) => state.labels.find((l) => l.slug === slug)?.id)
-        .filter((id): id is string => !!id);
-
-      const siblings = state.cards
-        .filter((c) => c.listId === action.listId)
-        .sort(byPosition);
-      const id = tmpId("card");
-
-      const card: BoardCard = {
-        id,
-        listId: action.listId,
-        boardId: state.board.id,
-        code: "Việc mới",
-        title: parsed.title,
-        description: null,
-        position: positionAt(siblings, action.atTop ? 0 : siblings.length),
-        labelIds,
-        category: TaskCategory.WORK,
-        priority: parsed.priority ?? TaskPriority.NORMAL,
-        deadline: parsed.deadline,
-        deadlineStatus: "IN_PROGRESS",
-        completedAt: null,
-        estimateMinutes: parsed.estimateMinutes,
-        repeat: null,
-        source: "MANUAL",
-        sourceMail: null,
-        cover: null,
-        checklists: [],
-        attachments: [],
-        notes: [],
-        activities: [
-          {
-            id: tmpId("act"),
-            cardId: id,
-            action: "CARD_CREATED",
-            message: "Tạo việc",
-            createdAt: now(),
-          },
-        ],
-        createdAt: now(),
-        updatedAt: now(),
-      };
-      return { ...state, cards: [...state.cards, card] };
-    }
-
-    case "UPDATE_CARD":
-      return {
-        ...state,
-        cards: replaceCard(state.cards, action.cardId, (c) => ({ ...c, ...action.patch })),
-      };
-
-    case "SNOOZE_CARD":
-      return {
-        ...state,
-        cards: replaceCard(state.cards, action.cardId, (c) =>
-          logActivity(
-            { ...c, deadline: action.deadline, deadlineStatus: "IN_PROGRESS" },
-            "SNOOZED",
-            `Dời hạn sang ${action.label}`,
-          ),
-        ),
-      };
-
-    case "DELETE_CARD":
-      return { ...state, cards: state.cards.filter((c) => c.id !== action.cardId) };
-
-    case "ADD_LIST": {
-      const last = [...state.lists].sort(byPosition).at(-1);
-      const list: BoardList = {
-        id: tmpId("list"),
-        boardId: state.board.id,
-        title: action.title,
-        position: computePosition(last?.position, undefined),
-        archived: false,
-        wipLimit: null,
-        createdAt: now(),
-      };
-      return { ...state, lists: [...state.lists, list] };
-    }
-
-    case "RENAME_LIST":
-      return {
-        ...state,
-        lists: state.lists.map((l) =>
-          l.id === action.listId ? { ...l, title: action.title } : l,
-        ),
-      };
-
-    case "ARCHIVE_LIST":
-      return {
-        ...state,
-        lists: state.lists.map((l) =>
-          l.id === action.listId ? { ...l, archived: true } : l,
-        ),
-        // Thẻ trong danh sách bị lưu trữ quay về Hộp thư đến thay vì biến mất
-        cards: state.cards.map((c) =>
-          c.listId === action.listId ? { ...c, listId: null } : c,
-        ),
-      };
-
-    case "MOVE_LIST": {
-      const ordered = state.lists.filter((l) => !l.archived).sort(byPosition);
-      const others = ordered.filter((l) => l.id !== action.listId);
-      const position = computePosition(
-        others[action.toIndex - 1]?.position,
-        others[action.toIndex]?.position,
-      );
-      return {
-        ...state,
-        lists: state.lists.map((l) =>
-          l.id === action.listId ? { ...l, position } : l,
-        ),
-      };
-    }
-
-    case "TOGGLE_CHECKLIST_ITEM": {
-      const card = state.cards.find((c) => c.id === action.cardId);
-      const item = card?.checklists
-        .flatMap((cl) => cl.items)
-        .find((i) => i.id === action.itemId);
-      return {
-        ...state,
-        cards: replaceCard(state.cards, action.cardId, (c) => {
-          const next = {
-            ...c,
-            checklists: c.checklists.map((cl) => ({
-              ...cl,
-              items: cl.items.map((it) =>
-                it.id === action.itemId ? { ...it, checked: !it.checked } : it,
-              ),
-            })),
-          };
-          // Chỉ ghi nhật ký khi tick, bỏ tick thì không ghi cho đỡ rác
-          return item && !item.checked
-            ? logActivity(next, "CHECKLIST_ITEM_CHECKED", `Hoàn thành mục “${item.content}”`)
-            : next;
-        }),
-      };
-    }
-
-    case "ADD_CHECKLIST_ITEM":
-      return {
-        ...state,
-        cards: replaceCard(state.cards, action.cardId, (c) => ({
-          ...c,
-          checklists: c.checklists.map((cl) =>
-            cl.id !== action.checklistId
-              ? cl
-              : {
-                  ...cl,
-                  items: [
-                    ...cl.items,
-                    {
-                      id: tmpId("item"),
-                      checklistId: cl.id,
-                      content: action.content,
-                      checked: false,
-                      position: computePosition(cl.items.at(-1)?.position, undefined),
-                    },
-                  ],
-                },
-          ),
-        })),
-      };
-
-    case "DELETE_CHECKLIST_ITEM":
-      return {
-        ...state,
-        cards: replaceCard(state.cards, action.cardId, (c) => ({
-          ...c,
-          checklists: c.checklists.map((cl) => ({
-            ...cl,
-            items: cl.items.filter((it) => it.id !== action.itemId),
-          })),
-        })),
-      };
-
-    case "ADD_CHECKLIST":
-      return {
-        ...state,
-        cards: replaceCard(state.cards, action.cardId, (c) => ({
-          ...c,
-          checklists: [
-            ...c.checklists,
-            {
-              id: tmpId("checklist"),
-              cardId: c.id,
-              title: action.title,
-              position: computePosition(c.checklists.at(-1)?.position, undefined),
-              items: [],
-            },
-          ],
-        })),
-      };
-
-    case "ADD_NOTE":
-      return {
-        ...state,
-        cards: replaceCard(state.cards, action.cardId, (c) => ({
-          ...c,
-          notes: [
-            ...c.notes,
-            {
-              id: tmpId("note"),
-              cardId: c.id,
-              content: action.content,
-              createdAt: now(),
-              editedAt: null,
-            },
-          ],
-        })),
-      };
-
-    case "DELETE_NOTE":
-      return {
-        ...state,
-        cards: replaceCard(state.cards, action.cardId, (c) => ({
-          ...c,
-          notes: c.notes.filter((n) => n.id !== action.noteId),
-        })),
-      };
-
-    case "TOGGLE_COMPLETE":
-      return {
-        ...state,
-        cards: replaceCard(state.cards, action.cardId, (c) =>
-          logActivity(
-            { ...c, completedAt: c.completedAt ? null : now() },
-            c.completedAt ? "CARD_REOPENED" : "CARD_COMPLETED",
-            c.completedAt ? "Mở lại việc" : "Đánh dấu hoàn thành",
-          ),
-        ),
-      };
-
-    case "TOGGLE_STAR":
-      return { ...state, board: { ...state.board, starred: !state.board.starred } };
-
-    default:
-      return state;
-  }
-}
-
-// ==========================================
-// LỊCH SỬ — HOÀN TÁC / LÀM LẠI
-// ==========================================
-/**
- * Kéo nhầm một thẻ qua cột khác là chuyện xảy ra liên tục, và không có cách nào
- * "kéo ngược lại cho đúng chỗ cũ" vì vị trí cũ đã mất. Vì vậy Ctrl+Z là tính
- * năng bắt buộc chứ không phải tiện ích.
- *
- * Lưu nguyên snapshot thay vì lưu action đảo ngược: mỗi snapshot chỉ là object
- * với vài mảng chia sẻ tham chiếu (reducer bất biến), nên 50 bước lịch sử
- * gần như không tốn thêm bộ nhớ.
- */
 const HISTORY_LIMIT = 50;
 
-type HistoryEntry = { snapshot: BoardSnapshot; label: string };
-
-type HistoryState = {
-  past: HistoryEntry[];
-  present: BoardSnapshot;
-  future: HistoryEntry[];
-  /** Mô tả thao tác vừa thực hiện, để hiện trên nút hoàn tác */
-  lastLabel: string | null;
-};
-
-/** Nhãn tiếng Việt cho từng thao tác — hiện trong tooltip "Hoàn tác ..." */
-const ACTION_LABEL: Record<BoardAction["type"], string> = {
-  MOVE_CARD: "di chuyển việc",
-  ADD_CARD: "thêm việc",
-  UPDATE_CARD: "sửa việc",
-  DELETE_CARD: "xoá việc",
-  SNOOZE_CARD: "dời hạn",
-  ADD_LIST: "thêm danh sách",
-  RENAME_LIST: "đổi tên danh sách",
-  ARCHIVE_LIST: "lưu trữ danh sách",
-  MOVE_LIST: "di chuyển danh sách",
-  TOGGLE_CHECKLIST_ITEM: "tick việc cần làm",
-  ADD_CHECKLIST_ITEM: "thêm mục",
-  DELETE_CHECKLIST_ITEM: "xoá mục",
-  ADD_CHECKLIST: "thêm danh sách việc cần làm",
-  ADD_NOTE: "thêm ghi chú",
-  DELETE_NOTE: "xoá ghi chú",
-  TOGGLE_COMPLETE: "đổi trạng thái hoàn thành",
-  TOGGLE_STAR: "đánh dấu sao",
-};
-
-type HistoryAction = BoardAction | { type: "UNDO" } | { type: "REDO" };
-
-function historyReducer(state: HistoryState, action: HistoryAction): HistoryState {
-  if (action.type === "UNDO") {
-    const prev = state.past.at(-1);
-    if (!prev) return state;
-    return {
-      past: state.past.slice(0, -1),
-      present: prev.snapshot,
-      future: [{ snapshot: state.present, label: prev.label }, ...state.future],
-      lastLabel: state.past.at(-2)?.label ?? null,
-    };
-  }
-
-  if (action.type === "REDO") {
-    const next = state.future[0];
-    if (!next) return state;
-    return {
-      past: [...state.past, { snapshot: state.present, label: next.label }],
-      present: next.snapshot,
-      future: state.future.slice(1),
-      lastLabel: next.label,
-    };
-  }
-
-  const present = reducer(state.present, action);
-  // Reducer trả nguyên state cũ (thao tác không đổi gì) -> đừng ghi vào lịch sử
-  if (present === state.present) return state;
-
-  const label = ACTION_LABEL[action.type];
-  return {
-    past: [...state.past, { snapshot: state.present, label }].slice(-HISTORY_LIMIT),
-    present,
-    future: [],
-    lastLabel: label,
-  };
-}
-
 // ==========================================
-// BỘ LỌC (client-side, sau này đẩy sang query param)
+// BỘ LỌC
 // ==========================================
 export type BoardFilter = {
   keyword: string;
   labelIds: string[];
-  /** Chỉ hiện việc quá hạn */
   overdueOnly: boolean;
-  /** Chỉ hiện việc có hạn trong hôm nay */
   todayOnly: boolean;
 };
 
@@ -501,14 +82,9 @@ const isSameDay = (iso: string, ref: Date) => {
   );
 };
 
-const matchesFilter = (card: BoardCard, filter: BoardFilter, today: Date): boolean => {
+const matchesFilter = (card: CardSummary, filter: BoardFilter, today: Date): boolean => {
   const kw = filter.keyword.trim().toLowerCase();
-  if (
-    kw &&
-    !card.title.toLowerCase().includes(kw) &&
-    !card.code.toLowerCase().includes(kw) &&
-    !richTextToPlain(card.description).toLowerCase().includes(kw)
-  ) {
+  if (kw && !card.title.toLowerCase().includes(kw) && !card.code.toLowerCase().includes(kw)) {
     return false;
   }
   if (filter.labelIds.length && !card.labelIds.some((id) => filter.labelIds.includes(id))) {
@@ -520,45 +96,58 @@ const matchesFilter = (card: BoardCard, filter: BoardFilter, today: Date): boole
 };
 
 // ==========================================
-// THỐNG KÊ HÔM NAY
-// ==========================================
-export type TodayStats = {
-  overdue: number;
-  dueToday: number;
-  doneToday: number;
-  /** Tổng thời lượng dự kiến của việc còn phải làm hôm nay (phút) */
-  plannedMinutes: number;
-};
-
-// ==========================================
 // CONTEXT
 // ==========================================
 type BoardContextValue = {
-  board: Board;
+  /** null khi chưa tải xong — component phải chịu được trạng thái này */
+  board: Board | null;
   lists: BoardList[];
   labels: BoardLabel[];
-  /** Thẻ đã lọc, nhóm theo listId, đã sắp theo position */
-  cardsByList: Map<string, BoardCard[]>;
-  /** Thẻ chưa phân loại (listId = null) — nguồn email/Zalo */
-  inboxCards: BoardCard[];
-  /** Tổng số thẻ mỗi danh sách TRƯỚC khi lọc, để hiện "3/12" khi đang bật lọc */
+  cardsByList: Map<string, CardSummary[]>;
+  inboxCards: CardSummary[];
+  /** Tổng thật mỗi cột từ `cardCounts` của server, không phải số thẻ đã tải */
   totalByList: Map<string, number>;
+  inboxTotal: number;
   labelById: Map<string, BoardLabel>;
-  cardById: Map<string, BoardCard>;
+  cardById: Map<string, CardSummary>;
   today: TodayStats;
+
+  isLoading: boolean;
+  isFetching: boolean;
+  error: unknown;
+  refetch: () => void;
+
   filter: BoardFilter;
   setFilter: (next: BoardFilter) => void;
   filterActive: boolean;
-  dispatch: (action: BoardAction) => void;
 
-  /** Hoàn tác / làm lại */
+  // --- thao tác ---
+  /**
+   * Chỉ sửa cache để thấy chỗ trống mở ra trong lúc kéo — KHÔNG gọi API.
+   * onDragOver chạy liên tục, gọi API ở đây là bắn hàng chục request mỗi lần kéo.
+   */
+  previewMove: (cardId: string, toListId: string | null, toIndex: number) => void;
+  /** Gọi một lần lúc thả, với vị trí gốc để còn hoàn tác được */
+  commitMove: (cardId: string, from: { listId: string | null; position: number }) => void;
+  addCard: (listId: string | null, text: string, atTop?: boolean) => void;
+  updateCard: (cardId: string, patch: UpdateCardInput) => void;
+  deleteCard: (cardId: string) => void;
+  snoozeCard: (cardId: string, deadline: string | null, label: string) => void;
+  toggleComplete: (cardId: string) => void;
+  addList: (title: string) => void;
+  renameList: (listId: string, title: string) => void;
+  archiveList: (listId: string) => void;
+  moveList: (listId: string, toIndex: number) => void;
+  toggleStar: () => void;
+
+  // --- hoàn tác ---
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
   lastLabel: string | null;
 
-  /** Trạng thái giao diện, nhớ lại giữa các lần mở trang */
+  // --- giao diện ---
   fullscreen: boolean;
   setFullscreen: (v: boolean) => void;
   agendaOpen: boolean;
@@ -569,66 +158,498 @@ type BoardContextValue = {
 
 const BoardContext = createContext<BoardContextValue | null>(null);
 
+const EMPTY_TODAY: TodayStats = {
+  overdue: 0,
+  dueToday: 0,
+  doneToday: 0,
+  plannedMinutes: 0,
+};
+
 export function BoardProvider({ children }: { children: ReactNode }) {
-  const [history, dispatch] = useReducer(historyReducer, undefined, () => ({
-    past: [],
-    present: getMockSnapshot(),
-    future: [],
-    lastLabel: null,
-  }));
-  const state = history.present;
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
 
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
   const [fullscreen, setFullscreen] = useStickyState("board:fullscreen", false);
   const [agendaOpen, setAgendaOpen] = useStickyState("board:agenda", true);
-  // Bảng lệnh luôn đóng khi mở trang — không phải thứ đáng nhớ lại
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  const value = useMemo<BoardContextValue>(() => {
-    // Mốc "hôm nay" chốt một lần cho cả lần tính này
+  // Lịch sử hoàn tác là STATE chứ không phải ref: nút hoàn tác/làm lại đọc nó
+  // lúc render, mà đọc ref trong render là sai (React không đảm bảo render lại).
+  const [past, setPast] = useState<UndoEntry[]>([]);
+  const [future, setFuture] = useState<UndoEntry[]>([]);
+
+  const {
+    data,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: BOARD_QUERY_KEY,
+    queryFn: () => boardApi.snapshot(),
+    // Thao tác kéo thả đã cập nhật lạc quan rồi, không cần tải lại liên tục
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  /** Sửa cache tại chỗ — mọi cập nhật lạc quan đều đi qua đây */
+  const patchSnapshot = useCallback(
+    (fn: (snap: BoardSnapshot) => BoardSnapshot) => {
+      queryClient.setQueryData<BoardSnapshot>(BOARD_QUERY_KEY, (prev) =>
+        prev ? fn(prev) : prev,
+      );
+    },
+    [queryClient],
+  );
+
+  const invalidate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: BOARD_QUERY_KEY });
+    // Lịch hôm nay là query riêng, không tự cập nhật theo snapshot
+    queryClient.invalidateQueries({ queryKey: ["board", "agenda"] });
+    // Các màn cũ (/tasks, /kanban, /dashboard) đọc cùng dữ liệu task
+    queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["task-stats"] });
+  }, [queryClient]);
+
+  const onFail = useCallback(
+    (err: unknown) => {
+      message.error(getApiErrorMessage(err));
+      // Không vá cache bằng tay — tải lại sự thật từ server
+      invalidate();
+    },
+    [message, invalidate],
+  );
+
+  /** Đăng ký một bước vào lịch sử hoàn tác */
+  const pushHistory = useCallback((entry: UndoEntry) => {
+    setPast((prev) => [...prev, entry].slice(-HISTORY_LIMIT));
+    setFuture([]);
+  }, []);
+
+  // ==========================================
+  // DẪN XUẤT
+  // ==========================================
+  const derived = useMemo(() => {
     const today = new Date();
-    const lists = state.lists.filter((l) => !l.archived).sort(byPosition);
+    const allLists = data?.lists ?? [];
+    const lists = allLists.filter((l) => !l.archived).sort(byPosition);
+    const cards = data?.cards ?? [];
 
-    const cardsByList = new Map<string, BoardCard[]>();
-    const totalByList = new Map<string, number>();
-    lists.forEach((l) => {
-      cardsByList.set(l.id, []);
-      totalByList.set(l.id, 0);
-    });
+    const cardsByList = new Map<string, CardSummary[]>();
+    lists.forEach((l) => cardsByList.set(l.id, []));
+    const inboxCards: CardSummary[] = [];
 
-    const inboxCards: BoardCard[] = [];
-    const stats: TodayStats = { overdue: 0, dueToday: 0, doneToday: 0, plannedMinutes: 0 };
-
-    state.cards.forEach((card) => {
-      const done = card.completedAt !== null;
-      if (done && isSameDay(card.completedAt!, today)) stats.doneToday += 1;
-      if (!done && card.deadlineStatus === "LATE") stats.overdue += 1;
-      if (!done && card.deadline && isSameDay(card.deadline, today)) {
-        stats.dueToday += 1;
-        stats.plannedMinutes += card.estimateMinutes ?? 0;
-      }
-
-      if (card.listId === null) {
-        if (matchesFilter(card, filter, today)) inboxCards.push(card);
-        return;
-      }
-      totalByList.set(card.listId, (totalByList.get(card.listId) ?? 0) + 1);
-      if (matchesFilter(card, filter, today)) cardsByList.get(card.listId)?.push(card);
+    cards.forEach((card) => {
+      if (!matchesFilter(card, filter, today)) return;
+      if (card.listId === null) inboxCards.push(card);
+      else cardsByList.get(card.listId)?.push(card);
     });
 
     cardsByList.forEach((list) => list.sort(byPosition));
     inboxCards.sort(byPosition);
 
+    const counts = data?.cardCounts ?? {};
+    const totalByList = new Map<string, number>(
+      lists.map((l) => [l.id, counts[l.id] ?? 0]),
+    );
+
     return {
-      board: state.board,
       lists,
-      labels: state.labels,
       cardsByList,
       inboxCards,
       totalByList,
-      labelById: new Map(state.labels.map((l) => [l.id, l])),
-      cardById: new Map(state.cards.map((c) => [c.id, c])),
-      today: stats,
+      inboxTotal: counts[INBOX_KEY] ?? 0,
+      labelById: new Map((data?.labels ?? []).map((l) => [l.id, l])),
+      cardById: new Map(cards.map((c) => [c.id, c])),
+    };
+  }, [data, filter]);
+
+  /** Danh sách thẻ của một cột lấy từ cache gốc (chưa lọc) — dùng khi tính position */
+  const rawSiblings = useCallback(
+    (listId: string | null, excludeId?: string): CardSummary[] =>
+      (data?.cards ?? [])
+        .filter((c) => c.listId === listId && c.id !== excludeId)
+        .sort(byPosition),
+    [data],
+  );
+
+  // ==========================================
+  // THAO TÁC
+  // ==========================================
+  const moveMutation = useMutation({
+    mutationFn: ({
+      cardId,
+      listId,
+      position,
+      undoFlag,
+    }: {
+      cardId: string;
+      listId: string | null;
+      position: number;
+      undoFlag?: boolean;
+    }) => boardApi.moveCard(cardId, { listId, position }, undoFlag),
+    onSuccess: (res) => {
+      // position trong response mới là chuẩn — backend có thể đã dịch sang khe
+      // trống gần nhất nếu khe gửi lên bị chiếm (§4.1)
+      patchSnapshot((snap) => ({
+        ...snap,
+        cards: snap.cards.map((c) =>
+          c.id === res.id
+            ? { ...c, listId: res.listId, position: res.position, status: res.status }
+            : c,
+        ),
+      }));
+      if (res.warning === "LIST_WIP_EXCEEDED") {
+        message.warning("Cột này đã vượt giới hạn việc đang chạy");
+      }
+    },
+    onError: onFail,
+  });
+
+  const previewMove = useCallback(
+    (cardId: string, toListId: string | null, toIndex: number) => {
+      const card = derived.cardById.get(cardId);
+      if (!card) return;
+      const siblings = rawSiblings(toListId, cardId);
+      const position = computePosition(
+        siblings[toIndex - 1]?.position,
+        siblings[toIndex]?.position,
+      );
+      if (card.listId === toListId && card.position === position) return;
+      patchSnapshot((snap) => ({
+        ...snap,
+        cards: snap.cards.map((c) =>
+          c.id === cardId ? { ...c, listId: toListId, position } : c,
+        ),
+      }));
+    },
+    [derived.cardById, rawSiblings, patchSnapshot],
+  );
+
+  const commitMove = useCallback(
+    (cardId: string, from: { listId: string | null; position: number }) => {
+      const card = derived.cardById.get(cardId);
+      if (!card) return;
+      // Kéo rồi thả về đúng chỗ cũ -> không có gì để ghi
+      if (card.listId === from.listId && card.position === from.position) return;
+
+      const to = { listId: card.listId, position: card.position };
+      moveMutation.mutate({ cardId, ...to });
+      pushHistory({
+        label: "di chuyển việc",
+        undo: () => boardApi.moveCard(cardId, from, true),
+        redo: () => boardApi.moveCard(cardId, to, true),
+      });
+    },
+    [derived.cardById, moveMutation, pushHistory],
+  );
+
+  const addCard = useCallback(
+    (listId: string | null, text: string, atTop = false) => {
+      // Tách hạn / ưu tiên / nhãn / thời lượng ngay từ dòng người dùng gõ.
+      // Backend KHÔNG phân tích chuỗi tự nhiên (§4.2) nên việc này phải làm ở đây.
+      const parsed = quickParse(text);
+      const labelIds = parsed.labelSlugs
+        .map((slug) => (data?.labels ?? []).find((l) => l.slug === slug)?.id)
+        .filter((id): id is string => !!id);
+
+      const siblings = rawSiblings(listId);
+      const position = atTop
+        ? computePosition(undefined, siblings[0]?.position)
+        : computePosition(siblings.at(-1)?.position, undefined);
+
+      const input: CreateCardInput = {
+        title: parsed.title,
+        position,
+        deadline: parsed.deadline,
+        priority: parsed.priority ?? TaskPriority.NORMAL,
+        labelIds: labelIds.length ? labelIds : undefined,
+        estimateMinutes: parsed.estimateMinutes ?? undefined,
+      };
+
+      boardApi
+        .createCard(listId, input)
+        .then((card) => {
+          patchSnapshot((snap) => ({
+            ...snap,
+            cards: [...snap.cards, card],
+            cardCounts: {
+              ...snap.cardCounts,
+              [listId ?? INBOX_KEY]: (snap.cardCounts[listId ?? INBOX_KEY] ?? 0) + 1,
+            },
+          }));
+          pushHistory({
+            label: "thêm việc",
+            undo: () => boardApi.deleteCard(card.id),
+            redo: () => boardApi.restoreCard(card.id),
+          });
+        })
+        .catch(onFail);
+    },
+    [data, rawSiblings, patchSnapshot, pushHistory, onFail],
+  );
+
+  const updateCard = useCallback(
+    (cardId: string, patch: UpdateCardInput) => {
+      const before = derived.cardById.get(cardId);
+      patchSnapshot((snap) => ({
+        ...snap,
+        cards: snap.cards.map((c) =>
+          c.id === cardId
+            ? {
+                ...c,
+                ...(patch.title !== undefined ? { title: patch.title } : {}),
+                ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
+                ...(patch.cover !== undefined ? { cover: patch.cover } : {}),
+                ...(patch.deadline !== undefined ? { deadline: patch.deadline } : {}),
+                ...(patch.description !== undefined
+                  ? { hasDescription: !!patch.description }
+                  : {}),
+              }
+            : c,
+        ),
+      }));
+
+      boardApi
+        .updateCard(cardId, patch)
+        .then(() => {
+          if (!before) return;
+          // Chỉ đảo lại đúng những field vừa sửa
+          const inverse: UpdateCardInput = {};
+          if (patch.title !== undefined) inverse.title = before.title;
+          if (patch.priority !== undefined) inverse.priority = before.priority;
+          if (patch.cover !== undefined) inverse.cover = before.cover;
+          if (patch.deadline !== undefined) inverse.deadline = before.deadline;
+          if (Object.keys(inverse).length === 0) return;
+          pushHistory({
+            label: "sửa việc",
+            undo: () => boardApi.updateCard(cardId, inverse),
+            redo: () => boardApi.updateCard(cardId, patch),
+          });
+        })
+        .catch(onFail);
+    },
+    [derived.cardById, patchSnapshot, pushHistory, onFail],
+  );
+
+  const deleteCard = useCallback(
+    (cardId: string) => {
+      const card = derived.cardById.get(cardId);
+      patchSnapshot((snap) => ({
+        ...snap,
+        cards: snap.cards.filter((c) => c.id !== cardId),
+      }));
+      boardApi
+        .deleteCard(cardId)
+        .then(() => {
+          message.success("Đã xoá việc");
+          if (!card) return;
+          pushHistory({
+            label: "xoá việc",
+            undo: () => boardApi.restoreCard(cardId),
+            redo: () => boardApi.deleteCard(cardId),
+          });
+        })
+        .catch(onFail);
+    },
+    [derived.cardById, patchSnapshot, pushHistory, onFail, message],
+  );
+
+  const snoozeCard = useCallback(
+    (cardId: string, deadline: string | null, label: string) => {
+      const before = derived.cardById.get(cardId)?.deadline ?? null;
+      patchSnapshot((snap) => ({
+        ...snap,
+        cards: snap.cards.map((c) =>
+          c.id === cardId ? { ...c, deadline, deadlineStatus: "IN_PROGRESS" } : c,
+        ),
+      }));
+      boardApi
+        .snoozeCard(cardId, deadline)
+        .then((card) => {
+          patchSnapshot((snap) => ({
+            ...snap,
+            cards: snap.cards.map((c) => (c.id === card.id ? card : c)),
+          }));
+          pushHistory({
+            label: `dời hạn sang ${label}`,
+            undo: () => boardApi.snoozeCard(cardId, before, true),
+            redo: () => boardApi.snoozeCard(cardId, deadline, true),
+          });
+        })
+        .catch(onFail);
+    },
+    [derived.cardById, patchSnapshot, pushHistory, onFail],
+  );
+
+  const toggleComplete = useCallback(
+    (cardId: string) => {
+      const card = derived.cardById.get(cardId);
+      if (!card) return;
+      const wasDone = card.completedAt !== null;
+
+      if (wasDone) {
+        boardApi
+          .reopenCard(cardId)
+          .then((res) => {
+            patchSnapshot((snap) => ({
+              ...snap,
+              cards: snap.cards.map((c) => (c.id === res.id ? res : c)),
+            }));
+            pushHistory({
+              label: "mở lại việc",
+              undo: () => boardApi.completeCard(cardId),
+              redo: () => boardApi.reopenCard(cardId),
+            });
+          })
+          .catch(onFail);
+        return;
+      }
+
+      boardApi
+        .completeCard(cardId)
+        .then(({ completed, next }) => {
+          patchSnapshot((snap) => ({
+            ...snap,
+            cards: [
+              ...snap.cards.map((c) => (c.id === completed.id ? completed : c)),
+              ...(next ? [next] : []),
+            ],
+          }));
+          message.success(
+            next
+              ? `${completed.code} đã hoàn thành 🎉 — đã tạo lượt kế tiếp ${next.code}`
+              : `${completed.code} đã hoàn thành 🎉`,
+          );
+          pushHistory({
+            label: "hoàn thành việc",
+            undo: () => boardApi.reopenCard(cardId),
+            redo: () => boardApi.completeCard(cardId),
+          });
+        })
+        .catch(onFail);
+    },
+    [derived.cardById, patchSnapshot, pushHistory, onFail, message],
+  );
+
+  // ---------- danh sách ----------
+  const addList = useCallback(
+    (title: string) => {
+      if (!data?.board) return;
+      const last = [...derived.lists].sort(byPosition).at(-1);
+      boardApi
+        .createList(data.board.id, {
+          title,
+          position: computePosition(last?.position, undefined),
+        })
+        .then((list) => {
+          patchSnapshot((snap) => ({ ...snap, lists: [...snap.lists, list] }));
+        })
+        .catch(onFail);
+    },
+    [data, derived.lists, patchSnapshot, onFail],
+  );
+
+  const renameList = useCallback(
+    (listId: string, title: string) => {
+      const before = derived.lists.find((l) => l.id === listId)?.title;
+      patchSnapshot((snap) => ({
+        ...snap,
+        lists: snap.lists.map((l) => (l.id === listId ? { ...l, title } : l)),
+      }));
+      boardApi
+        .updateList(listId, { title })
+        .then(() => {
+          if (before === undefined) return;
+          pushHistory({
+            label: "đổi tên danh sách",
+            undo: () => boardApi.updateList(listId, { title: before }),
+            redo: () => boardApi.updateList(listId, { title }),
+          });
+        })
+        .catch(onFail);
+    },
+    [derived.lists, patchSnapshot, pushHistory, onFail],
+  );
+
+  const archiveList = useCallback(
+    (listId: string) => {
+      patchSnapshot((snap) => ({
+        ...snap,
+        lists: snap.lists.map((l) => (l.id === listId ? { ...l, archived: true } : l)),
+        // Thẻ trong cột bị lưu trữ quay về Hộp thư đến, không thẻ nào bị xoá
+        cards: snap.cards.map((c) => (c.listId === listId ? { ...c, listId: null } : c)),
+      }));
+      boardApi
+        .updateList(listId, { archived: true })
+        .then(() => {
+          message.success("Đã lưu trữ danh sách, các việc quay về Hộp thư đến");
+          pushHistory({
+            label: "lưu trữ danh sách",
+            undo: () => boardApi.updateList(listId, { archived: false }),
+            redo: () => boardApi.updateList(listId, { archived: true }),
+          });
+          invalidate();
+        })
+        .catch(onFail);
+    },
+    [patchSnapshot, pushHistory, onFail, message, invalidate],
+  );
+
+  const moveList = useCallback(
+    (listId: string, toIndex: number) => {
+      const others = derived.lists.filter((l) => l.id !== listId);
+      const position = computePosition(
+        others[toIndex - 1]?.position,
+        others[toIndex]?.position,
+      );
+      patchSnapshot((snap) => ({
+        ...snap,
+        lists: snap.lists.map((l) => (l.id === listId ? { ...l, position } : l)),
+      }));
+      boardApi.moveList(listId, position).catch(onFail);
+    },
+    [derived.lists, patchSnapshot, onFail],
+  );
+
+  const toggleStar = useCallback(() => {
+    if (!data?.board) return;
+    const next = !data.board.starred;
+    patchSnapshot((snap) => ({ ...snap, board: { ...snap.board, starred: next } }));
+    boardApi.updateBoard(data.board.id, { starred: next }).catch(onFail);
+  }, [data, patchSnapshot, onFail]);
+
+  // ---------- hoàn tác ----------
+  const undo = useCallback(() => {
+    const entry = past.at(-1);
+    if (!entry) return;
+    setPast((prev) => prev.slice(0, -1));
+    setFuture((prev) => [entry, ...prev]);
+    entry.undo().then(invalidate).catch(onFail);
+  }, [past, invalidate, onFail]);
+
+  const redo = useCallback(() => {
+    const entry = future[0];
+    if (!entry) return;
+    setFuture((prev) => prev.slice(1));
+    setPast((prev) => [...prev, entry]);
+    entry.redo().then(invalidate).catch(onFail);
+  }, [future, invalidate, onFail]);
+
+  // ==========================================
+  const value = useMemo<BoardContextValue>(
+    () => ({
+      board: data?.board ?? null,
+      labels: data?.labels ?? [],
+      today: data?.today ?? EMPTY_TODAY,
+      ...derived,
+
+      isLoading,
+      isFetching,
+      error,
+      refetch,
+
       filter,
       setFilter,
       filterActive:
@@ -636,13 +657,25 @@ export function BoardProvider({ children }: { children: ReactNode }) {
         filter.labelIds.length > 0 ||
         filter.overdueOnly ||
         filter.todayOnly,
-      dispatch,
 
-      undo: () => dispatch({ type: "UNDO" }),
-      redo: () => dispatch({ type: "REDO" }),
-      canUndo: history.past.length > 0,
-      canRedo: history.future.length > 0,
-      lastLabel: history.lastLabel,
+      previewMove,
+      commitMove,
+      addCard,
+      updateCard,
+      deleteCard,
+      snoozeCard,
+      toggleComplete,
+      addList,
+      renameList,
+      archiveList,
+      moveList,
+      toggleStar,
+
+      undo,
+      redo,
+      canUndo: past.length > 0,
+      canRedo: future.length > 0,
+      lastLabel: past.at(-1)?.label ?? null,
 
       fullscreen,
       setFullscreen,
@@ -650,19 +683,38 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       setAgendaOpen,
       paletteOpen,
       setPaletteOpen,
-    };
-  }, [
-    state,
-    filter,
-    history.past.length,
-    history.future.length,
-    history.lastLabel,
-    fullscreen,
-    setFullscreen,
-    agendaOpen,
-    setAgendaOpen,
-    paletteOpen,
-  ]);
+    }),
+    [
+      data,
+      derived,
+      isLoading,
+      isFetching,
+      error,
+      refetch,
+      filter,
+      previewMove,
+      commitMove,
+      addCard,
+      updateCard,
+      deleteCard,
+      snoozeCard,
+      toggleComplete,
+      addList,
+      renameList,
+      archiveList,
+      moveList,
+      toggleStar,
+      undo,
+      redo,
+      past,
+      future,
+      fullscreen,
+      setFullscreen,
+      agendaOpen,
+      setAgendaOpen,
+      paletteOpen,
+    ],
+  );
 
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>;
 }

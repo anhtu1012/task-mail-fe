@@ -15,16 +15,15 @@ import {
   StickyNote,
   Timer,
 } from "lucide-react";
-import { BoardCard, checklistProgress, repeatText } from "@/models/board";
+import { CardSummary, repeatText } from "@/models/board";
 import { PRIORITY_META, TaskPriority } from "@/models/task";
 import { useBoard } from "./BoardStore";
 import { SNOOZE_OPTIONS } from "./snooze";
-import { isRichTextEmpty } from "@/utils/client/richText";
 import { Badge, G, LabelChip, SourceIcon, fmtShort } from "./ui";
 import styles from "./board.module.scss";
 
 type Props = {
-  card: BoardCard;
+  card: CardSummary;
   /** Thẻ đang bay theo con trỏ trong DragOverlay — không gắn sortable, không click */
   overlay?: boolean;
 };
@@ -34,7 +33,7 @@ const fmtDuration = (min: number) =>
 
 function CardTileBase({ card, overlay = false }: Props) {
   const router = useRouter();
-  const { labelById, board, dispatch } = useBoard();
+  const { labelById, board, snoozeCard } = useBoard();
 
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } =
     useSortable({
@@ -45,7 +44,9 @@ function CardTileBase({ card, overlay = false }: Props) {
 
   const done = card.completedAt !== null;
   const overdue = card.deadlineStatus === "LATE" && !done;
-  const { done: checkDone, total: checkTotal } = checklistProgress(card);
+  // Số liệu dẫn xuất do backend tính sẵn — canvas không tải quan hệ con
+  const checkDone = card.checklistDone;
+  const checkTotal = card.checklistTotal;
   // Chỉ Cao/Khẩn cấp mới có chấm ưu tiên — thẻ nào cũng có thì chấm mất tác dụng
   const showPriority =
     card.priority === TaskPriority.URGENT || card.priority === TaskPriority.HIGH;
@@ -63,17 +64,13 @@ function CardTileBase({ card, overlay = false }: Props) {
     .map((id) => labelById.get(id))
     .filter((l): l is NonNullable<typeof l> => !!l);
 
-  // Quill lưu ô trống thành "<p><br></p>" nên phải lọc, nếu không thẻ nào cũng
-  // hiện icon "có mô tả"
-  const hasDescription = !isRichTextEmpty(card.description);
-
   const hasMeta =
     !!card.deadline ||
-    hasDescription ||
+    card.hasDescription ||
     !!card.repeat ||
     card.estimateMinutes !== null ||
-    card.attachments.length > 0 ||
-    card.notes.length > 0 ||
+    card.attachmentCount > 0 ||
+    card.noteCount > 0 ||
     checkTotal > 0 ||
     card.source !== "MANUAL";
 
@@ -83,7 +80,11 @@ function CardTileBase({ card, overlay = false }: Props) {
       style={style}
       {...(overlay ? {} : attributes)}
       {...(overlay ? {} : listeners)}
-      onClick={overlay ? undefined : () => router.push(`/boards/${board.id}/cards/${card.id}`)}
+      onClick={
+        overlay || !board
+          ? undefined
+          : () => router.push(`/boards/${board.id}/cards/${card.id}`)
+      }
       className={`${styles.card} ${overlay ? styles.cardOverlay : ""} ${done ? styles.cardDone : ""} group/card relative overflow-hidden cursor-pointer`}
       role="button"
       tabIndex={overlay ? -1 : 0}
@@ -112,12 +113,11 @@ function CardTileBase({ card, overlay = false }: Props) {
               ),
               onClick: () => {
                 const target = opt.resolve(new Date());
-                dispatch({
-                  type: "SNOOZE_CARD",
-                  cardId: card.id,
-                  deadline: target ? target.toISOString() : null,
-                  label: opt.label.toLowerCase(),
-                });
+                snoozeCard(
+                  card.id,
+                  target ? target.toISOString() : null,
+                  opt.label.toLowerCase(),
+                );
               },
             })),
           }}
@@ -214,23 +214,23 @@ function CardTileBase({ card, overlay = false }: Props) {
               </Badge>
             )}
 
-            {hasDescription && (
+            {card.hasDescription && (
               <Badge onGlass title="Việc có mô tả">
                 <AlignLeft size={11.5} />
               </Badge>
             )}
 
-            {card.attachments.length > 0 && (
-              <Badge onGlass title={`${card.attachments.length} tệp đính kèm`}>
+            {card.attachmentCount > 0 && (
+              <Badge onGlass title={`${card.attachmentCount} tệp đính kèm`}>
                 <Paperclip size={11.5} />
-                {card.attachments.length}
+                {card.attachmentCount}
               </Badge>
             )}
 
-            {card.notes.length > 0 && (
-              <Badge onGlass title={`${card.notes.length} ghi chú`}>
+            {card.noteCount > 0 && (
+              <Badge onGlass title={`${card.noteCount} ghi chú`}>
                 <StickyNote size={11.5} />
-                {card.notes.length}
+                {card.noteCount}
               </Badge>
             )}
           </div>

@@ -32,7 +32,7 @@ export function BoardToolbar() {
     setFilter,
     filterActive,
     today,
-    dispatch,
+    toggleStar,
     undo,
     redo,
     canUndo,
@@ -124,18 +124,18 @@ export function BoardToolbar() {
         className="font-semibold text-[15.5px] truncate max-w-[200px]"
         style={{ color: G.text }}
       >
-        {board.title}
+        {board?.title ?? "Bảng công việc"}
       </span>
 
-      <Tooltip title={board.starred ? "Bỏ đánh dấu sao" : "Đánh dấu sao"}>
+      <Tooltip title={board?.starred ? "Bỏ đánh dấu sao" : "Đánh dấu sao"}>
         <button
-          onClick={() => dispatch({ type: "TOGGLE_STAR" })}
+          onClick={toggleStar}
           className="grid place-items-center size-7 rounded-md border-0 bg-transparent cursor-pointer hover:bg-white/15"
         >
           <Star
             size={16}
-            fill={board.starred ? C.warning : "none"}
-            stroke={board.starred ? C.warning : G.textMuted}
+            fill={board?.starred ? C.warning : "none"}
+            stroke={board?.starred ? C.warning : G.textMuted}
           />
         </button>
       </Tooltip>
