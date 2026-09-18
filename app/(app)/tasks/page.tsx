@@ -36,6 +36,7 @@ import TaskFilterPresets from "@/components/tasks/TaskFilterPresets";
 import { taskApi } from "@/apis/task.api";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { exportTasksToCsv } from "@/utils/client/exportTasksToCsv";
+import { richTextToPlain } from "@/utils/client/richText";
 import {
   useCompleteTask,
   useDeleteTask,
@@ -139,7 +140,7 @@ export default function TasksPage() {
       (t) =>
         t.code.toLowerCase().includes(keyword) ||
         t.title.toLowerCase().includes(keyword) ||
-        (t.description ?? "").toLowerCase().includes(keyword),
+        richTextToPlain(t.description).toLowerCase().includes(keyword),
     );
   }, [data?.items, filters.search]);
 
@@ -253,7 +254,7 @@ export default function TasksPage() {
           <div className="font-medium text-slate-700 truncate">{title}</div>
           {task.description && (
             <div className="text-xs text-slate-400 truncate">
-              {task.description}
+              {richTextToPlain(task.description)}
             </div>
           )}
         </div>

@@ -4,6 +4,8 @@ import { Button, Descriptions, Drawer, Popconfirm, Space, Tag, Typography } from
 import dayjs from "dayjs";
 import { CheckCheck, Mail, Pencil, Trash2 } from "lucide-react";
 import { useCompleteTask, useDeleteTask, useTaskTypes } from "@/hooks/useTaskApp";
+import { RichTextEditor } from "@/components/board/RichTextEditor";
+import { isRichTextEmpty } from "@/utils/client/richText";
 import {
   CATEGORY_META,
   DEADLINE_META,
@@ -102,12 +104,21 @@ export default function TaskDetailDrawer({ task, onClose, onEdit }: Props) {
             {taskType && <Tag color={taskType.color}>{taskType.name}</Tag>}
           </Space>
 
-          <Descriptions column={1} size="small" bordered>
-            <Descriptions.Item label="Mô tả">
-              <span className="whitespace-pre-wrap">
-                {task.description || "—"}
-              </span>
-            </Descriptions.Item>
+          {!isRichTextEmpty(task.description) && (
+            <>
+              <Typography.Title level={5} style={{ marginTop: 0 }}>
+                Mô tả
+              </Typography.Title>
+              <RichTextEditor readOnly value={task.description ?? ""} />
+            </>
+          )}
+
+          <Descriptions
+            column={1}
+            size="small"
+            bordered
+            style={{ marginTop: 16 }}
+          >
             <Descriptions.Item label="Ghi chú">
               <span className="whitespace-pre-wrap">{task.note || "—"}</span>
             </Descriptions.Item>

@@ -78,7 +78,7 @@ export const QUILL_FORMATS = [
 ];
 
 type Props = {
-  value: string;
+  value?: string;
   onChange?: (html: string) => void;
   placeholder?: string;
   /** Chiều cao vùng soạn thảo (không tính toolbar) */
@@ -90,7 +90,7 @@ type Props = {
 };
 
 export function RichTextEditor({
-  value,
+  value = "",
   onChange,
   placeholder = "Thêm mô tả chi tiết... (hỗ trợ tiêu đề, danh sách, checkbox, link, ảnh, khối mã)",
   minHeight = 220,
