@@ -158,7 +158,7 @@ export default function CalendarPage() {
   const today = dayjs();
 
   return (
-    <div className="flex flex-col gap-3 max-w-[1400px] mx-auto">
+    <div className="flex flex-col gap-3 w-full">
       {/* ===== Header ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">

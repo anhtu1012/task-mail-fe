@@ -40,27 +40,32 @@ export const C = {
 } as const;
 
 /**
- * Bảng màu dùng TRÊN NỀN KÍNH (chữ sáng, nền tối).
- * Đo ở vùng sáng nhất của ảnh nền (trường hợp xấu nhất), lớp phủ 0.86,
- * nền kính trắng 15%: text 7.96:1 · textSoft 6.20:1 · textMuted 5.24:1.
- * WCAG AA cần 4.5:1 — cả ba đều đạt. Đổi các giá trị này thì đo lại.
+ * Bảng màu dùng TRÊN NỀN KÍNH của màn Bảng công việc.
+ *
+ * Giá trị thật do hệ thống giao diện cấp (libs/theme/presets.ts) nên khi
+ * người dùng đổi nền sáng/tối hoặc kéo độ trong thì màn này đổi theo cùng —
+ * chung đúng một bộ cài đặt với phần còn lại của hệ thống. Phần ghi sau dấu
+ * phẩy chỉ là giá trị dự phòng lúc biến chưa được đặt.
+ *
+ * Lưu ý: chỉ dùng được ở ngữ cảnh CSS (style, class). Thuộc tính trình bày
+ * của SVG (stroke=, fill=) KHÔNG hiểu var(), chỗ đó phải để currentColor.
  */
 export const G = {
-  text: "#ffffff",
-  textSoft: "rgba(255,255,255,.84)",
-  textMuted: "rgba(255,255,255,.74)",
-  textFaint: "rgba(255,255,255,.58)",
-  line: "rgba(255,255,255,.18)",
-  fill: "rgba(255,255,255,.14)",
-  fillStrong: "rgba(255,255,255,.24)",
-  danger: "#ffb3ba",
-  dangerFill: "rgba(230,57,70,.3)",
-  success: "#7fe0d0",
-  successFill: "rgba(42,157,143,.28)",
-  warning: "#ffd29b",
-  warningFill: "rgba(244,162,97,.28)",
-  info: "#bee0f4",
-  infoFill: "rgba(81,150,191,.3)",
+  text: "var(--g-text, #ffffff)",
+  textSoft: "var(--g-text-soft, rgba(255,255,255,.84))",
+  textMuted: "var(--g-text-muted, rgba(255,255,255,.74))",
+  textFaint: "var(--g-text-faint, rgba(255,255,255,.58))",
+  line: "var(--g-line, rgba(255,255,255,.18))",
+  fill: "var(--g-fill, rgba(255,255,255,.14))",
+  fillStrong: "var(--g-fill-strong, rgba(255,255,255,.24))",
+  danger: "var(--g-danger, #ffb3ba)",
+  dangerFill: "var(--g-danger-fill, rgba(230,57,70,.3))",
+  success: "var(--g-success, #7fe0d0)",
+  successFill: "var(--g-success-fill, rgba(42,157,143,.28))",
+  warning: "var(--g-warning, #ffd29b)",
+  warningFill: "var(--g-warning-fill, rgba(244,162,97,.28))",
+  info: "var(--g-info, #bee0f4)",
+  infoFill: "var(--g-info-fill, rgba(81,150,191,.3))",
 } as const;
 
 export const fmtDateTime = (iso?: string | null) =>

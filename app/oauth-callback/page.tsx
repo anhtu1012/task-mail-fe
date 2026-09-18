@@ -28,7 +28,7 @@ function OAuthCallbackInner() {
   }, [router, searchParams]);
 
   return (
-    <div className="min-h-screen grid place-items-center bg-[#f7f8fa]">
+    <div className="app-themed-bg min-h-screen grid place-items-center">
       <div className="flex flex-col items-center gap-4">
         <Spin size="large" />
         <Typography.Text type="secondary">

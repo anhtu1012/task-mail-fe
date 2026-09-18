@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Command,
   Filter,
+  Inbox,
   Maximize2,
   Minimize2,
   Redo2,
@@ -24,7 +25,7 @@ import styles from "./board.module.scss";
 const fmtLoad = (min: number) =>
   min === 0 ? "—" : min < 60 ? `${min}p` : `${Math.floor(min / 60)}h${min % 60 ? min % 60 : ""}`;
 
-export function BoardToolbar() {
+export function BoardToolbar({ onOpenInbox }: { onOpenInbox?: () => void } = {}) {
   const {
     board,
     labels,
@@ -63,7 +64,24 @@ export function BoardToolbar() {
     setFilter({ keyword: "", labelIds: [], overdueOnly: false, todayOnly: false });
 
   const filterPanel = (
-    <div className="w-[264px] flex flex-col gap-3.5 py-1">
+    <div className="w-[min(264px,78vw)] flex flex-col gap-3.5 py-1">
+      {/* Trên màn hình hẹp, ô tìm ngoài thanh công cụ bị ẩn -> để ở đây */}
+      <div>
+        <div
+          className="text-[11px] font-semibold uppercase tracking-wide mb-1.5"
+          style={{ color: C.mutedForeground }}
+        >
+          Tìm việc
+        </div>
+        <input
+          value={filter.keyword}
+          onChange={(e) => setFilter({ ...filter, keyword: e.target.value })}
+          placeholder="Nhập từ khoá..."
+          className="w-full h-8 px-2.5 rounded-lg text-[13px] outline-none"
+          style={{ border: `1px solid ${C.muted}`, color: C.foreground }}
+        />
+      </div>
+
       <div>
         <div
           className="text-[11px] font-semibold uppercase tracking-wide mb-1.5"
@@ -118,10 +136,10 @@ export function BoardToolbar() {
 
   return (
     <div
-      className={`${styles.glassPanel} shrink-0 flex items-center gap-2 px-3 h-14`}
+      className={`${styles.glassPanel} @container shrink-0 flex flex-wrap items-center gap-2 px-3 py-2 min-h-14`}
     >
       <span
-        className="font-semibold text-[15.5px] truncate max-w-[200px]"
+        className="font-semibold text-[15.5px] truncate max-w-[140px] @xl:max-w-[200px]"
         style={{ color: G.text }}
       >
         {board?.title ?? "Bảng công việc"}
@@ -130,19 +148,35 @@ export function BoardToolbar() {
       <Tooltip title={board?.starred ? "Bỏ đánh dấu sao" : "Đánh dấu sao"}>
         <button
           onClick={toggleStar}
-          className="grid place-items-center size-7 rounded-md border-0 bg-transparent cursor-pointer hover:bg-white/15"
+          className="grid place-items-center size-7 shrink-0 rounded-md border-0 bg-transparent cursor-pointer hover:bg-white/15"
+          /* stroke của SVG không hiểu var(), nên đặt màu qua CSS rồi để icon
+             dùng currentColor */
+          style={{ color: board?.starred ? C.warning : G.textMuted }}
         >
           <Star
             size={16}
             fill={board?.starred ? C.warning : "none"}
-            stroke={board?.starred ? C.warning : G.textMuted}
+            stroke="currentColor"
           />
         </button>
       </Tooltip>
 
+      {/* Hộp thư đến — panel bên trái bị ẩn dưới 768px, phải có lối vào khác */}
+      {onOpenInbox && (
+        <Tooltip title="Hộp thư đến">
+          <button
+            onClick={onOpenInbox}
+            aria-label="Hộp thư đến"
+            className={`${styles.glassGhost} md:hidden grid place-items-center size-8 shrink-0`}
+          >
+            <Inbox size={16} />
+          </button>
+        </Tooltip>
+      )}
+
       {/* Chỉ số hôm nay — thứ duy nhất cần biết ngay khi mở bảng.
           Bấm vào là lọc luôn, không phải mở bộ lọc rồi tích. */}
-      <div className="hidden md:flex items-center gap-1.5 ml-1">
+      <div className="hidden @3xl:flex items-center gap-1.5 ml-1 shrink-0">
         <Stat
           icon={<AlertTriangle size={13} />}
           value={today.overdue}
@@ -172,7 +206,7 @@ export function BoardToolbar() {
         {today.plannedMinutes > 0 && (
           <Tooltip title="Tổng thời lượng dự kiến của việc đến hạn hôm nay">
             <span
-              className="inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[12px] font-medium"
+              className="inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[12px] font-medium whitespace-nowrap shrink-0"
               style={{ background: G.fill, color: G.textSoft }}
             >
               <Timer size={13} />
@@ -184,7 +218,7 @@ export function BoardToolbar() {
 
       <div className="flex-1" />
 
-      <div className="relative hidden sm:block w-[180px] lg:w-[230px]">
+      <div className="relative hidden @2xl:block w-[170px] @5xl:w-[230px] shrink-0">
         <Search
           size={14}
           className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -200,7 +234,7 @@ export function BoardToolbar() {
       </div>
 
       {/* Hoàn tác / làm lại — kéo nhầm thẻ là chuyện thường, phải sửa được ngay */}
-      <div className="hidden md:flex items-center gap-1">
+      <div className="hidden @4xl:flex items-center gap-1 shrink-0">
         <Tooltip title={canUndo ? `Hoàn tác ${lastLabel ?? ""} (Ctrl+Z)` : "Chưa có gì để hoàn tác"}>
           <button
             onClick={undo}
@@ -229,7 +263,7 @@ export function BoardToolbar() {
         <button
           onClick={() => setPaletteOpen(true)}
           aria-label="Bảng lệnh nhanh"
-          className={`${styles.glassGhost} hidden lg:grid place-items-center size-8`}
+          className={`${styles.glassGhost} hidden @5xl:grid place-items-center size-8 shrink-0`}
         >
           <Command size={16} />
         </button>
@@ -239,7 +273,7 @@ export function BoardToolbar() {
         <button
           onClick={() => setAgendaOpen(!agendaOpen)}
           aria-label="Lịch hôm nay"
-          className="hidden xl:grid place-items-center size-8 rounded-lg cursor-pointer"
+          className="hidden @6xl:grid place-items-center size-8 shrink-0 rounded-lg cursor-pointer"
           style={
             agendaOpen
               ? { background: "rgba(190,224,244,.9)", color: "#062b47", border: "1px solid rgba(190,224,244,.9)" }
@@ -254,7 +288,7 @@ export function BoardToolbar() {
       <Tooltip title={fullscreen ? "Thoát toàn màn hình (F / Esc)" : "Toàn màn hình (F)"}>
         <button
           onClick={() => setFullscreen(!fullscreen)}
-          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg cursor-pointer text-[13px] font-medium"
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg cursor-pointer text-[13px] font-medium whitespace-nowrap shrink-0"
           style={
             fullscreen
               ? { background: "rgba(190,224,244,.9)", color: "#062b47", border: "1px solid rgba(190,224,244,.9)" }
@@ -262,13 +296,13 @@ export function BoardToolbar() {
           }
         >
           {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-          <span className="hidden xl:inline">{fullscreen ? "Thu nhỏ" : "Toàn màn hình"}</span>
+          <span className="hidden @6xl:inline">{fullscreen ? "Thu nhỏ" : "Toàn màn hình"}</span>
         </button>
       </Tooltip>
 
       <Popover content={filterPanel} title="Bộ lọc" trigger="click" placement="bottomRight">
         <button
-          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg cursor-pointer text-[13px] font-medium transition-colors"
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg cursor-pointer text-[13px] font-medium whitespace-nowrap shrink-0 transition-colors"
           style={
             filterActive
               ? {
@@ -280,7 +314,7 @@ export function BoardToolbar() {
           }
         >
           <Filter size={14} />
-          <span className="hidden lg:inline">Bộ lọc</span>
+          <span className="hidden @4xl:inline">Bộ lọc</span>
           {activeCount > 0 && (
             <span
               className="grid place-items-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold"
@@ -323,7 +357,7 @@ function Stat({
   return (
     <Tag
       onClick={onClick}
-      className={`inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[12px] font-medium border-0 ${
+      className={`inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[12px] font-medium border-0 whitespace-nowrap shrink-0 ${
         onClick ? "cursor-pointer" : ""
       }`}
       style={{
@@ -334,7 +368,7 @@ function Stat({
     >
       {icon}
       <span className="tabular-nums font-semibold">{value}</span>
-      <span className="hidden xl:inline font-normal">{label}</span>
+      <span className="hidden @6xl:inline font-normal">{label}</span>
     </Tag>
   );
 }

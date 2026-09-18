@@ -7,6 +7,7 @@ import {
   Task,
   TaskType,
 } from "@/models/task";
+import { richTextToPlain } from "@/utils/client/richText";
 
 const CSV_COLUMNS = [
   "Mã",
@@ -39,7 +40,7 @@ export function exportTasksToCsv(tasks: Task[], taskTypes: TaskType[] = []): voi
   const rows = tasks.map((task) => [
     task.code,
     task.title,
-    task.description ?? "",
+    richTextToPlain(task.description),
     (task.taskTypeId && typeNameById.get(task.taskTypeId)) ?? "",
     CATEGORY_META[task.category].label,
     PRIORITY_META[task.priority].label,

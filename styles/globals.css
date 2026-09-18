@@ -66,6 +66,15 @@
   --radius-full: 999px;
 }
 
+/* --- Nền hệ thống dùng chung cho các màn nằm ngoài app shell --- */
+.app-themed-bg {
+  background-color: var(--app-bg-color, #f7f8fa);
+  background-image: var(--app-bg-image, none);
+  background-size: cover;
+  background-position: center 40%;
+  background-repeat: no-repeat;
+}
+
 /* --- Base Styles --- */
 html {
   font-size: 16px;

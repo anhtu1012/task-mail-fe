@@ -15,6 +15,9 @@ import {
 import dayjs, { Dayjs } from "dayjs";
 import { Link2, Plus, Trash2 } from "lucide-react";
 import { useCreateTask, useTaskTypes, useUpdateTask } from "@/hooks/useTaskApp";
+import { RichTextEditor } from "@/components/board/RichTextEditor";
+import TaskSubtasks from "@/components/tasks/TaskSubtasks";
+import { isRichTextEmpty } from "@/utils/client/richText";
 import {
   CATEGORY_META,
   CreateTaskInput,
@@ -69,7 +72,7 @@ export default function TaskFormModal({
     if (task) {
       form.setFieldsValue({
         title: task.title,
-        description: task.description ?? undefined,
+        description: task.description ?? "",
         note: task.note ?? undefined,
         taskTypeId: task.taskTypeId ?? undefined,
         category: task.category,
@@ -85,6 +88,7 @@ export default function TaskFormModal({
         category: TaskCategory.WORK,
         priority: TaskPriority.NORMAL,
         attachments: [],
+        description: "",
         deadline: defaultDeadline ?? null,
       });
     }
@@ -96,7 +100,9 @@ export default function TaskFormModal({
     // Chỉ gửi đúng field backend cho phép (forbidNonWhitelisted)
     const payload: CreateTaskInput & UpdateTaskInput = {
       title: values.title.trim(),
-      description: values.description?.trim() || undefined,
+      description: isRichTextEmpty(values.description)
+        ? undefined
+        : values.description,
       note: values.note?.trim() || undefined,
       taskTypeId: values.taskTypeId || undefined,
       category: values.category,
@@ -125,10 +131,11 @@ export default function TaskFormModal({
       onCancel={onClose}
       onOk={handleSubmit}
       confirmLoading={saving}
-      width={640}
+      width={920}
       okText={isEdit ? "Lưu thay đổi" : "Tạo công việc"}
       cancelText="Huỷ"
       destroyOnHidden
+      styles={{ body: { maxHeight: "72vh", overflowY: "auto", paddingRight: 4 } }}
       title={
         isEdit ? (
           <span>
@@ -140,146 +147,156 @@ export default function TaskFormModal({
       }
     >
       <Form<FormValues> form={form} layout="vertical" requiredMark={false}>
-        <Form.Item
-          name="title"
-          label="Tiêu đề"
-          rules={[{ required: true, message: "Nhập tiêu đề công việc" }]}
-        >
-          <Input placeholder="VD: Chuẩn bị báo cáo tuần" maxLength={255} />
-        </Form.Item>
+        <div className="grid grid-cols-[1fr_280px] gap-x-6">
+          {/* ===== Cột chính ===== */}
+          <div>
+            <Form.Item
+              name="title"
+              label="Tiêu đề"
+              rules={[{ required: true, message: "Nhập tiêu đề công việc" }]}
+            >
+              <Input placeholder="VD: Chuẩn bị báo cáo tuần" maxLength={255} />
+            </Form.Item>
 
-        <Form.Item name="description" label="Mô tả">
-          <Input.TextArea rows={3} placeholder="Mô tả chi tiết công việc..." />
-        </Form.Item>
+            <Form.Item name="description" label="Mô tả">
+              <RichTextEditor minHeight={180} />
+            </Form.Item>
 
-        <div className="grid grid-cols-2 gap-x-4">
-          <Form.Item name="category" label="Phân loại">
-            <Segmented
-              block
-              options={Object.values(TaskCategory).map((c) => ({
-                label: CATEGORY_META[c].label,
-                value: c,
-              }))}
-            />
-          </Form.Item>
+            <Form.Item name="note" label="Ghi chú">
+              <Input.TextArea rows={2} placeholder="Ghi chú nội bộ..." />
+            </Form.Item>
 
-          <Form.Item name="priority" label="Độ ưu tiên">
-            <Select
-              options={Object.values(TaskPriority).map((p) => ({
-                value: p,
-                label: (
-                  <span className="inline-flex items-center gap-2">
-                    <span
-                      className="size-2 rounded-full inline-block"
-                      style={{ background: PRIORITY_META[p].color }}
-                    />
-                    {PRIORITY_META[p].label}
-                  </span>
-                ),
-              }))}
-            />
-          </Form.Item>
+            <Form.List name="attachments">
+              {(fields, { add, remove }) => (
+                <Form.Item
+                  label="Tệp đính kèm (URL)"
+                  tooltip="Backend chưa hỗ trợ upload file — chỉ lưu đường dẫn URL."
+                  style={{ marginBottom: 0 }}
+                >
+                  {fields.map((field) => (
+                    <Space.Compact key={field.key} block style={{ marginBottom: 8 }}>
+                      <Form.Item
+                        name={field.name}
+                        noStyle
+                        rules={[{ required: true, message: "Nhập URL hoặc xoá dòng" }]}
+                      >
+                        <Input
+                          prefix={<Link2 size={14} className="text-slate-400" />}
+                          placeholder="https://..."
+                        />
+                      </Form.Item>
+                      <Button
+                        icon={<Trash2 size={14} />}
+                        onClick={() => remove(field.name)}
+                      />
+                    </Space.Compact>
+                  ))}
+                  <Button
+                    type="dashed"
+                    block
+                    icon={<Plus size={14} />}
+                    onClick={() => add("")}
+                  >
+                    Thêm đường dẫn
+                  </Button>
+                </Form.Item>
+              )}
+            </Form.List>
+          </div>
 
-          <Form.Item name="taskTypeId" label="Loại công việc">
-            <Select
-              allowClear
-              placeholder="Chọn loại"
-              options={(taskTypes ?? []).map((t) => ({
-                value: t.id,
-                label: (
-                  <span className="inline-flex items-center gap-2">
-                    <span
-                      className="size-2.5 rounded-sm inline-block"
-                      style={{ background: t.color }}
-                    />
-                    {t.name}
-                  </span>
-                ),
-              }))}
-            />
-          </Form.Item>
-
-          <Form.Item name="deadline" label="Hạn hoàn thành">
-            <DatePicker
-              showTime={{ format: "HH:mm" }}
-              format="DD/MM/YYYY HH:mm"
-              style={{ width: "100%" }}
-              placeholder="Chọn deadline"
-            />
-          </Form.Item>
-
-          {isEdit && (
-            <Form.Item name="status" label="Trạng thái">
-              <Select
-                options={Object.values(TaskStatus).map((s) => ({
-                  value: s,
-                  label: STATUS_META[s].label,
+          {/* ===== Cột phụ ===== */}
+          <div>
+            <Form.Item name="category" label="Phân loại">
+              <Segmented
+                block
+                options={Object.values(TaskCategory).map((c) => ({
+                  label: CATEGORY_META[c].label,
+                  value: c,
                 }))}
               />
             </Form.Item>
-          )}
 
-          {isAdmin && (
-            <Form.Item
-              name="assigneeId"
-              label={
-                <Tooltip title="Chưa có API danh sách user — dán trực tiếp UUID của người nhận việc. Bỏ trống = giao cho chính bạn.">
-                  <span>Người thực hiện (UUID)</span>
-                </Tooltip>
-              }
-              rules={[
-                {
-                  pattern:
-                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-                  message: "UUID không hợp lệ",
-                },
-              ]}
-            >
-              <Input placeholder="UUID người nhận việc (chỉ admin)" allowClear />
+            <Form.Item name="priority" label="Độ ưu tiên">
+              <Select
+                options={Object.values(TaskPriority).map((p) => ({
+                  value: p,
+                  label: (
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="size-2 rounded-full inline-block"
+                        style={{ background: PRIORITY_META[p].color }}
+                      />
+                      {PRIORITY_META[p].label}
+                    </span>
+                  ),
+                }))}
+              />
             </Form.Item>
-          )}
-        </div>
 
-        <Form.Item name="note" label="Ghi chú">
-          <Input.TextArea rows={2} placeholder="Ghi chú nội bộ..." />
-        </Form.Item>
+            <Form.Item name="taskTypeId" label="Loại công việc">
+              <Select
+                allowClear
+                placeholder="Chọn loại"
+                options={(taskTypes ?? []).map((t) => ({
+                  value: t.id,
+                  label: (
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="size-2.5 rounded-sm inline-block"
+                        style={{ background: t.color }}
+                      />
+                      {t.name}
+                    </span>
+                  ),
+                }))}
+              />
+            </Form.Item>
 
-        <Form.List name="attachments">
-          {(fields, { add, remove }) => (
-            <Form.Item
-              label="Tệp đính kèm (URL)"
-              tooltip="Backend chưa hỗ trợ upload file — chỉ lưu đường dẫn URL."
-              style={{ marginBottom: 0 }}
-            >
-              {fields.map((field) => (
-                <Space.Compact key={field.key} block style={{ marginBottom: 8 }}>
-                  <Form.Item
-                    name={field.name}
-                    noStyle
-                    rules={[{ required: true, message: "Nhập URL hoặc xoá dòng" }]}
-                  >
-                    <Input
-                      prefix={<Link2 size={14} className="text-slate-400" />}
-                      placeholder="https://..."
-                    />
-                  </Form.Item>
-                  <Button
-                    icon={<Trash2 size={14} />}
-                    onClick={() => remove(field.name)}
-                  />
-                </Space.Compact>
-              ))}
-              <Button
-                type="dashed"
-                block
-                icon={<Plus size={14} />}
-                onClick={() => add("")}
+            <Form.Item name="deadline" label="Hạn hoàn thành">
+              <DatePicker
+                showTime={{ format: "HH:mm" }}
+                format="DD/MM/YYYY HH:mm"
+                style={{ width: "100%" }}
+                placeholder="Chọn deadline"
+              />
+            </Form.Item>
+
+            {isEdit && (
+              <Form.Item name="status" label="Trạng thái">
+                <Select
+                  options={Object.values(TaskStatus).map((s) => ({
+                    value: s,
+                    label: STATUS_META[s].label,
+                  }))}
+                />
+              </Form.Item>
+            )}
+
+            {isAdmin && (
+              <Form.Item
+                name="assigneeId"
+                label={
+                  <Tooltip title="Chưa có API danh sách user — dán trực tiếp UUID của người nhận việc. Bỏ trống = giao cho chính bạn.">
+                    <span>Người thực hiện (UUID)</span>
+                  </Tooltip>
+                }
+                rules={[
+                  {
+                    pattern:
+                      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+                    message: "UUID không hợp lệ",
+                  },
+                ]}
               >
-                Thêm đường dẫn
-              </Button>
+                <Input placeholder="UUID người nhận việc (chỉ admin)" allowClear />
+              </Form.Item>
+            )}
+
+            <Form.Item label="Task con" style={{ marginBottom: 0 }}>
+              <TaskSubtasks taskId={task?.id ?? null} />
             </Form.Item>
-          )}
-        </Form.List>
+          </div>
+        </div>
       </Form>
     </Modal>
   );

@@ -10,6 +10,8 @@ import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { persistor, store } from "@/store/store";
+import { ThemeProvider, useAppTheme } from "./ThemeContext";
+import { shade, surfaceAlphas } from "@/libs/theme/presets";
 import enUS from "antd/locale/en_US";
 import viVN from "antd/locale/vi_VN";
 import dayjs from "dayjs";
@@ -34,40 +36,103 @@ const Provider = ({ children }: { children: ReactNode }) => {
       <PersistGate loading={null} persistor={persistor}>
         <QueryClientProvider client={queryClient}>
           <ReactQueryDevtools initialIsOpen={true} />
-          <GlobalConsumer>
-            {({ direction, lang }) => {
-              // Synchronize dayjs locale
-              dayjs.locale(lang === "vi" ? "vi" : "en");
+          <ThemeProvider>
+            <GlobalConsumer>
+              {({ direction, lang }) => {
+                // Synchronize dayjs locale
+                dayjs.locale(lang === "vi" ? "vi" : "en");
 
-              return (
-                <ConfigProvider
-                  locale={lang === "vi" ? viVN : enUS}
-                  theme={{
-                    token: {
-                      fontFamily:
-                        "var(--font-be-vietnam-pro), Roboto-regular, sans-serif",
-                      colorPrimary: "#0A436D",
-                      colorSuccess: "#2A9D8F",
-                      colorWarning: "#F4A261",
-                      colorError: "#E63946",
-                      colorInfo: "#0EA5E9",
-                      colorBorder: "#E2E8F0",
-                      borderRadius: 6,
-                    },
-                  }}
-                  direction={direction as "ltr" | "rtl"}
-                >
-                  <AntdRegistry>
-                    <App>{children}</App>
-                  </AntdRegistry>
-                </ConfigProvider>
-              );
-            }}
-          </GlobalConsumer>
+                return (
+                  <AntdTheme
+                    lang={lang as string}
+                    direction={direction as "ltr" | "rtl"}
+                  >
+                    {children}
+                  </AntdTheme>
+                );
+              }}
+            </GlobalConsumer>
+          </ThemeProvider>
         </QueryClientProvider>
       </PersistGate>
     </ProviderStore>
   );
 };
+
+/**
+ * Đẩy màu nhấn của hệ thống giao diện vào antd, để nút/table/tag... đổi màu
+ * cùng lúc với thanh điều hướng thay vì luôn là xanh hải quân cố định.
+ */
+function AntdTheme({
+  lang,
+  direction,
+  children,
+}: {
+  lang: string;
+  direction: "ltr" | "rtl";
+  children: ReactNode;
+}) {
+  const { theme } = useAppTheme();
+  const a = surfaceAlphas(theme.surfaceOpacity);
+  const white = (alpha: number) => `rgba(255, 255, 255, ${alpha})`;
+
+  return (
+    <ConfigProvider
+      locale={lang === "vi" ? viVN : enUS}
+      theme={{
+        token: {
+          fontFamily: "var(--font-be-vietnam-pro), Roboto-regular, sans-serif",
+          colorPrimary: theme.accent,
+          colorLink: theme.accent,
+          colorSuccess: "#2A9D8F",
+          colorWarning: "#F4A261",
+          colorError: "#E63946",
+          colorInfo: "#0EA5E9",
+          borderRadius: 6,
+
+          /*
+           * Nền của Card/Table/Input... đều sinh ra từ token này, nên chỉnh ở
+           * đây là cả trang trong theo — chắc hơn nhiều so với đè CSS lên
+           * style do antd sinh động (CSS-in-JS).
+           */
+          colorBgContainer: white(a.card),
+          /* Menu thả xuống, Modal, Popover: giữ đục, nổi trên nền chứ không hoà vào */
+          colorBgElevated: "#ffffff",
+          colorBgLayout: "transparent",
+          colorBorder: white(0.42),
+          colorBorderSecondary: white(0.3),
+          colorFillAlter: white(a.head),
+        },
+        components: {
+          Menu: { itemSelectedBg: shade(theme.accent, 0.86) },
+          Table: {
+            headerBg: white(a.head),
+            rowHoverBg: white(a.hover),
+            rowSelectedBg: shade(theme.accent, 0.88),
+            rowSelectedHoverBg: shade(theme.accent, 0.82),
+            borderColor: white(0.34),
+            headerSplitColor: "transparent",
+            footerBg: "transparent",
+          },
+          Segmented: {
+            trackBg: white(a.head),
+            itemSelectedBg: "#ffffff",
+          },
+          Card: { headerBg: "transparent" },
+          /* Vùng nổi lên trên: để đục để chữ luôn đọc được */
+          Modal: { contentBg: "#ffffff", headerBg: "#ffffff" },
+          Drawer: { colorBgElevated: "#ffffff" },
+          Dropdown: { colorBgElevated: "#ffffff" },
+          Select: { optionSelectedBg: shade(theme.accent, 0.88) },
+        },
+      }}
+      direction={direction}
+    >
+      <AntdRegistry>
+        <App>{children}</App>
+      </AntdRegistry>
+    </ConfigProvider>
+  );
+}
 
 export default Provider;

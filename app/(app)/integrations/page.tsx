@@ -134,7 +134,7 @@ export default function IntegrationsPage() {
   const { data: botStatus } = useZaloBotStatus(admin);
 
   return (
-    <div className="flex flex-col gap-5 max-w-[860px] mx-auto">
+    <div className="flex flex-col gap-5 w-full">
       {/* ===== GMAIL ===== */}
       <Card
         variant="borderless"

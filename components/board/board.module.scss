@@ -20,19 +20,23 @@
 /* Nền + lớp phủ */
 .boardRoot {
   position: relative;
-  margin: -24px;
-  padding: 24px;
-  height: calc(100vh - 64px);
+  /* tràn hết padding của .content trong app shell */
+  margin: -20px -22px;
+  padding: 20px 22px;
+  /* giãn đầy chiều cao còn lại (app shell đã khóa 100vh, không còn header) */
+  flex: 1 0 auto;
   min-height: 460px;
   overflow: hidden;
-  background-image: url("/images/bg.webp");
+  /* Dùng chung nền với toàn hệ thống (libs/theme/presets.ts) */
+  background-color: var(--app-bg-color, #062b47);
+  background-image: var(--app-bg-image, url("/images/bg.webp"));
   background-size: cover;
   background-position: center 40%;
   background-repeat: no-repeat;
 
   @media (max-width: 767px) {
-    margin: -12px;
-    padding: 12px;
+    margin: -14px;
+    padding: 14px;
   }
 }
 
@@ -52,14 +56,16 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
+  background: var(
+    --board-overlay,
     radial-gradient(120% 80% at 20% 0%, rgba(10, 67, 109, 0.45) 0%, transparent 60%),
     linear-gradient(
       165deg,
       rgba(2, 19, 33, 0.86) 0%,
       rgba(3, 26, 45, 0.88) 45%,
       rgba(4, 31, 52, 0.92) 100%
-    );
+    )
+  );
 }
 
 .boardLayer {
@@ -72,10 +78,10 @@
    Các bề mặt kính
    ------------------------------------------------------------ */
 .glassPanel {
-  background: rgba(255, 255, 255, 0.11);
+  background: var(--g-panel, rgba(255, 255, 255, 0.11));
   backdrop-filter: blur(18px) saturate(150%);
   -webkit-backdrop-filter: blur(18px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--g-line, rgba(255, 255, 255, 0.2));
   border-radius: 14px;
   box-shadow:
     0 8px 32px rgba(2, 19, 33, 0.32),
@@ -83,11 +89,12 @@
 }
 
 .column {
-  width: 292px;
-  background: rgba(255, 255, 255, 0.1);
+  /* trên điện thoại cột phải vừa màn hình, không tràn ra ngoài */
+  width: min(292px, 82vw);
+  background: var(--g-panel, rgba(255, 255, 255, 0.1));
   backdrop-filter: blur(18px) saturate(150%);
   -webkit-backdrop-filter: blur(18px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--g-line, rgba(255, 255, 255, 0.18));
   border-radius: 14px;
   box-shadow:
     0 8px 32px rgba(2, 19, 33, 0.3),
@@ -109,7 +116,7 @@
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(10px) saturate(140%);
   -webkit-backdrop-filter: blur(10px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid var(--g-line, rgba(255, 255, 255, 0.22));
   border-radius: 11px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
   transition:
@@ -119,7 +126,7 @@
 
   &:hover {
     background: rgba(255, 255, 255, 0.24);
-    border-color: rgba(255, 255, 255, 0.42);
+    border-color: var(--g-line, rgba(255, 255, 255, 0.42));
     box-shadow:
       0 6px 20px rgba(2, 19, 33, 0.3),
       inset 0 1px 0 rgba(255, 255, 255, 0.24);
@@ -134,22 +141,22 @@
 
 .cardOverlay {
   background: rgba(255, 255, 255, 0.28);
-  border-color: rgba(255, 255, 255, 0.55);
+  border-color: var(--g-line, rgba(255, 255, 255, 0.55));
   box-shadow: 0 18px 40px rgba(2, 19, 33, 0.45);
 }
 
 /* Thẻ đã hoàn thành — chìm bớt nhưng vẫn đọc được */
 .cardDone {
   background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: var(--g-line, rgba(255, 255, 255, 0.14));
 }
 
 /* Ô nhập trên nền kính */
 .glassInput {
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: var(--g-fill, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--g-line, rgba(255, 255, 255, 0.28));
   border-radius: 10px;
-  color: #fff;
+  color: var(--g-text, #fff);
   outline: none;
   transition:
     background 0.13s ease,
@@ -157,7 +164,7 @@
     box-shadow 0.13s ease;
 
   &::placeholder {
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--g-text-faint, rgba(255, 255, 255, 0.55));
   }
 
   &:focus {
@@ -169,9 +176,9 @@
 
 /* Nút chìm trên nền kính */
 .glassBtn {
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  color: rgba(255, 255, 255, 0.92);
+  background: var(--g-fill, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--g-line, rgba(255, 255, 255, 0.24));
+  color: var(--g-text, rgba(255, 255, 255, 0.92));
   border-radius: 10px;
   cursor: pointer;
   transition:
@@ -179,15 +186,15 @@
     border-color 0.13s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.24);
-    border-color: rgba(255, 255, 255, 0.4);
+    background: var(--g-fill-strong, rgba(255, 255, 255, 0.24));
+    border-color: var(--g-line, rgba(255, 255, 255, 0.4));
   }
 }
 
 .glassGhost {
   background: transparent;
   border: 0;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--g-text-soft, rgba(255, 255, 255, 0.78));
   border-radius: 8px;
   cursor: pointer;
   transition:
@@ -195,8 +202,8 @@
     color 0.13s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.16);
-    color: #fff;
+    background: var(--g-fill, rgba(255, 255, 255, 0.16));
+    color: var(--g-text, #fff);
   }
 }
 
@@ -209,7 +216,7 @@
   transition: scrollbar-color 0.15s ease;
 
   &:hover {
-    scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
+    scrollbar-color: var(--g-text-faint, rgba(255, 255, 255, 0.4)) transparent;
   }
 
   &::-webkit-scrollbar {
@@ -224,16 +231,16 @@
     border-radius: 999px;
   }
   &:hover::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.4);
+    background: var(--g-text-faint, rgba(255, 255, 255, 0.4));
   }
   &::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.6);
+    background: var(--g-text-muted, rgba(255, 255, 255, 0.6));
   }
 }
 
 .canvasScroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.42) rgba(255, 255, 255, 0.12);
+  scrollbar-color: var(--g-text-faint, rgba(255, 255, 255, 0.42)) var(--g-fill, rgba(255, 255, 255, 0.12));
 
   &::-webkit-scrollbar {
     height: 10px;
@@ -243,11 +250,11 @@
     border-radius: 999px;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.42);
+    background: var(--g-text-faint, rgba(255, 255, 255, 0.42));
     border-radius: 999px;
   }
   &::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.62);
+    background: var(--g-text-muted, rgba(255, 255, 255, 0.62));
   }
 }
 

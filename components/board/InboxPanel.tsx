@@ -17,6 +17,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Smartphone,
+  X,
 } from "lucide-react";
 import { useBoard } from "./BoardStore";
 import { CardTile } from "./CardTile";
@@ -28,7 +29,14 @@ import styles from "./board.module.scss";
 const MIN_WIDTH = 248;
 const MAX_WIDTH = 420;
 
-export function InboxPanel() {
+export function InboxPanel({
+  mobile = false,
+  onCloseMobile,
+}: {
+  /** Biến thể phủ lên màn hình, dùng cho điện thoại / màn hình hẹp */
+  mobile?: boolean;
+  onCloseMobile?: () => void;
+} = {}) {
   const { inboxCards, inboxTotal, addCard, filterActive } = useBoard();
   const [width, setWidth] = useState(292);
   const [collapsed, setCollapsed] = useState(false);
@@ -65,7 +73,7 @@ export function InboxPanel() {
     [width],
   );
 
-  if (collapsed) {
+  if (collapsed && !mobile) {
     return (
       <div
         className={`${styles.glassPanel} w-11 shrink-0 hidden md:flex flex-col items-center pt-2.5 gap-3`}
@@ -97,7 +105,14 @@ export function InboxPanel() {
   }
 
   return (
-    <div className="hidden md:flex shrink-0" style={{ width }}>
+    <div
+      className={
+        mobile
+          ? "fixed inset-y-0 left-0 z-[70] flex w-[86vw] max-w-[360px] p-2"
+          : "hidden md:flex shrink-0"
+      }
+      style={mobile ? undefined : { width }}
+    >
       <div
         className={`${styles.glassPanel} flex-1 min-w-0 flex flex-col overflow-hidden`}
       >
@@ -119,14 +134,14 @@ export function InboxPanel() {
               ? `${inboxCards.length}/${inboxTotal}`
               : inboxTotal}
           </span>
-          <Tooltip title="Thu gọn">
+          <Tooltip title={mobile ? "Đóng" : "Thu gọn"}>
             <button
-              onClick={() => setCollapsed(true)}
+              onClick={() => (mobile ? onCloseMobile?.() : setCollapsed(true))}
               className="grid place-items-center size-7 rounded-md border-0 bg-transparent
                 hover:bg-white/15 cursor-pointer"
               style={{ color: G.textSoft }}
             >
-              <PanelLeftClose size={15} />
+              {mobile ? <X size={16} /> : <PanelLeftClose size={15} />}
             </button>
           </Tooltip>
         </div>
@@ -175,8 +190,9 @@ export function InboxPanel() {
         </div>
       </div>
 
-      {/* Thanh kéo giãn */}
+      {/* Thanh kéo giãn — chỉ có ở bố cục desktop */}
       <div
+        hidden={mobile}
         onPointerDown={onSplitterDown}
         role="separator"
         aria-orientation="vertical"

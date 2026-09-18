@@ -65,7 +65,7 @@ export function AgendaPanel() {
   const overdue = data?.overdue ?? [];
 
   return (
-    <div className={`${styles.glassPanel} w-[264px] shrink-0 hidden xl:flex flex-col overflow-hidden`}>
+    <div className={`${styles.glassPanel} w-[264px] shrink-0 hidden @5xl:flex flex-col overflow-hidden`}>
       <div
         className="flex items-center gap-2 px-3 h-11 shrink-0"
         style={{ borderBottom: `1px solid ${G.line}` }}

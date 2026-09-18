@@ -103,7 +103,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-5 max-w-[1400px] mx-auto">
+    <div className="flex flex-col gap-5 w-full">
       {/* ===== Stat cards ===== */}
       <Row gutter={[16, 16]}>
         {statCards.map((card) => (

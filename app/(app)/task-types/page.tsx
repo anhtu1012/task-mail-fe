@@ -119,7 +119,7 @@ export default function TaskTypesPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-4 max-w-[900px] mx-auto">
+    <div className="flex flex-col gap-4 w-full">
       <div className="flex items-center justify-between">
         <p className="text-slate-500 text-sm m-0">
           Loại công việc dùng để phân nhóm và tô màu task trong danh sách.
