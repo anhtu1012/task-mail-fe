@@ -52,7 +52,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-[#f7f8fa]">
+    <div className="app-themed-bg min-h-screen flex">
       {/* Brand panel */}
       <div className="hidden lg:flex flex-col justify-between w-[44%] p-12 text-white bg-[linear-gradient(160deg,#0a436d_0%,#0d5a8f_55%,#0ea5e9_130%)]">
         <div className="flex items-center gap-3">

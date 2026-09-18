@@ -149,11 +149,14 @@ export function BoardToolbar({ onOpenInbox }: { onOpenInbox?: () => void } = {})
         <button
           onClick={toggleStar}
           className="grid place-items-center size-7 shrink-0 rounded-md border-0 bg-transparent cursor-pointer hover:bg-white/15"
+          /* stroke của SVG không hiểu var(), nên đặt màu qua CSS rồi để icon
+             dùng currentColor */
+          style={{ color: board?.starred ? C.warning : G.textMuted }}
         >
           <Star
             size={16}
             fill={board?.starred ? C.warning : "none"}
-            stroke={board?.starred ? C.warning : G.textMuted}
+            stroke="currentColor"
           />
         </button>
       </Tooltip>

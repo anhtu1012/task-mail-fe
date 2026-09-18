@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 export default function ForbiddenPage() {
   const router = useRouter();
   return (
-    <div className="min-h-screen grid place-items-center bg-[#f7f8fa]">
+    <div className="app-themed-bg min-h-screen grid place-items-center">
       <Result
         status="403"
         title="403 — Không có quyền truy cập"

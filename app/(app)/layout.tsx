@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Avatar, Drawer, Dropdown, Grid, Spin } from "antd";
+import { Avatar, Drawer, Dropdown, Grid, Spin, Tooltip } from "antd";
 import {
   CalendarDays,
   ClipboardList,
@@ -11,6 +11,7 @@ import {
   ListChecks,
   LogOut,
   Menu as MenuIcon,
+  Palette,
   PlugZap,
   SquareKanban,
   Tags,
@@ -19,6 +20,12 @@ import { authApi } from "@/apis/auth.api";
 import { useMe } from "@/hooks/useTaskApp";
 import { ROLE_META, isAdminRole } from "@/models/task";
 import { getCookie } from "@/utils/client/getCookie";
+import {
+  clearThemeSession,
+  useAppTheme,
+  useThemeSync,
+} from "@/contexts/ThemeContext";
+import ThemeSettings from "@/components/global/ThemeSettings/ThemeSettings";
 import styles from "./layout.module.scss";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -29,6 +36,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [tokenChecked, setTokenChecked] = useState(false);
 
+  const { setSettingsOpen } = useAppTheme();
+  // Lấy cài đặt giao diện của tài khoản từ server (nếu backend đã có)
+  useThemeSync();
   const { data: me, isLoading } = useMe();
   const admin = isAdminRole(me?.role);
 
@@ -104,6 +114,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const handleLogout = async () => {
     await authApi.logoutSession();
+    // logoutSession xoá sạch localStorage -> dọn nốt state đang giữ trong bộ nhớ
+    clearThemeSession();
     router.replace("/login");
   };
 
@@ -148,6 +160,24 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </nav>
 
       <div className={styles.railFooter}>
+        <Tooltip title="Giao diện" placement="right">
+          <button
+            type="button"
+            className={styles.userButton}
+            aria-label="Cài đặt giao diện"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <span className={styles.userAvatar}>
+              <span className={styles.themeDot}>
+                <Palette size={17} />
+              </span>
+            </span>
+            <span className={styles.userMeta}>
+              <span className={styles.userEmail}>Giao diện</span>
+            </span>
+          </button>
+        </Tooltip>
+
         <Dropdown
           trigger={["click"]}
           placement="topLeft"
@@ -192,7 +222,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             open={mobileNavOpen}
             onClose={() => setMobileNavOpen(false)}
             closable={false}
-            width={236}
+            size={236}
             styles={{
               body: { padding: 0, background: "#0a2c47" },
               section: { background: "#0a2c47" },
@@ -214,6 +244,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <main className={styles.main}>
         <div className={styles.content}>{children}</div>
       </main>
+
+      <ThemeSettings />
     </div>
   );
 }
