@@ -372,7 +372,7 @@ export default function TasksPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-4 max-w-[1400px] mx-auto">
+    <div className="flex flex-col gap-4 w-full">
       {/* ===== Toolbar ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Segmented

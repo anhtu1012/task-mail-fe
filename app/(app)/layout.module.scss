@@ -1,0 +1,422 @@
+/* ============================================================
+   App shell
+   - Khóa đúng 100vh: không có scroll ở cấp trang
+   - Rail dán mép trái, cong cạnh phải, cụm icon căn giữa dọc
+   - Thu gọn = chỉ icon; hover vào rail -> tự mở rộng
+   Đổi màu rail: chỉ cần sửa $rail-1 / $rail-2 / $rail-3
+   ============================================================ */
+
+$rail-1: #0a2c47;
+$rail-2: #0a436d;
+$rail-3: #08243b;
+$page-bg: #f7f8fa;
+
+$rail-w: 76px;
+$rail-w-open: 232px;
+$gap: 14px;
+
+/* ---------------- Shell: khóa 100vh ---------------- */
+.shell {
+  position: relative;
+  display: flex;
+  height: 100vh;
+  max-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(1100px 620px at -6% -8%, rgba(10, 67, 109, 0.16), transparent 62%),
+    radial-gradient(900px 520px at 108% 104%, rgba(10, 67, 109, 0.09), transparent 60%),
+    $page-bg;
+  box-sizing: border-box;
+}
+
+/* ---------------- Rail ---------------- */
+.rail {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: $rail-w;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 20px 0 18px;
+  overflow: hidden;
+  /* cạnh phải cong: bo nhẹ trên, phình mạnh dưới */
+  border-radius: 0 32px 84px 0;
+  background:
+    radial-gradient(120% 60% at 0% 0%, rgba(255, 255, 255, 0.1), transparent 58%),
+    linear-gradient(168deg, $rail-2 0%, $rail-1 56%, $rail-3 100%);
+  box-shadow:
+    18px 0 48px -26px rgba(10, 44, 71, 0.8),
+    inset -1px 0 0 rgba(255, 255, 255, 0.07);
+  transition: width 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 40;
+  box-sizing: border-box;
+
+  /* Hover -> tự mở rộng (chỉ rail nổi trên desktop) */
+  &:not(.drawerRail):hover {
+    width: $rail-w-open;
+    box-shadow:
+      26px 0 60px -28px rgba(10, 44, 71, 0.85),
+      inset -1px 0 0 rgba(255, 255, 255, 0.07);
+  }
+}
+
+/* ---------------- Brand ---------------- */
+.brand {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  height: 46px;
+  margin-bottom: 8px;
+}
+
+.brandMark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 $rail-w;
+  width: $rail-w;
+
+  > span {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 15px;
+    background: linear-gradient(140deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.07));
+    color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.34),
+      0 8px 18px -12px rgba(0, 0, 0, 0.7);
+  }
+}
+
+.brandName {
+  overflow: hidden;
+  max-width: 0;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  opacity: 0;
+  transition:
+    opacity 0.18s ease 0.04s,
+    max-width 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+
+  .rail:not(.drawerRail):hover &,
+  .drawerRail & {
+    opacity: 1;
+    max-width: 140px;
+  }
+}
+
+/* ---------------- Nav: cụm icon căn giữa theo chiều dọc ---------------- */
+.nav {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* căn giữa dọc toàn bộ cụm icon */
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.navItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  width: 100%;
+  height: 46px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.58);
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+
+  /* vệt sáng nền khi hover */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(100deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  &:hover {
+    color: #fff;
+
+    &::after {
+      opacity: 1;
+    }
+  }
+
+  &:active .navIcon {
+    transform: scale(0.9);
+  }
+}
+
+.navItemActive {
+  color: $rail-1;
+
+  /* viên thuốc trắng chạy sau icon + nhãn */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: #fff;
+    box-shadow:
+      0 10px 22px -12px rgba(0, 0, 0, 0.65),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  &::after {
+    display: none;
+  }
+
+  &:hover {
+    color: $rail-1;
+  }
+}
+
+/* icon cố định đúng bằng bề rộng rail lúc thu gọn
+   -> icon luôn nằm giữa thanh, không xô lệch khi mở rộng */
+.navIcon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex: 0 0 $rail-w;
+  width: $rail-w;
+  height: 100%;
+  transition: transform 0.18s ease;
+}
+
+.navLabel {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  max-width: 0;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: -0.1px;
+  opacity: 0;
+  transition:
+    opacity 0.18s ease 0.04s,
+    max-width 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+
+  .rail:not(.drawerRail):hover &,
+  .drawerRail & {
+    opacity: 1;
+    max-width: 150px;
+  }
+}
+
+/* badge nhỏ cạnh icon (vd: số thông báo) */
+.badge {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  left: 44px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #22c55e;
+  color: #06251a;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(10, 44, 71, 0.9);
+}
+
+/* ---------------- Rail footer ---------------- */
+.railFooter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-top: 8px;
+  padding-top: 16px;
+
+  /* đường kẻ mảnh, mờ dần hai đầu */
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 16px;
+    right: 16px;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.16) 30%,
+      rgba(255, 255, 255, 0.16) 70%,
+      transparent
+    );
+  }
+}
+
+.userButton {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.11);
+  }
+}
+
+.userAvatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 $rail-w;
+  width: $rail-w;
+}
+
+.userMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  overflow: hidden;
+  max-width: 0;
+  line-height: 1.3;
+  opacity: 0;
+  transition:
+    opacity 0.18s ease 0.04s,
+    max-width 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+
+  .rail:not(.drawerRail):hover &,
+  .drawerRail & {
+    opacity: 1;
+    max-width: 140px;
+  }
+}
+
+.userEmail {
+  max-width: 136px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.userRole {
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+}
+
+/* ---------------- Content: fill 100vh, không scroll cấp trang ---------------- */
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - #{$gap * 2});
+  margin: $gap $gap $gap ($rail-w + $gap);
+  border-radius: 26px;
+  background: #fbfcfe;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 18px 44px -30px rgba(10, 44, 71, 0.45);
+  overflow: hidden;
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 22px;
+  /* không có scroll ở cấp trang: chỉ vùng này cuộn khi nội dung thật sự dài */
+  overflow: auto;
+}
+
+/* trang có 1 gốc duy nhất -> luôn giãn đầy chiều cao màn hình */
+.content > :only-child {
+  flex: 1 0 auto;
+}
+
+/* ---------------- Mobile ---------------- */
+.mobileFab {
+  position: fixed;
+  left: 16px;
+  bottom: 18px;
+  display: none;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border: 0;
+  border-radius: 17px;
+  background: $rail-1;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 14px 30px -12px rgba(10, 44, 71, 0.7);
+  z-index: 60;
+}
+
+/* rail trong Drawer mobile: luôn mở rộng, không hover-expand */
+.drawerRail {
+  position: static;
+  height: 100%;
+  width: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 768px) {
+  .rail:not(.drawerRail) {
+    display: none;
+  }
+
+  .main {
+    height: calc(100vh - 20px);
+    margin: 10px;
+    border-radius: 18px;
+  }
+
+  .content {
+    padding: 14px;
+  }
+
+  .mobileFab {
+    display: grid;
+  }
+}
+
+.loader {
+  display: grid;
+  place-items: center;
+  height: 100vh;
+  background: $page-bg;
+}

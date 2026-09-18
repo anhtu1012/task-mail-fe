@@ -2,17 +2,7 @@
 
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Avatar,
-  Drawer,
-  Dropdown,
-  Grid,
-  Layout,
-  Menu,
-  Spin,
-  Tag,
-  Typography,
-} from "antd";
+import { Avatar, Drawer, Dropdown, Grid, Spin } from "antd";
 import {
   CalendarDays,
   ClipboardList,
@@ -29,15 +19,13 @@ import { authApi } from "@/apis/auth.api";
 import { useMe } from "@/hooks/useTaskApp";
 import { ROLE_META, isAdminRole } from "@/models/task";
 import { getCookie } from "@/utils/client/getCookie";
-
-const { Sider, Header, Content } = Layout;
+import styles from "./layout.module.scss";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
-  const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [tokenChecked, setTokenChecked] = useState(false);
 
@@ -69,32 +57,32 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const items = [
       {
         key: "/dashboard",
-        icon: <LayoutDashboard size={17} />,
+        icon: <LayoutDashboard size={19} />,
         label: "Tổng quan",
       },
       {
         key: "/tasks",
-        icon: <ListChecks size={17} />,
+        icon: <ListChecks size={19} />,
         label: "Công việc",
       },
       {
         key: "/kanban",
-        icon: <SquareKanban size={17} />,
+        icon: <SquareKanban size={19} />,
         label: "Bảng Kanban",
       },
       {
         key: "/boards",
-        icon: <Columns3 size={17} />,
+        icon: <Columns3 size={19} />,
         label: "Bảng công việc",
       },
       {
         key: "/calendar",
-        icon: <CalendarDays size={17} />,
+        icon: <CalendarDays size={19} />,
         label: "Lịch",
       },
       {
         key: "/integrations",
-        icon: <PlugZap size={17} />,
+        icon: <PlugZap size={19} />,
         label: "Tích hợp",
       },
     ];
@@ -102,7 +90,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       // Chỉ admin được CRUD loại công việc — chèn ngay trước mục Tích hợp
       items.splice(items.findIndex((i) => i.key === "/integrations"), 0, {
         key: "/task-types",
-        icon: <Tags size={17} />,
+        icon: <Tags size={19} />,
         label: "Loại công việc",
       });
     }
@@ -121,139 +109,111 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   if (!tokenChecked || (isLoading && !me)) {
     return (
-      <div className="min-h-screen grid place-items-center bg-[#f7f8fa]">
+      <div className={styles.loader}>
         <Spin size="large" />
       </div>
     );
   }
 
-  const navContent = (collapsedLogo: boolean) => (
-    <>
-      <div className="flex items-center gap-2.5 px-5 h-16">
-        <span className="grid place-items-center size-9 rounded-lg bg-white/15 text-white shrink-0">
-          <ClipboardList size={20} />
-        </span>
-        {!collapsedLogo && (
-          <span className="text-white font-bold text-lg tracking-tight">
-            TaskFlow
+  /** Rail: dán sát mép trái, cong cạnh phải, chỉ hiện icon */
+  const rail = (inDrawer = false) => (
+    <aside
+      className={`${styles.rail} ${inDrawer ? styles.drawerRail : ""}`}
+    >
+      <div className={styles.brand}>
+        <span className={styles.brandMark}>
+          <span>
+            <ClipboardList size={20} />
           </span>
-        )}
+        </span>
+        <span className={styles.brandName}>TaskFlow</span>
       </div>
-      <Menu
-        theme="dark"
-        mode="inline"
-        selectedKeys={[selectedKey]}
-        items={menuItems}
-        onClick={({ key }) => router.push(key)}
-        style={{ background: "transparent", padding: "0 8px" }}
-      />
-    </>
+
+      <nav className={styles.nav}>
+        {menuItems.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => router.push(item.key)}
+            className={`${styles.navItem} ${
+              selectedKey === item.key ? styles.navItemActive : ""
+            }`}
+            aria-label={item.label}
+            aria-current={selectedKey === item.key ? "page" : undefined}
+          >
+            <span className={styles.navIcon}>{item.icon}</span>
+            <span className={styles.navLabel}>{item.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className={styles.railFooter}>
+        <Dropdown
+          trigger={["click"]}
+          placement="topLeft"
+          menu={{
+            items: [
+              {
+                key: "logout",
+                danger: true,
+                icon: <LogOut size={15} />,
+                label: "Đăng xuất",
+                onClick: handleLogout,
+              },
+            ],
+          }}
+        >
+          <button type="button" className={styles.userButton} aria-label="Tài khoản">
+            <span className={styles.userAvatar}>
+              <Avatar style={{ background: "#0a436d", fontWeight: 600 }} size={36}>
+                {me?.email?.[0]?.toUpperCase() ?? "?"}
+              </Avatar>
+            </span>
+            <span className={styles.userMeta}>
+              <span className={styles.userEmail}>{me?.email}</span>
+              {me?.role && (
+                <span className={styles.userRole}>{ROLE_META[me.role].label}</span>
+              )}
+            </span>
+          </button>
+        </Dropdown>
+      </div>
+    </aside>
   );
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      {isMobile ? (
-        <Drawer
-          placement="left"
-          open={mobileNavOpen}
-          onClose={() => setMobileNavOpen(false)}
-          closable={false}
-          width={232}
-          styles={{
-            body: { padding: 0, background: "#0a2c47" },
-            content: { background: "#0a2c47" },
-          }}
-        >
-          {navContent(false)}
-        </Drawer>
-      ) : (
-        <Sider
-          collapsible
-          collapsed={collapsed}
-          onCollapse={setCollapsed}
-          width={232}
-          theme="dark"
-          style={{ background: "#0a2c47" }}
-        >
-          {navContent(collapsed)}
-        </Sider>
-      )}
+    <div className={styles.shell}>
+      {!isMobile && rail()}
 
-      <Layout>
-        <Header
-          style={{
-            background: "#fff",
-            padding: isMobile ? "0 12px" : "0 24px",
-            borderBottom: "1px solid #e2e8f0",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            height: 64,
-          }}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            {isMobile && (
-              <button
-                aria-label="Mở menu"
-                onClick={() => setMobileNavOpen(true)}
-                className="grid place-items-center size-9 rounded-lg border-0 bg-transparent cursor-pointer text-slate-700 hover:bg-slate-100 shrink-0"
-              >
-                <MenuIcon size={20} />
-              </button>
-            )}
-            <Typography.Text strong style={{ fontSize: 16 }} ellipsis>
-              {menuItems.find((item) => item.key === selectedKey)?.label}
-            </Typography.Text>
-          </div>
-
-          <Dropdown
-            trigger={["click"]}
-            menu={{
-              items: [
-                {
-                  key: "logout",
-                  danger: true,
-                  icon: <LogOut size={15} />,
-                  label: "Đăng xuất",
-                  onClick: handleLogout,
-                },
-              ],
+      {isMobile && (
+        <>
+          <Drawer
+            placement="left"
+            open={mobileNavOpen}
+            onClose={() => setMobileNavOpen(false)}
+            closable={false}
+            width={236}
+            styles={{
+              body: { padding: 0, background: "#0a2c47" },
+              section: { background: "#0a2c47" },
             }}
           >
-            <button className="flex items-center gap-3 cursor-pointer bg-transparent border-0 px-2 py-1 rounded-lg hover:bg-slate-50">
-              <Avatar
-                style={{ background: "#0a436d", fontWeight: 600 }}
-                size={34}
-              >
-                {me?.email?.[0]?.toUpperCase() ?? "?"}
-              </Avatar>
-              <span className="hidden sm:flex flex-col items-start leading-tight">
-                <span className="text-[13px] font-medium text-slate-700 max-w-[200px] truncate">
-                  {me?.email}
-                </span>
-                {me?.role && (
-                  <Tag
-                    color={ROLE_META[me.role].color}
-                    style={{ marginTop: 2, fontSize: 11, lineHeight: "16px" }}
-                  >
-                    {ROLE_META[me.role].label}
-                  </Tag>
-                )}
-              </span>
-            </button>
-          </Dropdown>
-        </Header>
+            {rail(true)}
+          </Drawer>
+          <button
+            type="button"
+            aria-label="Mở menu"
+            className={styles.mobileFab}
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <MenuIcon size={22} />
+          </button>
+        </>
+      )}
 
-        <Content
-          style={{
-            padding: isMobile ? 12 : 24,
-            background: "#f7f8fa",
-          }}
-        >
-          {children}
-        </Content>
-      </Layout>
-    </Layout>
+      <main className={styles.main}>
+        <div className={styles.content}>{children}</div>
+      </main>
+    </div>
   );
 }

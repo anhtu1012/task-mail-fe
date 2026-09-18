@@ -44,7 +44,7 @@ export function BoardCanvas() {
         </SortableContext>
 
         {/* Ô thêm danh sách — luôn đứng cuối hàng */}
-        <div className="w-[288px] shrink-0 self-start">
+        <div className="w-[min(288px,82vw)] shrink-0 self-start">
           {addingList ? (
             <div className={`${styles.glassPanel} p-2`}>
               <Composer

@@ -38,6 +38,8 @@ export function BoardWorkspace() {
     useBoard();
   const [activeCard, setActiveCard] = useState<CardSummary | null>(null);
   const [activeListId, setActiveListId] = useState<string | null>(null);
+  // Dưới 768px panel Hộp thư đến bị ẩn -> mở dạng phủ màn hình
+  const [inboxOverlay, setInboxOverlay] = useState(false);
   // Vị trí thẻ TRƯỚC khi kéo — chỉ gọi API một lần lúc thả, và cần chỗ cũ
   // để đăng ký bước hoàn tác
   const dragOrigin = useRef<{ listId: string | null; position: number } | null>(null);
@@ -164,13 +166,26 @@ export function BoardWorkspace() {
       <div className="flex-1 min-h-0 flex gap-3">
         <InboxPanel />
         <div className="flex-1 min-w-0 flex flex-col gap-3">
-          <BoardToolbar />
-          <div className="flex-1 min-h-0 flex gap-3">
+          <BoardToolbar onOpenInbox={() => setInboxOverlay(true)} />
+          <div className="@container flex-1 min-h-0 flex gap-3">
             <BoardCanvas />
             <AgendaPanel />
           </div>
         </div>
       </div>
+
+      {/* Hộp thư đến dạng phủ — chỉ dùng trên màn hình hẹp */}
+      {inboxOverlay && (
+        <>
+          <div
+            className="fixed inset-0 z-[65] bg-black/45 md:hidden"
+            onClick={() => setInboxOverlay(false)}
+          />
+          <div className="md:hidden">
+            <InboxPanel mobile onCloseMobile={() => setInboxOverlay(false)} />
+          </div>
+        </>
+      )}
 
       <CommandPalette />
 
