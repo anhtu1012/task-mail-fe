@@ -458,3 +458,146 @@ $gap: 14px;
   background-size: cover;
   background-position: center 40%;
 }
+
+/* ============================================================
+   Bộ chọn dự án (app/(app)/_components/ProjectSwitcher.tsx)
+
+   Đặt ngay dưới logo, trên cụm điều hướng: người dùng thấy "đang ở dự án nào"
+   trước khi chọn đi đâu. Dùng chung tệp style này để bám được hai luật hiện
+   ra khi rail mở rộng (`.rail:hover &`) — CSS Module chỉ khớp khi cùng tệp.
+   ============================================================ */
+.projectSwitch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  width: 100%;
+  height: 52px;
+  margin-bottom: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.11);
+  }
+}
+
+/* Ô màu dự án — rộng đúng bằng rail thu gọn để thẳng hàng với các icon */
+.projectChip {
+  display: grid;
+  place-items: center;
+  flex: 0 0 $rail-w;
+  width: $rail-w;
+}
+
+.projectChipInner {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 8px 18px -12px rgba(0, 0, 0, 0.75);
+}
+
+.projectMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  overflow: hidden;
+  max-width: 0;
+  line-height: 1.3;
+  opacity: 0;
+  transition:
+    opacity 0.18s ease 0.04s,
+    max-width 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+
+  .rail:not(.drawerRail):hover &,
+  .drawerRail & {
+    opacity: 1;
+    max-width: 132px;
+  }
+}
+
+.projectLabel {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.projectName {
+  max-width: 128px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.projectCaret {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  max-width: 0;
+  color: rgba(255, 255, 255, 0.55);
+  opacity: 0;
+  transition:
+    opacity 0.18s ease 0.04s,
+    max-width 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+
+  .rail:not(.drawerRail):hover &,
+  .drawerRail & {
+    opacity: 1;
+    max-width: 28px;
+  }
+}
+
+/* Một dòng trong danh sách thả xuống của bộ chọn dự án */
+.projectOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 208px;
+  padding: 2px 0;
+}
+
+.projectOptionDot {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.projectOptionName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+}
+
+.projectOptionHint {
+  flex: 0 0 auto;
+  color: #94a3b8;
+  font-size: 11.5px;
+}

@@ -16,6 +16,16 @@ export const API_ENDPOINTS = {
     FORGOT_PASSWORD: "/auth/forgot-password",
     RESET_PASSWORD: "/auth/reset-password",
   },
+  // Dự án — không gian làm việc cá nhân.
+  // Hợp đồng: docs/backend/project-api-spec.md.
+  // Backend CHƯA triển khai: `projectApi` bắt 404/501 để lùi về dữ liệu mock
+  // lưu dưới máy. Gỡ ghi chú này khi backend deploy xong.
+  PROJECTS: {
+    ROOT: "/projects",
+    DETAIL: (id: string) => `/projects/${id}`,
+    DEFAULT: (id: string) => `/projects/${id}/default`,
+    ARCHIVE: (id: string) => `/projects/${id}/archive`,
+  },
   TASKS: {
     ROOT: "/tasks",
     STATS: "/tasks/stats",

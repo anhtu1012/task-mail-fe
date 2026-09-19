@@ -61,6 +61,18 @@ export type ApiErrorBody = {
 export type Task = {
   id: string;
   code: string; // "TSK-000123"
+  /**
+   * Dự án chứa việc này.
+   *
+   * TUỲ CHỌN vì **backend chưa trả field này về**: `TaskDto` (và cả
+   * `CardSummary` của bảng) không có `projectId`, dù DB đã lưu và
+   * `?projectId=` lọc đúng. Đã kiểm thật trên backend local 19/09/2026.
+   *
+   * Nghĩa là: đừng đọc `task.projectId` để quyết định gì — nó luôn
+   * `undefined`. Dự án đang mở lấy từ `useCurrentProject()`. Khi backend bổ
+   * sung vào DTO thì đổi lại thành bắt buộc.
+   */
+  projectId?: string;
   title: string;
   description?: string | null;
   note?: string | null;
@@ -96,6 +108,12 @@ export type TaskStats = {
 };
 
 export type QueryTaskParams = {
+  /**
+   * Phân vùng dữ liệu, KHÔNG phải bộ lọc tuỳ chọn: thiếu nó thì backend trả
+   * việc của mọi dự án và người dùng sẽ thấy dữ liệu lẫn lộn giữa các dự án.
+   * `useTasks` tự chèn từ dự án đang mở nên trang không cần tự truyền.
+   */
+  projectId?: string;
   page?: number;
   limit?: number;
   status?: TaskStatus;
@@ -109,6 +127,8 @@ export type QueryTaskParams = {
 };
 
 export type CreateTaskInput = {
+  /** `useCreateTask` tự chèn từ dự án đang mở nếu form không truyền */
+  projectId?: string;
   title: string;
   description?: string;
   note?: string;

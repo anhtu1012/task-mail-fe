@@ -1,22 +1,25 @@
 "use client";
 
 /**
- * Hiện mỗi người có đúng một bảng (`Board.ownerId @unique` phía backend), nên
- * trang này chỉ tải bảng rồi chuyển hướng thẳng vào. Giữ lại route để sau này
- * mở nhiều bảng thì đây là chỗ liệt kê, không phải dựng lại từ đầu.
+ * Mỗi DỰ ÁN có đúng một bảng, nên trang này chỉ tải bảng của dự án đang mở rồi
+ * chuyển hướng thẳng vào. Giữ lại route để sau này một dự án mở nhiều bảng thì
+ * đây là chỗ liệt kê, không phải dựng lại từ đầu.
  */
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Spin } from "antd";
 import { boardApi } from "@/apis/board.api";
+import { useCurrentProject } from "@/hooks/useProjects";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 
 export default function BoardsIndexPage() {
   const router = useRouter();
+  const { projectId } = useCurrentProject();
   const { data, error } = useQuery({
     queryKey: ["board", "snapshot"],
-    queryFn: () => boardApi.snapshot(),
+    queryFn: () => boardApi.snapshot(projectId ?? undefined),
+    enabled: !!projectId,
   });
 
   const boardId = data?.board.id;

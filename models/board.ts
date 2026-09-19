@@ -240,6 +240,11 @@ export type CompleteCardResponse = {
 // BODY GỬI LÊN
 // ==========================================
 export type CreateCardInput = {
+  /**
+   * Dự án nhận thẻ. Chỉ cần gửi khi tạo ở Hộp thư đến (POST /tasks/inbox/cards)
+   * — tạo trong một cột thì backend suy ra từ bảng chứa cột đó.
+   */
+  projectId?: string;
   title: string;
   position?: number;
   deadline?: string | null;

@@ -40,7 +40,9 @@ export default function LoginPage() {
         await authApi.register(values);
         message.success("Đăng ký thành công, chào mừng bạn!");
       }
-      router.replace("/dashboard");
+      // Vào chọn dự án chứ không vào thẳng tổng quan: mọi truy vấn phía trong
+      // đều cần projectId. Nếu đã có dự án mặc định, trang đó tự đi tiếp.
+      router.replace("/select-project");
     } catch (error) {
       if (getApiErrorCode(error) === "AUTH_GOOGLE_ACCOUNT_ONLY") {
         setGoogleOnly(true);

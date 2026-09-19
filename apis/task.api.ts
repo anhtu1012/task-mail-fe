@@ -29,10 +29,14 @@ class TaskApi extends AxiosService {
     );
   }
 
-  public async stats(assigneeId?: string): Promise<TaskStats> {
+  /** `projectId` giới hạn thống kê trong một dự án; thiếu nó là tính cả tài khoản */
+  public async stats(
+    assigneeId?: string,
+    projectId?: string,
+  ): Promise<TaskStats> {
     return this.getWithParams<TaskStats>(
       API_ENDPOINTS.TASKS.STATS,
-      toSearchParams({ assigneeId }),
+      toSearchParams({ assigneeId, projectId }),
     );
   }
 

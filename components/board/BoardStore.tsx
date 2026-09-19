@@ -39,10 +39,20 @@ import {
   computePosition,
 } from "@/models/board";
 import { TaskPriority } from "@/models/task";
+import { useCurrentProject } from "@/hooks/useProjects";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { quickParse } from "@/utils/client/quickParse";
 import { useStickyState } from "./useStickyState";
 
+/**
+ * Khoá cache của bảng KHÔNG chứa projectId, dù mỗi dự án có một bảng riêng.
+ *
+ * Lý do: mọi cập nhật lạc quan trong file này vá thẳng vào khoá hằng số này.
+ * Nhét projectId vào đây sẽ phải luồn nó qua vài chục chỗ mà chẳng được thêm
+ * gì — vì `useSwitchProject` đã xoá sạch cache `["board", ...]` mỗi lần đổi dự
+ * án, nên không bao giờ có chuyện bảng của dự án cũ còn nằm lại. Cái giá duy
+ * nhất là quay lại dự án cũ thì phải tải lại bảng.
+ */
 export const BOARD_QUERY_KEY = ["board", "snapshot"] as const;
 
 // ==========================================
@@ -168,6 +178,7 @@ const EMPTY_TODAY: TodayStats = {
 export function BoardProvider({ children }: { children: ReactNode }) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
+  const { projectId } = useCurrentProject();
 
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
   const [fullscreen, setFullscreen] = useStickyState("board:fullscreen", false);
@@ -187,7 +198,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     refetch,
   } = useQuery({
     queryKey: BOARD_QUERY_KEY,
-    queryFn: () => boardApi.snapshot(),
+    queryFn: () => boardApi.snapshot(projectId ?? undefined),
+    enabled: !!projectId,
     // Thao tác kéo thả đã cập nhật lạc quan rồi, không cần tải lại liên tục
     staleTime: 30_000,
     refetchOnWindowFocus: true,
@@ -360,6 +372,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
         : computePosition(siblings.at(-1)?.position, undefined);
 
       const input: CreateCardInput = {
+        // Hộp thư đến không thuộc cột nào nên backend không suy ra được dự án
+        projectId: listId === null ? (projectId ?? undefined) : undefined,
         title: parsed.title,
         position,
         deadline: parsed.deadline,
