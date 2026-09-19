@@ -21,7 +21,7 @@ function OAuthCallbackInner() {
     const accessToken = searchParams.get("accessToken");
     if (accessToken) {
       authApi.persistToken(accessToken);
-      router.replace("/dashboard");
+      router.replace("/select-project");
     } else {
       router.replace("/login");
     }

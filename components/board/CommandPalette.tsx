@@ -27,6 +27,7 @@ import { useQuery } from "@tanstack/react-query";
 import { boardApi } from "@/apis/board.api";
 import { deaccent } from "@/utils/client/quickParse";
 import useDebounce from "@/hooks/useDebounce";
+import { useCurrentProject } from "@/hooks/useProjects";
 import { useBoard } from "./BoardStore";
 import { Badge, C, LabelChip, fmtShort } from "./ui";
 
@@ -71,10 +72,11 @@ function PaletteBody() {
   // Tìm ở SERVER chứ không lọc mảng đã tải: /full chỉ trả 20 thẻ đầu mỗi cột,
   // lọc phía client sẽ bỏ sót việc mà không có dấu hiệu gì.
   const debounced = useDebounce(query.trim(), 250);
+  const { projectId } = useCurrentProject();
   const { data: searchResult, isFetching: searching } = useQuery({
     queryKey: ["board", "search", debounced],
-    queryFn: () => boardApi.search(debounced, 8),
-    enabled: debounced.length > 0,
+    queryFn: () => boardApi.search(debounced, 8, projectId ?? undefined),
+    enabled: debounced.length > 0 && !!projectId,
     staleTime: 15_000,
   });
 

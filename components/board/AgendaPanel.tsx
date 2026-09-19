@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Tooltip } from "antd";
 import { AlertTriangle, CalendarClock, PanelRightClose, Timer } from "lucide-react";
 import { boardApi } from "@/apis/board.api";
+import { useCurrentProject } from "@/hooks/useProjects";
 import { CardSummary } from "@/models/board";
 import { PRIORITY_META } from "@/models/task";
 import { useBoard } from "./BoardStore";
@@ -30,11 +31,12 @@ export function AgendaPanel() {
   const router = useRouter();
   const { board, agendaOpen, setAgendaOpen } = useBoard();
 
+  const { projectId } = useCurrentProject();
   const { data, isLoading } = useQuery({
     queryKey: ["board", "agenda"],
-    queryFn: () => boardApi.agenda(),
+    queryFn: () => boardApi.agenda(undefined, projectId ?? undefined),
     staleTime: 60_000,
-    enabled: agendaOpen,
+    enabled: agendaOpen && !!projectId,
   });
 
   const slots = useMemo(() => {

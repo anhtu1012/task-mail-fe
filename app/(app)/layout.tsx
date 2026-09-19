@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ClipboardList,
   Columns3,
+  FolderKanban,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { authApi } from "@/apis/auth.api";
 import { useMe } from "@/hooks/useTaskApp";
+import { useClearProject, useCurrentProject } from "@/hooks/useProjects";
 import { ROLE_META, isAdminRole } from "@/models/task";
 import { getCookie } from "@/utils/client/getCookie";
 import {
@@ -26,6 +28,7 @@ import {
   useThemeSync,
 } from "@/contexts/ThemeContext";
 import ThemeSettings from "@/components/global/ThemeSettings/ThemeSettings";
+import ProjectSwitcher from "./_components/ProjectSwitcher";
 import styles from "./layout.module.scss";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -41,6 +44,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   useThemeSync();
   const { data: me, isLoading } = useMe();
   const admin = isAdminRole(me?.role);
+  const {
+    projectId,
+    needsSelection,
+    isLoading: projectsLoading,
+  } = useCurrentProject();
+  const clearProject = useClearProject();
 
   // Guard: chưa có accessToken -> về /login
   useEffect(() => {
@@ -57,6 +66,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     window.addEventListener("unauthorized", onUnauthorized);
     return () => window.removeEventListener("unauthorized", onUnauthorized);
   }, [router]);
+
+  // Chưa chọn dự án (lần đầu đăng nhập, hoặc dự án cũ đã bị xoá/lưu trữ) thì
+  // không cho vào trong: mọi truy vấn task/board đều cần projectId.
+  useEffect(() => {
+    if (needsSelection) router.replace("/select-project");
+  }, [needsSelection, router]);
 
   // Đóng drawer nav mobile mỗi khi chuyển trang
   useEffect(() => {
@@ -91,6 +106,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         label: "Lịch",
       },
       {
+        key: "/projects",
+        icon: <FolderKanban size={19} />,
+        label: "Dự án",
+      },
+      {
         key: "/integrations",
         icon: <PlugZap size={19} />,
         label: "Tích hợp",
@@ -116,10 +136,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     await authApi.logoutSession();
     // logoutSession xoá sạch localStorage -> dọn nốt state đang giữ trong bộ nhớ
     clearThemeSession();
+    // Người kế tiếp đăng nhập trên máy này phải tự chọn dự án của họ
+    clearProject();
     router.replace("/login");
   };
 
-  if (!tokenChecked || (isLoading && !me)) {
+  if (!tokenChecked || (isLoading && !me) || (projectsLoading && !projectId)) {
     return (
       <div className={styles.loader}>
         <Spin size="large" />
@@ -140,6 +162,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </span>
         <span className={styles.brandName}>TaskFlow</span>
       </div>
+
+      <ProjectSwitcher />
 
       <nav className={styles.nav}>
         {menuItems.map((item) => (

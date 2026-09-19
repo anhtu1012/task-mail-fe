@@ -20,14 +20,28 @@ import {
   UpdateTaskInput,
   isAdminRole,
 } from "@/models/task";
+import { useAppSelector } from "@/store/hooks";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { getCookie } from "@/utils/client/getCookie";
+
+/**
+ * Dự án đang mở, đọc thẳng từ Redux.
+ *
+ * Cố tình KHÔNG import `useCurrentProject` từ `hooks/useProjects`: file đó đã
+ * import `useMe` từ đây, nối thêm chiều ngược lại là thành vòng import. Ở đây
+ * chỉ cần đúng cái id; phần kiểm tra id còn hợp lệ hay không là việc của
+ * `useCurrentProject` và của layout.
+ */
+function useProjectScope(): string | null {
+  return useAppSelector((state) => state.project.currentProjectId);
+}
 
 export const QK = {
   me: ["me"] as const,
   tasks: (params?: QueryTaskParams) => ["tasks", params ?? {}] as const,
   task: (id: string) => ["task", id] as const,
-  taskStats: (assigneeId?: string) => ["task-stats", assigneeId ?? "me"] as const,
+  taskStats: (assigneeId?: string, projectId?: string | null) =>
+    ["task-stats", assigneeId ?? "me", projectId ?? "none"] as const,
   taskTypes: ["task-types"] as const,
   mailAccounts: ["mail-accounts"] as const,
   zaloMe: ["zalo-me"] as const,
@@ -50,21 +64,35 @@ export function useMe() {
 // ==========================================
 // TASKS
 // ==========================================
+/**
+ * Danh sách việc CỦA DỰ ÁN ĐANG MỞ.
+ *
+ * `projectId` được chèn ở đây chứ không ở từng trang: chỉ cần một trang quên
+ * truyền là người dùng thấy việc của dự án khác. Nó cũng nằm trong queryKey,
+ * nên đổi dự án là React Query coi như truy vấn khác hẳn, không tái dùng cache.
+ *
+ * Chưa chọn dự án thì truy vấn tắt (`enabled = false`) — thà không hiện gì còn
+ * hơn hiện nhầm toàn bộ việc của mọi dự án.
+ */
 export function useTasks(params: QueryTaskParams, options?: { enabled?: boolean }) {
+  const projectId = useProjectScope();
+  const scoped: QueryTaskParams = { ...params, projectId: projectId ?? undefined };
   return useQuery({
-    queryKey: QK.tasks(params),
-    queryFn: () => taskApi.list(params),
+    queryKey: QK.tasks(scoped),
+    queryFn: () => taskApi.list(scoped),
     staleTime: 30 * 1000,
     placeholderData: (prev) => prev, // giữ data cũ khi đổi trang/filter -> không giật
-    enabled: options?.enabled ?? true,
+    enabled: (options?.enabled ?? true) && !!projectId,
   });
 }
 
 export function useTaskStats(assigneeId?: string) {
+  const projectId = useProjectScope();
   return useQuery({
-    queryKey: QK.taskStats(assigneeId),
-    queryFn: () => taskApi.stats(assigneeId),
+    queryKey: QK.taskStats(assigneeId, projectId),
+    queryFn: () => taskApi.stats(assigneeId, projectId ?? undefined),
     staleTime: 60 * 1000,
+    enabled: !!projectId,
   });
 }
 
@@ -78,11 +106,14 @@ function useInvalidateTasks() {
   };
 }
 
+/** Việc mới luôn rơi vào dự án đang mở, trừ khi form chỉ định dự án khác */
 export function useCreateTask() {
   const { message } = App.useApp();
   const invalidate = useInvalidateTasks();
+  const projectId = useProjectScope();
   return useMutation({
-    mutationFn: (input: CreateTaskInput) => taskApi.create(input),
+    mutationFn: (input: CreateTaskInput) =>
+      taskApi.create({ ...input, projectId: input.projectId ?? projectId ?? undefined }),
     onSuccess: (task) => {
       message.success(`Đã tạo công việc ${task.code}`);
       invalidate();

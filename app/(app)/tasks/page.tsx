@@ -45,6 +45,7 @@ import {
   useTasks,
   useTaskTypes,
 } from "@/hooks/useTaskApp";
+import { useCurrentProject } from "@/hooks/useProjects";
 import {
   CATEGORY_META,
   DEADLINE_META,
@@ -88,6 +89,7 @@ export type Filters = {
 export default function TasksPage() {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
+  const { projectId } = useCurrentProject();
   const { data: me } = useMe();
   const admin = isAdminRole(me?.role);
 
@@ -198,7 +200,14 @@ export default function TasksPage() {
     setExporting(true);
     try {
       // Lấy toàn bộ dữ liệu khớp filter hiện tại (không chỉ trang đang xem)
-      const all = await taskApi.list({ ...queryParams, page: 1, limit: 1000 });
+      // Gọi thẳng taskApi nên phải tự kèm projectId — `useTasks` chèn hộ, còn
+      // ở đây thì không; thiếu nó là xuất nhầm việc của mọi dự án.
+      const all = await taskApi.list({
+        ...queryParams,
+        projectId: projectId ?? undefined,
+        page: 1,
+        limit: 1000,
+      });
       exportTasksToCsv(all.items, taskTypes ?? []);
       message.success(`Đã xuất ${all.items.length} công việc ra CSV`);
     } catch (error) {

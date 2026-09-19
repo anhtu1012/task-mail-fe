@@ -61,25 +61,39 @@ class BoardApi extends AxiosService {
   // ==========================================
   // BẢNG
   // ==========================================
-  /** Một lần gọi dựng cả màn. Backend tự tạo bảng ở lần gọi đầu tiên (§1.8). */
-  public snapshot(cardsPerList = 20): Promise<BoardSnapshot> {
+  /**
+   * Một lần gọi dựng cả màn. Backend tự tạo bảng ở lần gọi đầu tiên (§1.8).
+   *
+   * `projectId` là BẮT BUỘC về mặt sử dụng dù kiểu cho phép bỏ trống: mỗi dự
+   * án có bảng riêng, thiếu tham số thì backend trả bảng mặc định của tài
+   * khoản và người dùng sẽ thấy sai bảng sau khi đổi dự án. Xem
+   * docs/backend/project-api-spec.md §6.
+   */
+  public snapshot(
+    projectId?: string,
+    cardsPerList = 20,
+  ): Promise<BoardSnapshot> {
     return this.getWithParams<BoardSnapshot>(
       API_ENDPOINTS.BOARD.ME_FULL,
-      params({ cardsPerList, tz: browserTimezone() }),
+      params({ projectId, cardsPerList, tz: browserTimezone() }),
     );
   }
 
-  public agenda(date?: string): Promise<AgendaResponse> {
+  public agenda(date?: string, projectId?: string): Promise<AgendaResponse> {
     return this.getWithParams<AgendaResponse>(
       API_ENDPOINTS.BOARD.ME_AGENDA,
-      params({ date, tz: browserTimezone() }),
+      params({ date, projectId, tz: browserTimezone() }),
     );
   }
 
-  public search(q: string, limit = 8): Promise<SearchResponse> {
+  public search(
+    q: string,
+    limit = 8,
+    projectId?: string,
+  ): Promise<SearchResponse> {
     return this.getWithParams<SearchResponse>(
       API_ENDPOINTS.BOARD.ME_SEARCH,
-      params({ q, limit }),
+      params({ q, limit, projectId }),
     );
   }
 
@@ -128,23 +142,35 @@ class BoardApi extends AxiosService {
     );
   }
 
-  public rebalanceInbox(): Promise<{ id: string; position: number }[]> {
+  public rebalanceInbox(projectId?: string): Promise<{ id: string; position: number }[]> {
     return this.post<{ id: string; position: number }[], object>(
-      API_ENDPOINTS.BOARD.INBOX_REBALANCE,
+      `${API_ENDPOINTS.BOARD.INBOX_REBALANCE}${
+        projectId ? `?projectId=${projectId}` : ""
+      }`,
       {},
     );
   }
 
-  /** Tải tiếp khi cuộn trong một cột. `listId = null` nghĩa là Hộp thư đến. */
+  /**
+   * Tải tiếp khi cuộn trong một cột. `listId = null` nghĩa là Hộp thư đến.
+   *
+   * `projectId` chỉ có tác dụng ở nhánh Hộp thư đến — cột thì backend suy dự án
+   * từ bảng chứa nó. Bỏ trống ở nhánh Hộp thư đến thì backend dùng dự án MẶC
+   * ĐỊNH, tức là sẽ trả nhầm thẻ khi người dùng đang mở một dự án khác.
+   */
   public listCards(
     listId: string | null,
-    opts: { cursor?: number; limit?: number } = {},
+    opts: { cursor?: number; limit?: number; projectId?: string } = {},
   ): Promise<CardPage> {
+    const { projectId, ...rest } = opts;
     const url =
       listId === null
         ? API_ENDPOINTS.BOARD.INBOX_CARDS
         : API_ENDPOINTS.LISTS.CARDS(listId);
-    return this.getWithParams<CardPage>(url, params({ ...opts }));
+    return this.getWithParams<CardPage>(
+      url,
+      params(listId === null ? { ...rest, projectId } : rest),
+    );
   }
 
   // ==========================================
@@ -295,8 +321,12 @@ class BoardApi extends AxiosService {
   // ==========================================
   // NHÃN CỦA BẢNG
   // ==========================================
-  public labels(): Promise<BoardLabel[]> {
-    return this.get<BoardLabel[]>(API_ENDPOINTS.BOARD.ME_LABELS);
+  /** Nhãn thuộc BẢNG, mà mỗi dự án một bảng -> thiếu `projectId` là lấy nhãn dự án mặc định */
+  public labels(projectId?: string): Promise<BoardLabel[]> {
+    return this.getWithParams<BoardLabel[]>(
+      API_ENDPOINTS.BOARD.ME_LABELS,
+      params({ projectId }),
+    );
   }
 }
 
