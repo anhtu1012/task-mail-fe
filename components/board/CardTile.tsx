@@ -1,17 +1,20 @@
 "use client";
 
-import { CSSProperties, memo } from "react";
+import { CSSProperties, memo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Dropdown } from "antd";
 import {
   AlignLeft,
+  Check,
   CheckSquare,
   Clock,
   Hourglass,
+  LoaderCircle,
   Paperclip,
   Repeat,
+  RotateCcw,
   StickyNote,
   Timer,
 } from "lucide-react";
@@ -33,7 +36,9 @@ const fmtDuration = (min: number) =>
 
 function CardTileBase({ card, overlay = false }: Props) {
   const router = useRouter();
-  const { labelById, board, snoozeCard } = useBoard();
+  const { labelById, board, snoozeCard, toggleComplete } = useBoard();
+  /** Đang chờ máy chủ trả lời cho đúng thẻ này — để nút không im lìm */
+  const [completing, setCompleting] = useState(false);
 
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } =
     useSortable({
@@ -91,6 +96,48 @@ function CardTileBase({ card, overlay = false }: Props) {
       aria-label={`${card.code} — ${card.title}`}
     >
       {card.cover && <div style={{ background: card.cover, height: 32 }} />}
+
+      {/*
+        Hoàn thành ngay trên thẻ.
+
+        Trước đây chỉ mở chi tiết thẻ mới đánh dấu xong được — thao tác hay
+        dùng nhất của cả màn lại là thao tác tốn nhiều cú bấm nhất. Nút hiện
+        khi rê vào thẻ (và khi có focus bàn phím) nên vẫn không làm rối lúc đọc
+        lướt.
+      */}
+      {!overlay && (
+        <button
+          aria-label={done ? "Mở lại việc" : "Đánh dấu hoàn thành"}
+          title={done ? "Mở lại việc" : "Đánh dấu hoàn thành"}
+          disabled={completing}
+          onClick={(e) => {
+            // Không để click nổi lên thẻ (thẻ đang mở trang chi tiết)
+            e.stopPropagation();
+            setCompleting(true);
+            void toggleComplete(card.id).finally(() => setCompleting(false));
+          }}
+          // dnd-kit lắng nghe pointerdown trên thẻ: không chặn thì bấm nút
+          // thành ra kéo thẻ
+          onPointerDown={(e) => e.stopPropagation()}
+          className={`absolute top-1.5 z-10 grid place-items-center size-6 rounded-md
+            cursor-pointer transition-opacity focus-visible:opacity-100
+            ${done ? "opacity-100" : "opacity-0 group-hover/card:opacity-100"}`}
+          style={{
+            right: done ? 6 : 34, // thẻ xong không có nút dời hạn -> lùi ra mép
+            background: done ? "rgba(42,157,143,.16)" : "rgba(255,255,255,.22)",
+            border: `1px solid ${done ? "rgba(42,157,143,.4)" : "rgba(255,255,255,.3)"}`,
+            color: done ? "#2a9d8f" : G.text,
+          }}
+        >
+          {completing ? (
+            <LoaderCircle size={13} className="animate-spin" />
+          ) : done ? (
+            <RotateCcw size={12.5} />
+          ) : (
+            <Check size={14} />
+          )}
+        </button>
+      )}
 
       {/* Hoãn nhanh — chỉ hiện khi rê vào thẻ, để không làm rối lúc đọc lướt */}
       {!overlay && !done && (

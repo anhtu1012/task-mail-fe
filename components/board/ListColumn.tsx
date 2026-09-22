@@ -5,7 +5,13 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Dropdown } from "antd";
-import { GripVertical, MoreHorizontal, Plus } from "lucide-react";
+import {
+  ChevronDown,
+  GripVertical,
+  LoaderCircle,
+  MoreHorizontal,
+  Plus,
+} from "lucide-react";
 import { BoardList, CardSummary } from "@/models/board";
 import { useBoard } from "./BoardStore";
 import { CardTile } from "./CardTile";
@@ -22,7 +28,15 @@ type Props = {
 };
 
 function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) {
-  const { addCard, renameList, archiveList, totalByList, filterActive } = useBoard();
+  const {
+    addCard,
+    renameList,
+    archiveList,
+    totalByList,
+    filterActive,
+    loadMoreCards,
+    loadingMore,
+  } = useBoard();
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState(list.title);
@@ -175,6 +189,36 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
             <CardTile key={card.id} card={card} />
           ))}
         </SortableContext>
+
+        {/*
+          `/full` chỉ trả 20 thẻ đầu mỗi cột. Không có nút này thì thẻ thứ 21
+          trở đi không có đường nào chạm tới — đầu cột vẫn ghi "20/47" nhưng 27
+          thẻ kia không hiện ở đâu cả.
+
+          Ẩn khi đang lọc: lúc đó `cards` là tập đã lọc còn `total` là tổng thô,
+          nên so hai số sẽ luôn lệch và nút hiện vĩnh viễn.
+        */}
+        {!filterActive && cards.length < total && (
+          <button
+            type="button"
+            onClick={() => loadMoreCards(list.id)}
+            disabled={loadingMore === list.id}
+            className="flex items-center justify-center gap-1.5 h-8 rounded-lg cursor-pointer
+              text-[12.5px] font-medium disabled:opacity-60"
+            style={{
+              border: `1px dashed ${G.line}`,
+              background: "transparent",
+              color: G.text,
+            }}
+          >
+            {loadingMore === list.id ? (
+              <LoaderCircle size={13} className="animate-spin" />
+            ) : (
+              <ChevronDown size={13} />
+            )}
+            Tải thêm {Math.min(20, total - cards.length)} việc
+          </button>
+        )}
 
         {cards.length === 0 && (
           <div

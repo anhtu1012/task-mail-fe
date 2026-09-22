@@ -33,6 +33,8 @@ import {
   CardSummary,
   CreateCardInput,
   INBOX_KEY,
+  LABEL_COLORS,
+  SaveLabelInput,
   TodayStats,
   UpdateCardInput,
   byPosition,
@@ -139,16 +141,36 @@ type BoardContextValue = {
   previewMove: (cardId: string, toListId: string | null, toIndex: number) => void;
   /** Gọi một lần lúc thả, với vị trí gốc để còn hoàn tác được */
   commitMove: (cardId: string, from: { listId: string | null; position: number }) => void;
-  addCard: (listId: string | null, text: string, atTop?: boolean) => void;
+  /**
+   * Bất đồng bộ vì có thể phải tạo nhãn mới trước khi tạo thẻ (quick-add gõ
+   * "#nhãnchưacó"). Nơi gọi không cần chờ.
+   */
+  addCard: (listId: string | null, text: string, atTop?: boolean) => Promise<void>;
   updateCard: (cardId: string, patch: UpdateCardInput) => void;
   deleteCard: (cardId: string) => void;
   snoozeCard: (cardId: string, deadline: string | null, label: string) => void;
-  toggleComplete: (cardId: string) => void;
+  /** Trả về Promise để nút bấm hiện được trạng thái đang chờ */
+  toggleComplete: (cardId: string) => Promise<void>;
   addList: (title: string) => void;
   renameList: (listId: string, title: string) => void;
   archiveList: (listId: string) => void;
   moveList: (listId: string, toIndex: number) => void;
   toggleStar: () => void;
+
+  // --- nhãn ---
+  createLabel: (input: {
+    name: string;
+    color: string;
+    icon?: string | null;
+  }) => Promise<BoardLabel | null>;
+  updateLabel: (labelId: string, input: SaveLabelInput) => Promise<void>;
+  deleteLabel: (labelId: string) => Promise<void>;
+  /** Gắn nếu chưa có, gỡ nếu đã có — một nút bấm cho cả hai chiều */
+  toggleCardLabel: (cardId: string, labelId: string) => void;
+
+  /** Tải trang thẻ kế tiếp của một cột (`null` = Hộp thư đến) */
+  loadMoreCards: (listId: string | null) => Promise<void>;
+  loadingMore: string | null;
 
   // --- hoàn tác ---
   undo: () => void;
@@ -184,6 +206,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const [fullscreen, setFullscreen] = useStickyState("board:fullscreen", false);
   const [agendaOpen, setAgendaOpen] = useStickyState("board:agenda", true);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  /** Khoá cột đang tải trang kế tiếp — để đúng một nút hiện trạng thái chờ */
+  const [loadingMore, setLoadingMore] = useState<string | null>(null);
 
   // Lịch sử hoàn tác là STATE chứ không phải ref: nút hoàn tác/làm lại đọc nó
   // lúc render, mà đọc ref trong render là sai (React không đảm bảo render lại).
@@ -222,6 +246,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     // Các màn cũ (/tasks, /kanban, /dashboard) đọc cùng dữ liệu task
     queryClient.invalidateQueries({ queryKey: ["tasks"] });
     queryClient.invalidateQueries({ queryKey: ["task-stats"] });
+    // Thẻ dự án hiện số việc đang mở / trễ hạn -> ghi ở bảng cũng làm nó sai
+    queryClient.invalidateQueries({ queryKey: ["projects"] });
   }, [queryClient]);
 
   const onFail = useCallback(
@@ -357,14 +383,116 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     [derived.cardById, moveMutation, pushHistory],
   );
 
+  // ---------- nhãn ----------
+  /*
+   * Nhãn nằm trong `snapshot.labels`, nên mọi thao tác đều vá thẳng vào đó rồi
+   * mới gọi API — giống hệt cách thẻ và cột đang làm. Riêng nhãn KHÔNG vào
+   * lịch sử hoàn tác: Ctrl+Z ở màn này để dành cho thao tác trên thẻ, mà xoá
+   * nhãn còn kéo theo việc gỡ nó khỏi mọi thẻ nên khôi phục nửa vời sẽ rối hơn
+   * là giúp. Thay vào đó thao tác nhãn có hộp xác nhận.
+   */
+  const createLabel = useCallback(
+    async (input: { name: string; color: string; icon?: string | null }) => {
+      if (!data?.board) return null;
+      try {
+        const label = await boardApi.createLabel(data.board.id, input);
+        patchSnapshot((snap) => ({ ...snap, labels: [...snap.labels, label] }));
+        return label;
+      } catch (error) {
+        onFail(error);
+        return null;
+      }
+    },
+    [data, patchSnapshot, onFail],
+  );
+
+  const updateLabel = useCallback(
+    async (labelId: string, input: SaveLabelInput) => {
+      try {
+        const label = await boardApi.updateLabel(labelId, input);
+        patchSnapshot((snap) => ({
+          ...snap,
+          labels: snap.labels.map((l) => (l.id === label.id ? label : l)),
+        }));
+      } catch (error) {
+        onFail(error);
+      }
+    },
+    [patchSnapshot, onFail],
+  );
+
+  const deleteLabel = useCallback(
+    async (labelId: string) => {
+      try {
+        await boardApi.deleteLabel(labelId);
+        patchSnapshot((snap) => ({
+          ...snap,
+          labels: snap.labels.filter((l) => l.id !== labelId),
+          // Gỡ khỏi mọi thẻ đang giữ nhãn này, y như backend vừa làm
+          cards: snap.cards.map((c) =>
+            c.labelIds.includes(labelId)
+              ? { ...c, labelIds: c.labelIds.filter((id) => id !== labelId) }
+              : c,
+          ),
+        }));
+        message.success("Đã xoá nhãn");
+      } catch (error) {
+        onFail(error);
+      }
+    },
+    [patchSnapshot, onFail, message],
+  );
+
+  const toggleCardLabel = useCallback(
+    (cardId: string, labelId: string) => {
+      const card = derived.cardById.get(cardId);
+      if (!card) return;
+      const next = card.labelIds.includes(labelId)
+        ? card.labelIds.filter((id) => id !== labelId)
+        : [...card.labelIds, labelId];
+
+      patchSnapshot((snap) => ({
+        ...snap,
+        cards: snap.cards.map((c) =>
+          c.id === cardId ? { ...c, labelIds: next } : c,
+        ),
+      }));
+      boardApi.setCardLabels(cardId, next).catch(onFail);
+    },
+    [derived.cardById, patchSnapshot, onFail],
+  );
+
   const addCard = useCallback(
-    (listId: string | null, text: string, atTop = false) => {
+    async (listId: string | null, text: string, atTop = false) => {
       // Tách hạn / ưu tiên / nhãn / thời lượng ngay từ dòng người dùng gõ.
       // Backend KHÔNG phân tích chuỗi tự nhiên (§4.2) nên việc này phải làm ở đây.
       const parsed = quickParse(text);
-      const labelIds = parsed.labelSlugs
-        .map((slug) => (data?.labels ?? []).find((l) => l.slug === slug)?.id)
-        .filter((id): id is string => !!id);
+
+      /*
+       * Nhãn chưa tồn tại thì TẠO LUÔN.
+       *
+       * Trước đây slug lạ bị lọc bỏ im lặng: gõ "#baogia" khi chưa có nhãn đó
+       * thì việc vẫn được tạo nhưng không có nhãn nào, và không có thông báo
+       * nào giải thích. Người dùng chỉ biết là "gõ nhãn không ăn".
+       *
+       * Màu chọn theo slug chứ không ngẫu nhiên: cùng một tên gõ ở hai máy sẽ
+       * ra cùng một màu, và gõ lại nhãn vừa xoá không đổi màu lung tung.
+       */
+      const known = data?.labels ?? [];
+      const labelIds: string[] = [];
+      for (const slug of parsed.labelSlugs) {
+        const existing = known.find((l) => l.slug === slug);
+        if (existing) {
+          labelIds.push(existing.id);
+          continue;
+        }
+        const seed = [...slug].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+        const created = await createLabel({
+          name: slug,
+          color: LABEL_COLORS[seed % LABEL_COLORS.length],
+        });
+        if (created) labelIds.push(created.id);
+      }
 
       const siblings = rawSiblings(listId);
       const position = atTop
@@ -401,7 +529,15 @@ export function BoardProvider({ children }: { children: ReactNode }) {
         })
         .catch(onFail);
     },
-    [data, rawSiblings, patchSnapshot, pushHistory, onFail],
+    [
+      data,
+      projectId,
+      createLabel,
+      rawSiblings,
+      patchSnapshot,
+      pushHistory,
+      onFail,
+    ],
   );
 
   const updateCard = useCallback(
@@ -498,13 +634,13 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   );
 
   const toggleComplete = useCallback(
-    (cardId: string) => {
+    (cardId: string): Promise<void> => {
       const card = derived.cardById.get(cardId);
-      if (!card) return;
+      if (!card) return Promise.resolve();
       const wasDone = card.completedAt !== null;
 
       if (wasDone) {
-        boardApi
+        return boardApi
           .reopenCard(cardId)
           .then((res) => {
             patchSnapshot((snap) => ({
@@ -518,10 +654,9 @@ export function BoardProvider({ children }: { children: ReactNode }) {
             });
           })
           .catch(onFail);
-        return;
       }
 
-      boardApi
+      return boardApi
         .completeCard(cardId)
         .then(({ completed, next }) => {
           patchSnapshot((snap) => ({
@@ -656,6 +791,44 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     boardApi.updateBoard(data.board.id, { starred: next }).catch(onFail);
   }, [data, patchSnapshot, onFail]);
 
+  // ---------- tải thêm thẻ ----------
+  /*
+   * `/full` chỉ trả 20 thẻ đầu mỗi cột. Không có hàm này thì thẻ thứ 21 trở đi
+   * không có đường nào chạm tới: cột vẫn hiện "20/47" nhưng 27 thẻ kia biến mất
+   * khỏi giao diện.
+   *
+   * Con trỏ là `position` của thẻ cuối ĐÃ TẢI, không phải số trang: thẻ được
+   * chèn/kéo liên tục nên đánh số trang sẽ nhảy cóc hoặc lặp thẻ.
+   */
+  const loadMoreCards = useCallback(
+    async (listId: string | null) => {
+      const key = listId ?? INBOX_KEY;
+      const loaded = (data?.cards ?? [])
+        .filter((c) => c.listId === listId)
+        .sort(byPosition);
+      const cursor = loaded.at(-1)?.position;
+
+      setLoadingMore(key);
+      try {
+        const page = await boardApi.listCards(listId, {
+          cursor,
+          limit: 20,
+          projectId: projectId ?? undefined,
+        });
+        patchSnapshot((snap) => {
+          const known = new Set(snap.cards.map((c) => c.id));
+          const fresh = page.items.filter((c) => !known.has(c.id));
+          return { ...snap, cards: [...snap.cards, ...fresh] };
+        });
+      } catch (error) {
+        onFail(error);
+      } finally {
+        setLoadingMore(null);
+      }
+    },
+    [data, projectId, patchSnapshot, onFail],
+  );
+
   // ---------- hoàn tác ----------
   const undo = useCallback(() => {
     const entry = past.at(-1);
@@ -707,6 +880,13 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       moveList,
       toggleStar,
 
+      createLabel,
+      updateLabel,
+      deleteLabel,
+      toggleCardLabel,
+      loadMoreCards,
+      loadingMore,
+
       undo,
       redo,
       canUndo: past.length > 0,
@@ -740,6 +920,12 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       archiveList,
       moveList,
       toggleStar,
+      createLabel,
+      updateLabel,
+      deleteLabel,
+      toggleCardLabel,
+      loadMoreCards,
+      loadingMore,
       undo,
       redo,
       past,

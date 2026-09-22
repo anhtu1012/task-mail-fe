@@ -16,7 +16,6 @@ import {
   Tooltip,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useQueryClient } from "@tanstack/react-query";
 import dayjs, { Dayjs } from "dayjs";
 import {
   CheckCheck,
@@ -40,6 +39,7 @@ import { richTextToPlain } from "@/utils/client/richText";
 import {
   useCompleteTask,
   useDeleteTask,
+  useInvalidateTaskData,
   useMailAccounts,
   useMe,
   useTasks,
@@ -88,7 +88,6 @@ export type Filters = {
 
 export default function TasksPage() {
   const { message } = App.useApp();
-  const queryClient = useQueryClient();
   const { projectId } = useCurrentProject();
   const { data: me } = useMe();
   const admin = isAdminRole(me?.role);
@@ -146,10 +145,8 @@ export default function TasksPage() {
     );
   }, [data?.items, filters.search]);
 
-  const invalidateAfterBulk = () => {
-    queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    queryClient.invalidateQueries({ queryKey: ["task-stats"] });
-  };
+  // Dùng chung một danh sách khoá với mọi màn khác — xem useInvalidateTaskData
+  const invalidateAfterBulk = useInvalidateTaskData();
 
   const handleBulkStatus = async (status: TaskStatus) => {
     const ids = selectedRowKeys as string[];
@@ -349,6 +346,11 @@ export default function TasksPage() {
                   type="text"
                   style={{ color: "#2a9d8f" }}
                   icon={<CheckCheck size={15} />}
+                  // `variables` là id đang gửi đi -> chỉ nút được bấm quay,
+                  // không phải cả cột sáng lên cùng lúc
+                  loading={
+                    completeTask.isPending && completeTask.variables === task.id
+                  }
                   onClick={() => completeTask.mutate(task.id)}
                 />
               </Tooltip>
@@ -373,6 +375,7 @@ export default function TasksPage() {
               type="text"
               danger
               icon={<Trash2 size={14} />}
+              loading={deleteTask.isPending && deleteTask.variables === task.id}
             />
           </Popconfirm>
         </div>

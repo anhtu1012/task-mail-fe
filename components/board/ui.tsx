@@ -13,6 +13,7 @@ import dayjs from "dayjs";
 import { Mail, MessageCircle } from "lucide-react";
 import palette from "@/styles/palette";
 import { BoardLabel, CardSource } from "@/models/board";
+import LabelIcon from "./LabelIcon";
 
 /** Sắc độ board cần mà palette.ts chưa export — trùng giá trị với styles/_colors.scss */
 export const C = {
@@ -118,14 +119,19 @@ export function LabelChip({
         border: `1px solid ${alpha(label.color, onGlass ? 0.55 : 0.22)}`,
       }}
     >
-      <span
-        className="inline-block rounded-full shrink-0"
-        style={{
-          width: 5,
-          height: 5,
-          background: onGlass ? "rgba(255,255,255,.9)" : label.color,
-        }}
-      />
+      {/* Có icon thì icon thay luôn chấm tròn — hai thứ cạnh nhau là thừa */}
+      {label.icon ? (
+        <LabelIcon name={label.icon} size={size === "sm" ? 10 : 12} />
+      ) : (
+        <span
+          className="inline-block rounded-full shrink-0"
+          style={{
+            width: 5,
+            height: 5,
+            background: onGlass ? "rgba(255,255,255,.9)" : label.color,
+          }}
+        />
+      )}
       {label.name}
     </span>
   );

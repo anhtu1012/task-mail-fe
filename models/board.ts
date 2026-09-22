@@ -54,8 +54,53 @@ export type BoardLabel = {
   boardId: string;
   name: string;
   color: string; // hex
+  /** Tên icon trong LABEL_ICONS. null = nhãn chỉ có màu (mọi nhãn cũ đều vậy) */
+  icon: string | null;
   /** Không dấu — quick-add khớp "#baogia" theo trường này */
   slug: string;
+};
+
+/**
+ * Icon hợp lệ của nhãn — phải khớp `LABEL_ICONS` của backend.
+ *
+ * Danh sách ĐÓNG ở cả hai đầu: backend trả 400 cho tên lạ, còn ở đây nó quyết
+ * định component nào được import. Thêm icon mới thì sửa CẢ HAI nơi, nếu không
+ * nhãn tạo được nhưng ô icon trống trơn.
+ */
+export const LABEL_ICONS = [
+  "tag",
+  "star",
+  "flag",
+  "bell",
+  "heart",
+  "zap",
+  "phone",
+  "mail",
+  "users",
+  "folder",
+  "coins",
+  "bug",
+] as const;
+
+export type LabelIcon = (typeof LABEL_ICONS)[number];
+
+/** Bảng màu gợi ý khi tạo nhãn — đủ tương phản trên nền kính của bảng */
+export const LABEL_COLORS = [
+  "#e63946",
+  "#f4a261",
+  "#2a9d8f",
+  "#0ea5e9",
+  "#7c3aed",
+  "#d946ef",
+  "#64748b",
+  "#0a436d",
+] as const;
+
+export type SaveLabelInput = {
+  name?: string;
+  color?: string;
+  /** null = gỡ icon. undefined = không đụng tới */
+  icon?: string | null;
 };
 
 // ==========================================
@@ -63,9 +108,27 @@ export type BoardLabel = {
 // ==========================================
 export type CardSource = "MANUAL" | "EMAIL" | "ZALO";
 
+/**
+ * Luật lặp.
+ *
+ * `unit` + `interval` là phần bắt buộc; bốn trường còn lại là "lặp nâng cao",
+ * bỏ trống hết thì hành vi đúng như bản cũ — lặp mãi, giữ nguyên thứ/ngày của
+ * hạn chót.
+ *
+ * Backend tự dọn theo đơn vị: gửi `weekdays` kèm `unit: "DAY"` thì nó bị bỏ,
+ * nên đừng dựa vào việc đọc lại được thứ đã gửi ở đơn vị khác.
+ */
 export type RepeatRule = {
   unit: "DAY" | "WEEK" | "MONTH";
   interval: number;
+  /** 0=CN..6=T7. Chỉ dùng cho WEEK. Rỗng = giữ đúng thứ của hạn hiện tại */
+  weekdays?: number[];
+  /** 1..31. Chỉ dùng cho MONTH. Tháng ngắn hơn thì kẹp về ngày cuối tháng */
+  dayOfMonth?: number | null;
+  /** ISO — không sinh lượt nào vượt mốc này */
+  until?: string | null;
+  /** Số lượt còn lại SAU lượt hiện tại. null = lặp mãi, 0 = đây là lượt cuối */
+  remaining?: number | null;
 };
 
 /** Thẻ rút gọn — dùng ở /full, /agenda, /search, /lists/:id/cards và mọi response ghi */
@@ -306,10 +369,44 @@ export const REPEAT_LABEL: Record<RepeatRule["unit"], string> = {
   MONTH: "tháng",
 };
 
-export const repeatText = (rule: RepeatRule): string =>
-  rule.interval === 1
-    ? `Mỗi ${REPEAT_LABEL[rule.unit]}`
-    : `Mỗi ${rule.interval} ${REPEAT_LABEL[rule.unit]}`;
+/** Nhãn thứ trong tuần, index = 0 (CN) .. 6 (T7) — khớp quy ước của backend */
+export const WEEKDAY_LABELS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+
+/**
+ * Câu mô tả luật lặp bằng tiếng Việt, gồm cả phần nâng cao.
+ * Ví dụ: "Mỗi 2 tuần vào T2, T5 · còn 3 lượt"
+ */
+export const repeatText = (rule: RepeatRule): string => {
+  const every =
+    rule.interval === 1
+      ? `Mỗi ${REPEAT_LABEL[rule.unit]}`
+      : `Mỗi ${rule.interval} ${REPEAT_LABEL[rule.unit]}`;
+
+  const parts = [every];
+
+  if (rule.unit === "WEEK" && rule.weekdays?.length) {
+    const days = [...rule.weekdays]
+      .sort((a, b) => a - b)
+      .map((d) => WEEKDAY_LABELS[d])
+      .filter(Boolean);
+    if (days.length) parts.push(`vào ${days.join(", ")}`);
+  }
+
+  if (rule.unit === "MONTH" && rule.dayOfMonth) {
+    parts.push(`vào ngày ${rule.dayOfMonth}`);
+  }
+
+  const head = parts.join(" ");
+
+  if (rule.remaining !== null && rule.remaining !== undefined) {
+    return `${head} · còn ${rule.remaining} lượt`;
+  }
+  if (rule.until) {
+    const until = new Date(rule.until);
+    return `${head} · tới ${until.getDate()}/${until.getMonth() + 1}/${until.getFullYear()}`;
+  }
+  return head;
+};
 
 export const checklistProgress = (card: CardDetail) => {
   const items = card.checklists.flatMap((c) => c.items);

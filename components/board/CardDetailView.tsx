@@ -11,7 +11,7 @@
  * cụ cá nhân, thứ có giá trị là những gì mình tự nhắc mình.
  */
 import { useState } from "react";
-import { Dropdown, Progress, Spin } from "antd";
+import { Dropdown, Popover, Progress, Spin } from "antd";
 import {
   AlignLeft,
   ArrowLeft,
@@ -36,13 +36,21 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { COVER_PRESETS, CardDetail, Checklist, repeatText } from "@/models/board";
+import {
+  COVER_PRESETS,
+  CardDetail,
+  CardNote,
+  Checklist,
+  repeatText,
+} from "@/models/board";
 import { PRIORITY_META, TaskPriority } from "@/models/task";
 import { isRichTextEmpty } from "@/utils/client/richText";
 import { useBoard } from "./BoardStore";
 import { useCardDetail } from "./useCardDetail";
 import { SNOOZE_OPTIONS } from "./snooze";
 import { RichTextEditor } from "./RichTextEditor";
+import LabelPicker from "./LabelPicker";
+import RepeatPicker from "./RepeatPicker";
 import { C, LabelChip, fmtBytes, fmtDateTime, fmtShort } from "./ui";
 import styles from "./board.module.scss";
 
@@ -63,6 +71,7 @@ export function CardDetailView({
   const { lists, labelById, snoozeCard, toggleComplete, deleteCard } = useBoard();
   const detail = useCardDetail(cardId);
   const card = detail.card;
+  const [repeatOpen, setRepeatOpen] = useState(false);
 
   if (detail.isLoading) {
     return (
@@ -300,26 +309,62 @@ export function CardDetailView({
                 </Field>
               )}
 
-              {card.repeat && (
-                <Field icon={<Repeat size={13} />} label="Lặp lại">
-                  <span
-                    className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[13px]"
-                    style={{ background: C.primary50, color: C.primary }}
+              {/*
+                Lặp lại luôn hiện dòng này, kể cả khi việc chưa lặp: trước đây
+                nó chỉ hiện khi ĐÃ có luật lặp, nên không có đường nào để đặt
+                lần đầu.
+              */}
+              <Field icon={<Repeat size={13} />} label="Lặp lại">
+                <Popover
+                  open={repeatOpen}
+                  onOpenChange={setRepeatOpen}
+                  trigger="click"
+                  placement="bottomLeft"
+                  content={
+                    <RepeatPicker
+                      value={card.repeat}
+                      onChange={(rule) => detail.updateCard.mutate({ repeat: rule })}
+                      onClose={() => setRepeatOpen(false)}
+                    />
+                  }
+                >
+                  <button
+                    className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg cursor-pointer text-[13px]"
+                    style={
+                      card.repeat
+                        ? { background: C.primary50, color: C.primary, border: "none" }
+                        : {
+                            background: "#fff",
+                            color: C.neutral500,
+                            border: `1px dashed ${C.border}`,
+                          }
+                    }
                   >
-                    {repeatText(card.repeat)}
-                  </span>
-                </Field>
-              )}
+                    {card.repeat ? repeatText(card.repeat) : "Không lặp"}
+                  </button>
+                </Popover>
+              </Field>
 
-              {labels.length > 0 && (
-                <Field icon={<TagIcon size={13} />} label="Nhãn">
-                  <span className="flex flex-wrap gap-1.5">
-                    {labels.map((l) => (
-                      <LabelChip key={l.id} label={l} />
-                    ))}
-                  </span>
-                </Field>
-              )}
+              <Field icon={<TagIcon size={13} />} label="Nhãn">
+                <span className="flex flex-wrap items-center gap-1.5">
+                  {labels.map((l) => (
+                    <LabelChip key={l.id} label={l} />
+                  ))}
+                  <LabelPicker cardId={card.id} selectedIds={card.labelIds}>
+                    <button
+                      className="inline-flex items-center gap-1 h-[22px] px-2 rounded-md cursor-pointer text-[11.5px] font-semibold"
+                      style={{
+                        background: "#fff",
+                        color: C.neutral500,
+                        border: `1px dashed ${C.border}`,
+                      }}
+                    >
+                      <Plus size={12} />
+                      {labels.length ? "Nhãn" : "Gắn nhãn"}
+                    </button>
+                  </LabelPicker>
+                </span>
+              </Field>
             </div>
 
             {/* Nguồn — thứ Trello không có */}
@@ -347,8 +392,11 @@ export function CardDetailView({
 
             <DescriptionSection card={card} detail={detail} />
 
-            {card.attachments.length > 0 && (
-              <Section icon={<Paperclip size={16} />} title="Tệp đính kèm">
+            {/*
+              Mục này trước đây chỉ hiện khi ĐÃ có đính kèm, nên không có đường
+              nào thêm cái đầu tiên. Giờ luôn hiện, kèm ô thêm liên kết.
+            */}
+            <Section icon={<Paperclip size={16} />} title="Tệp đính kèm">
                 <div className="flex flex-col gap-2">
                   {card.attachments.map((att) => (
                     <div key={att.id} className="flex items-center gap-3">
@@ -381,9 +429,9 @@ export function CardDetailView({
                       </div>
                     </div>
                   ))}
+                  <AttachmentComposer detail={detail} />
                 </div>
               </Section>
-            )}
 
             {card.checklists.map((cl) => (
               <ChecklistBlock key={cl.id} checklist={cl} detail={detail} />
@@ -806,33 +854,7 @@ function NotesColumn({ card, detail }: { card: CardDetail; detail: DetailApi }) 
 
       <div className="flex flex-col gap-2">
         {card.notes.map((note) => (
-          <div
-            key={note.id}
-            className="group/note rounded-xl bg-white px-3 py-2.5"
-            style={{ border: `1px solid ${C.border}` }}
-          >
-            <div
-              className="text-[13.5px] whitespace-pre-wrap leading-relaxed"
-              style={{ color: C.foreground }}
-            >
-              {note.content}
-            </div>
-            <div className="flex items-center justify-between mt-1.5">
-              <span className="text-[11.5px]" style={{ color: C.mutedForeground }}>
-                {fmtDateTime(note.createdAt)}
-                {note.editedAt && " · đã sửa"}
-              </span>
-              <button
-                aria-label="Xoá ghi chú"
-                onClick={() => detail.deleteNote.mutate(note.id)}
-                className="opacity-0 group-hover/note:opacity-100 grid place-items-center size-6
-                  rounded border-0 bg-transparent cursor-pointer"
-                style={{ color: C.neutral500 }}
-              >
-                <Trash2 size={13} />
-              </button>
-            </div>
-          </div>
+          <NoteRow key={note.id} note={note} detail={detail} />
         ))}
       </div>
 
@@ -869,6 +891,192 @@ function NotesColumn({ card, detail }: { card: CardDetail; detail: DetailApi }) 
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Một ghi chú: xem, sửa tại chỗ, xoá.
+ *
+ * Bấm vào chữ là vào chế độ sửa — không có nút "Sửa" riêng, vì ghi chú là thứ
+ * người ta sửa nhiều hơn đọc. Esc huỷ, Ctrl+Enter lưu, giống hệt ô soạn ở trên
+ * để không phải học hai lối bấm khác nhau trong cùng một cột.
+ */
+function NoteRow({ note, detail }: { note: CardNote; detail: DetailApi }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note.content);
+
+  const save = () => {
+    const content = draft.trim();
+    // Không gửi request khi chữ không đổi, và không cho lưu ghi chú rỗng
+    if (!content || content === note.content) {
+      setDraft(note.content);
+      setEditing(false);
+      return;
+    }
+    detail.updateNote.mutate({ noteId: note.id, content });
+    setEditing(false);
+  };
+
+  return (
+    <div
+      className="group/note rounded-xl bg-white px-3 py-2.5"
+      style={{ border: `1px solid ${C.border}` }}
+    >
+      {editing ? (
+        <>
+          <textarea
+            autoFocus
+            rows={Math.min(8, Math.max(2, draft.split("\n").length))}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setDraft(note.content);
+                setEditing(false);
+              }
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
+            }}
+            className="w-full resize-none rounded-lg px-2 py-1.5 text-[13.5px] outline-none"
+            style={{ border: `1px solid ${C.primary200}`, color: C.foreground }}
+          />
+          <div className="flex items-center gap-2 mt-1.5">
+            <button
+              onClick={save}
+              className="h-7 px-2.5 rounded-lg border-0 text-white text-[12.5px] cursor-pointer"
+              style={{ background: C.primary }}
+            >
+              Lưu
+            </button>
+            <button
+              onClick={() => {
+                setDraft(note.content);
+                setEditing(false);
+              }}
+              className="h-7 px-2.5 rounded-lg text-[12.5px] cursor-pointer bg-transparent"
+              style={{ border: `1px solid ${C.border}`, color: C.neutral700 }}
+            >
+              Huỷ
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div
+            role="button"
+            tabIndex={0}
+            title="Bấm để sửa"
+            onClick={() => setEditing(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") setEditing(true);
+            }}
+            className="text-[13.5px] whitespace-pre-wrap leading-relaxed cursor-text"
+            style={{ color: C.foreground }}
+          >
+            {note.content}
+          </div>
+          <div className="flex items-center justify-between mt-1.5">
+            <span className="text-[11.5px]" style={{ color: C.mutedForeground }}>
+              {fmtDateTime(note.createdAt)}
+              {note.editedAt && " · đã sửa"}
+            </span>
+            <div className="flex items-center gap-0.5">
+              <button
+                aria-label="Sửa ghi chú"
+                onClick={() => setEditing(true)}
+                className="opacity-0 group-hover/note:opacity-100 focus-visible:opacity-100
+                  grid place-items-center size-6 rounded border-0 bg-transparent cursor-pointer"
+                style={{ color: C.neutral500 }}
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                aria-label="Xoá ghi chú"
+                onClick={() => detail.deleteNote.mutate(note.id)}
+                className="opacity-0 group-hover/note:opacity-100 focus-visible:opacity-100
+                  grid place-items-center size-6 rounded border-0 bg-transparent cursor-pointer"
+                style={{ color: C.neutral500 }}
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Thêm một liên kết đính kèm.
+ *
+ * Hai ô chứ không phải một: dán URL thì tên tự điền từ đuôi đường dẫn, nhưng
+ * vẫn sửa được — "bao-gia-v3.pdf" dễ đọc hơn một chuỗi 80 ký tự có token.
+ */
+function AttachmentComposer({ detail }: { detail: DetailApi }) {
+  const [url, setUrl] = useState("");
+  const [name, setName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
+
+  const submit = () => {
+    const link = url.trim();
+    if (!link) return;
+    detail.addAttachment.mutate({ name: name.trim() || link, url: link });
+    setUrl("");
+    setName("");
+    setNameTouched(false);
+  };
+
+  /** Lấy phần cuối đường dẫn làm tên gợi ý; URL hỏng thì thôi, không nổ */
+  const suggestName = (value: string): string => {
+    try {
+      const path = new URL(value).pathname;
+      return decodeURIComponent(path.split("/").filter(Boolean).at(-1) ?? "");
+    } catch {
+      return "";
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 mt-1">
+      <div className="flex gap-1.5">
+        <input
+          value={url}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            if (!nameTouched) setName(suggestName(e.target.value));
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+          }}
+          placeholder="Dán liên kết (Google Drive, hợp đồng, ảnh...)"
+          className="flex-1 min-w-0 h-8 rounded-lg px-2.5 text-[13px] outline-none"
+          style={{ border: `1px solid ${C.border}`, color: C.foreground }}
+        />
+        <button
+          onClick={submit}
+          disabled={!url.trim() || detail.addAttachment.isPending}
+          className="h-8 px-3 rounded-lg border-0 text-[13px] cursor-pointer disabled:opacity-50"
+          style={{ background: C.muted, color: C.neutral700 }}
+        >
+          Thêm
+        </button>
+      </div>
+      {url.trim() && (
+        <input
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            setNameTouched(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+          }}
+          placeholder="Tên hiển thị"
+          className="h-8 rounded-lg px-2.5 text-[13px] outline-none"
+          style={{ border: `1px solid ${C.border}`, color: C.foreground }}
+        />
+      )}
     </div>
   );
 }

@@ -21,11 +21,15 @@ import {
   Mail,
   Plus,
 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import TaskDetailDrawer from "@/components/tasks/TaskDetailDrawer";
 import TaskFormModal from "@/components/tasks/TaskFormModal";
 import { taskApi } from "@/apis/task.api";
-import { useMe, useTasks, useTaskTypes } from "@/hooks/useTaskApp";
+import {
+  useInvalidateTaskData,
+  useMe,
+  useTasks,
+  useTaskTypes,
+} from "@/hooks/useTaskApp";
 import {
   PRIORITY_META,
   STATUS_META,
@@ -41,7 +45,8 @@ const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 export default function CalendarPage() {
   const { message } = App.useApp();
   const screens = Grid.useBreakpoint();
-  const queryClient = useQueryClient();
+  // Dùng chung một danh sách khoá với mọi màn khác — xem useInvalidateTaskData
+  const invalidate = useInvalidateTaskData();
   const { data: me } = useMe();
   const admin = isAdminRole(me?.role);
 
@@ -150,8 +155,7 @@ export default function CalendarPage() {
         delete next[taskId];
         return next;
       });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["task-stats"] });
+      invalidate();
     }
   };
 

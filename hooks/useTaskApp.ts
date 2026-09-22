@@ -3,6 +3,7 @@
  * React Query hooks cho toàn bộ app Task.
  * Lưu ý backend rate-limit 20 req/60s -> staleTime hợp lý, không polling dồn dập.
  */
+import { useCallback } from "react";
 import {
   useMutation,
   useQuery,
@@ -17,6 +18,9 @@ import {
   CreateTaskInput,
   QueryTaskParams,
   SaveTaskTypeInput,
+  Task,
+  TaskListResponse,
+  TaskStatus,
   UpdateTaskInput,
   isAdminRole,
 } from "@/models/task";
@@ -96,14 +100,67 @@ export function useTaskStats(assigneeId?: string) {
   });
 }
 
-/** Invalidate mọi cache liên quan task sau khi ghi */
-function useInvalidateTasks() {
+/**
+ * NƠI DUY NHẤT quyết định "ghi xong thì làm mới những gì".
+ *
+ * Một công việc hiện ở năm màn khác nhau — Công việc, Kanban, Lịch, Tổng quan,
+ * Bảng — và tất cả đọc từ những khoá cache khác nhau. Trước đây mỗi màn tự
+ * viết danh sách khoá cần làm mới, và không màn nào nhớ tới `["board"]`: hoàn
+ * thành một việc ở trang Công việc thì mở Bảng vẫn thấy thẻ chưa xong, tới khi
+ * hết 30 giây staleTime mới tự sửa. Gom về một hàm để không bao giờ lệch nữa.
+ *
+ * `["projects"]` cũng nằm trong danh sách: thẻ dự án hiện số việc đang mở và
+ * trễ hạn, hoàn thành một việc là hai con số đó sai ngay.
+ */
+export function useInvalidateTaskData() {
   const queryClient = useQueryClient();
-  return () => {
-    queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    queryClient.invalidateQueries({ queryKey: ["task-stats"] });
-    queryClient.invalidateQueries({ queryKey: ["task"] });
-  };
+  return useCallback(() => {
+    [
+      ["tasks"],
+      ["task"],
+      ["task-stats"],
+      ["board"], // gồm snapshot, agenda và tìm kiếm của bảng
+      ["projects"],
+    ].forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
+  }, [queryClient]);
+}
+
+/** Tên cũ — giữ lại để không phải sửa hết chỗ gọi trong một lần */
+const useInvalidateTasks = useInvalidateTaskData;
+
+/**
+ * Sửa TẠI CHỖ mọi trang danh sách việc đang nằm trong cache.
+ *
+ * Dùng cho cập nhật lạc quan: người dùng bấm xong thấy đổi ngay, không phải
+ * chờ một vòng mạng rồi chờ thêm một vòng tải lại. Trả về ảnh chụp cache trước
+ * khi sửa để `onError` hoàn nguyên.
+ */
+function patchTaskLists(
+  queryClient: ReturnType<typeof useQueryClient>,
+  fn: (task: Task) => Task | null,
+): [readonly unknown[], TaskListResponse | undefined][] {
+  const entries = queryClient.getQueriesData<TaskListResponse>({
+    queryKey: ["tasks"],
+  });
+  entries.forEach(([key, value]) => {
+    if (!value) return;
+    const items = value.items
+      .map((task) => fn(task))
+      .filter((task): task is Task => task !== null);
+    queryClient.setQueryData<TaskListResponse>(key, {
+      ...value,
+      items,
+      total: value.total - (value.items.length - items.length),
+    });
+  });
+  return entries;
+}
+
+function restoreTaskLists(
+  queryClient: ReturnType<typeof useQueryClient>,
+  snapshot: [readonly unknown[], TaskListResponse | undefined][],
+) {
+  snapshot.forEach(([key, value]) => queryClient.setQueryData(key, value));
 }
 
 /** Việc mới luôn rơi vào dự án đang mở, trừ khi form chỉ định dự án khác */
@@ -136,11 +193,33 @@ export function useUpdateTask() {
   });
 }
 
+/**
+ * Hoàn thành việc — cập nhật lạc quan.
+ *
+ * Backend đang bị giới hạn 20 yêu cầu/60 giây nên một vòng ghi rồi tải lại có
+ * thể mất vài trăm mili giây tới vài giây. Chờ chừng đó mới đổi giao diện thì
+ * người dùng bấm lại lần nữa vì tưởng hụt. Đổi cache trước, hỏng thì hoàn nguyên.
+ */
 export function useCompleteTask() {
   const { message } = App.useApp();
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateTasks();
   return useMutation({
     mutationFn: (id: string) => taskApi.complete(id),
+    onMutate: (id) =>
+      patchTaskLists(queryClient, (task) =>
+        task.id === id
+          ? {
+              ...task,
+              status: TaskStatus.DONE,
+              completedAt: new Date().toISOString(),
+            }
+          : task,
+      ),
+    onError: (error, _id, snapshot) => {
+      if (snapshot) restoreTaskLists(queryClient, snapshot);
+      message.error(getApiErrorMessage(error));
+    },
     onSuccess: ({ completed, next }) => {
       // `next` chỉ có khi việc được đặt lặp lại — báo luôn để người dùng biết
       // đã có thẻ mới, khỏi tưởng hệ thống tự nhân đôi việc
@@ -151,20 +230,26 @@ export function useCompleteTask() {
       );
       invalidate();
     },
-    onError: (error) => message.error(getApiErrorMessage(error)),
   });
 }
 
 export function useDeleteTask() {
   const { message } = App.useApp();
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateTasks();
   return useMutation({
     mutationFn: (id: string) => taskApi.remove(id),
+    // Biến mất ngay khỏi danh sách; lỗi thì hiện lại đúng chỗ cũ
+    onMutate: (id) =>
+      patchTaskLists(queryClient, (task) => (task.id === id ? null : task)),
     onSuccess: () => {
       message.success("Đã xoá công việc");
       invalidate();
     },
-    onError: (error) => message.error(getApiErrorMessage(error)),
+    onError: (error, _id, snapshot) => {
+      if (snapshot) restoreTaskLists(queryClient, snapshot);
+      message.error(getApiErrorMessage(error));
+    },
   });
 }
 

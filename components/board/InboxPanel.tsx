@@ -10,8 +10,10 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Tooltip } from "antd";
 import {
+  ChevronDown,
   Globe,
   Inbox,
+  LoaderCircle,
   Mail,
   MessageCircle,
   PanelLeftClose,
@@ -19,6 +21,7 @@ import {
   Smartphone,
   X,
 } from "lucide-react";
+import { INBOX_KEY } from "@/models/board";
 import { useBoard } from "./BoardStore";
 import { CardTile } from "./CardTile";
 import { Composer } from "./Composer";
@@ -37,7 +40,14 @@ export function InboxPanel({
   mobile?: boolean;
   onCloseMobile?: () => void;
 } = {}) {
-  const { inboxCards, inboxTotal, addCard, filterActive } = useBoard();
+  const {
+    inboxCards,
+    inboxTotal,
+    addCard,
+    filterActive,
+    loadMoreCards,
+    loadingMore,
+  } = useBoard();
   const [width, setWidth] = useState(292);
   const [collapsed, setCollapsed] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -185,6 +195,29 @@ export function InboxPanel({
               <CardTile key={card.id} card={card} />
             ))}
           </SortableContext>
+
+          {/* Hộp thư đến cũng chỉ được trả 20 thẻ đầu — xem ghi chú ở ListColumn */}
+          {!filterActive && inboxCards.length < inboxTotal && (
+            <button
+              type="button"
+              onClick={() => loadMoreCards(null)}
+              disabled={loadingMore === INBOX_KEY}
+              className="flex items-center justify-center gap-1.5 h-8 rounded-lg cursor-pointer
+                text-[12.5px] font-medium disabled:opacity-60"
+              style={{
+                border: `1px dashed ${G.line}`,
+                background: "transparent",
+                color: G.text,
+              }}
+            >
+              {loadingMore === INBOX_KEY ? (
+                <LoaderCircle size={13} className="animate-spin" />
+              ) : (
+                <ChevronDown size={13} />
+              )}
+              Tải thêm {Math.min(20, inboxTotal - inboxCards.length)} việc
+            </button>
+          )}
 
           {inboxCards.length === 0 && <EmptyInbox />}
         </div>
