@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, useMemo, useState } from "react";
+import { DragEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   App,
   Badge,
@@ -37,6 +37,11 @@ import {
 import { repeatText } from "@/models/board";
 import { projectOccurrences } from "@/utils/client/recurrence";
 import DayTimeline, { rangeText } from "./_components/DayTimeline";
+import WeekTimeline from "./_components/WeekTimeline";
+import AgendaList from "./_components/AgendaList";
+import { useStickyState } from "@/components/board/useStickyState";
+
+type CalendarView = "month" | "week" | "day" | "agenda";
 
 /**
  * Một dòng trên lịch: việc thật, hoặc một lượt lặp DỰ KIẾN của việc đó.
@@ -71,8 +76,78 @@ export default function CalendarPage() {
    * Chế độ xem. Tháng trả lời "tháng này bận chỗ nào"; Ngày trả lời "9 giờ mai
    * tôi có trống không" — hai câu khác nhau nên không gộp vào một lưới được.
    */
-  const [view, setView] = useState<"month" | "day">("month");
+  /**
+   * Bốn chế độ, mỗi chế độ trả lời một câu khác nhau:
+   *   tháng  — tháng này bận chỗ nào
+   *   tuần   — dời việc này sang hôm nào thì hợp
+   *   ngày   — hôm nay còn khung giờ nào trống
+   *   lịch trình — tiếp theo là gì (và là chế độ duy nhất dùng tốt trên màn hẹp)
+   *
+   * Nhớ lại lựa chọn: người dùng gần như luôn quay lại đúng chế độ họ quen.
+   */
+  const [view, setView] = useStickyState<CalendarView>("calendar:view", "month");
   const [focusDay, setFocusDay] = useState<Dayjs>(dayjs());
+
+  /** Đầu tuần (thứ Hai) của ngày đang xem — dùng cho chế độ Tuần */
+  const weekStart = useMemo(
+    () => focusDay.subtract((focusDay.day() + 6) % 7, "day").startOf("day"),
+    [focusDay],
+  );
+
+  /** Nhảy tới/lui MỘT KỲ của chế độ đang xem, không phải luôn luôn một tháng */
+  const step = useCallback(
+    (direction: 1 | -1) => {
+      if (view === "month") {
+        setMonth((m) => m.add(direction, "month"));
+        return;
+      }
+      const unit = view === "week" ? "week" : "day";
+      setFocusDay((d) => {
+        const next = d.add(direction, unit);
+        // Giữ lưới tháng bám theo ngày đang xem, để đổi về chế độ tháng không lạc
+        setMonth(next);
+        return next;
+      });
+    },
+    [view],
+  );
+
+  const goToday = useCallback(() => {
+    setMonth(dayjs());
+    setFocusDay(dayjs());
+  }, []);
+
+  /*
+   * Phím tắt kiểu lịch quen thuộc: M/W/D/A đổi chế độ, ←/→ đổi kỳ, T về hôm nay.
+   * Bỏ qua khi con trỏ đang ở ô nhập, nếu không gõ chữ "d" vào tiêu đề sẽ nhảy
+   * mất màn hình.
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (
+        e.metaKey ||
+        e.ctrlKey ||
+        el?.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(el?.tagName ?? "")
+      ) {
+        return;
+      }
+      const map: Record<string, CalendarView> = {
+        m: "month",
+        w: "week",
+        d: "day",
+        a: "agenda",
+      };
+      const next = map[e.key.toLowerCase()];
+      if (next) return setView(next);
+      if (e.key === "ArrowLeft") return step(-1);
+      if (e.key === "ArrowRight") return step(1);
+      if (e.key.toLowerCase() === "t") goToday();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step, goToday, setView]);
 
   // 42 ô = 6 tuần, bắt đầu từ thứ 2 của tuần chứa mùng 1
   const gridStart = useMemo(() => {
@@ -224,6 +299,25 @@ export default function CalendarPage() {
     return map;
   }, [tasks, gridStart]);
 
+  /**
+   * Nguồn cho chế độ Lịch trình.
+   *
+   * `tasksByDay` cố tình KHÔNG chứa sự kiện (chúng đi đường thanh ngang ở lưới
+   * tháng), nên phải ghép lại ở đây — nếu không, chế độ Lịch trình sẽ im lặng
+   * bỏ sót đúng loại mục mà người dùng quan tâm nhất: cái có giờ hẹn.
+   */
+  const agendaEntries = useMemo(
+    () => [
+      ...[...tasksByDay.values()].flat(),
+      ...events.map((event) => ({
+        task: event,
+        at: event.startAt!,
+        projected: false,
+      })),
+    ],
+    [tasksByDay, events],
+  );
+
   const [selectedDay, setSelectedDay] = useState<Dayjs | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -318,34 +412,36 @@ export default function CalendarPage() {
       {/* ===== Header ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Button
-            icon={<ChevronLeft size={16} />}
-            onClick={() => setMonth((m) => m.subtract(1, "month"))}
-          />
-          <span className="font-bold text-lg text-slate-700 min-w-[170px] text-center capitalize">
-            {month.format("MMMM YYYY")}
+          <Button icon={<ChevronLeft size={16} />} onClick={() => step(-1)} />
+          {/* Tiêu đề đổi theo chế độ — "Tháng 9" vô nghĩa khi đang xem một ngày */}
+          <span className="font-bold text-lg text-slate-700 min-w-[210px] text-center capitalize">
+            {view === "month"
+              ? month.format("MMMM YYYY")
+              : view === "week"
+                ? `${weekStart.format("DD/MM")} – ${weekStart
+                    .add(6, "day")
+                    .format("DD/MM/YYYY")}`
+                : view === "day"
+                  ? focusDay.format("dddd, DD/MM/YYYY")
+                  : "Sắp tới"}
           </span>
-          <Button
-            icon={<ChevronRight size={16} />}
-            onClick={() => setMonth((m) => m.add(1, "month"))}
-          />
-          <Button
-            onClick={() => {
-              setMonth(dayjs());
-              setFocusDay(dayjs());
-            }}
-          >
-            Hôm nay
-          </Button>
+          <Button icon={<ChevronRight size={16} />} onClick={() => step(1)} />
+          <Tooltip title="Phím T">
+            <Button onClick={goToday}>Hôm nay</Button>
+          </Tooltip>
 
-          <Segmented
-            value={view}
-            onChange={(v) => setView(v as "month" | "day")}
-            options={[
-              { label: "Tháng", value: "month" },
-              { label: "Ngày", value: "day" },
-            ]}
-          />
+          <Tooltip title="Phím tắt: M tháng · W tuần · D ngày · A lịch trình · ←/→ đổi kỳ">
+            <Segmented
+              value={view}
+              onChange={(v) => setView(v as CalendarView)}
+              options={[
+                { label: "Tháng", value: "month" },
+                { label: "Tuần", value: "week" },
+                { label: "Ngày", value: "day" },
+                { label: "Lịch trình", value: "agenda" },
+              ]}
+            />
+          </Tooltip>
           {isFetching && (
             <span className="text-xs text-slate-400 ml-1">đang tải…</span>
           )}
@@ -418,15 +514,23 @@ export default function CalendarPage() {
       {view === "day" ? (
         <DayTimeline
           day={focusDay}
-          items={tasks.filter((t) =>
-            t.kind === ItemKind.EVENT
-              ? !dayjs(t.startAt!).isAfter(focusDay.endOf("day")) &&
-                !dayjs(t.endAt!).isBefore(focusDay.startOf("day"))
-              : !!t.deadline && dayjs(t.deadline).isSame(focusDay, "day"),
-          )}
+          items={tasks}
           onSelect={setViewingTask}
           onCreateAt={(at) => openCreate(at)}
         />
+      ) : view === "week" ? (
+        <WeekTimeline
+          weekStart={weekStart}
+          items={tasks}
+          onSelect={setViewingTask}
+          onCreateAt={(at) => openCreate(at)}
+          onPickDay={(day) => {
+            setFocusDay(day);
+            setView("day");
+          }}
+        />
+      ) : view === "agenda" ? (
+        <AgendaList entries={agendaEntries} from={dayjs()} onSelect={setViewingTask} />
       ) : (
       /* ===== Month grid ===== */
       <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto shadow-[0_1px_3px_rgba(0,0,0,0.04)]">

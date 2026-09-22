@@ -16,7 +16,16 @@
 import { useMemo } from "react";
 import dayjs, { Dayjs } from "dayjs";
 import { CalendarClock, Clock } from "lucide-react";
-import { ItemKind, PRIORITY_META, Task, TaskStatus } from "@/models/task";
+import { PRIORITY_META, Task, TaskStatus } from "@/models/task";
+import {
+  eventsOfDay,
+  layoutDay,
+  rangeText,
+  TimeBlock,
+  tasksOfDay,
+} from "./timeline";
+
+export { rangeText };
 
 /**
  * TRỌN 24 GIỜ TRONG MỘT MÀN, không cuộn.
@@ -40,91 +49,12 @@ type Props = {
   onCreateAt: (at: Dayjs) => void;
 };
 
-/**
- * Khoảng thời gian viết ra chữ.
- *
- * Kèm NGÀY khi kết thúc rơi sang hôm khác. Chỉ ghi "17:00 – 18:00" cho một sự
- * kiện kết thúc 18:00 HÔM SAU là nói dối người đọc: họ thấy một tiếng, còn
- * lịch thì vẽ khối chạy tới nửa đêm — hai thứ mâu thuẫn ngay trên cùng màn hình.
- */
-export function rangeText(task: Task): string {
-  if (task.allDay) return "cả ngày";
-  const start = dayjs(task.startAt!);
-  const end = dayjs(task.endAt!);
-  const sameDay = start.isSame(end, "day");
-  return sameDay
-    ? `${start.format("HH:mm")} – ${end.format("HH:mm")}`
-    : `${start.format("HH:mm")} – ${end.format("HH:mm")} ngày ${end.format("DD/MM")}`;
-}
-
-type Block = {
-  task: Task;
-  top: number;
-  height: number;
-  /** Cột thứ mấy trong nhóm chồng nhau, và nhóm đó rộng bao nhiêu cột */
-  column: number;
-  columns: number;
-};
-
 export default function DayTimeline({ day, items, onSelect, onCreateAt }: Props) {
   const dayStart = day.startOf("day");
 
-  const events = useMemo(
-    () => items.filter((t) => t.kind === ItemKind.EVENT && t.startAt && t.endAt),
-    [items],
-  );
-  const tasks = useMemo(
-    () => items.filter((t) => t.kind !== ItemKind.EVENT && t.deadline),
-    [items],
-  );
-
-  /**
-   * Sự kiện chồng giờ nhau thì chia đôi chiều ngang.
-   *
-   * Gom thành từng CỤM giao nhau rồi chia đều trong cụm — chia theo từng cặp
-   * sẽ cho ra các khối rộng khác nhau ở cùng một khung giờ, nhìn rất lệch.
-   */
-  const blocks = useMemo<Block[]>(() => {
-    const sorted = [...events].sort(
-      (a, b) => dayjs(a.startAt!).valueOf() - dayjs(b.startAt!).valueOf(),
-    );
-
-    const out: Block[] = [];
-    let cluster: Task[] = [];
-    let clusterEnd = 0;
-
-    const flush = () => {
-      cluster.forEach((task, index) => {
-        const start = dayjs(task.startAt!);
-        const end = dayjs(task.endAt!);
-        // Cắt theo ngày đang xem: sự kiện nhiều ngày chỉ vẽ phần thuộc hôm nay
-        const from = Math.max(start.diff(dayStart, "minute"), 0);
-        const to = Math.min(end.diff(dayStart, "minute"), 24 * 60);
-        out.push({
-          task,
-          top: (from / MINUTES_PER_DAY) * 100,
-          // Tối thiểu 2.2% (~30 phút): sự kiện 10 phút vẽ đúng tỉ lệ thì thành
-          // một vạch không đọc được chữ nào
-          height: Math.max(2.2, ((to - from) / MINUTES_PER_DAY) * 100),
-          column: index,
-          columns: cluster.length,
-        });
-      });
-      cluster = [];
-      clusterEnd = 0;
-    };
-
-    sorted.forEach((task) => {
-      const start = dayjs(task.startAt!).valueOf();
-      const end = dayjs(task.endAt!).valueOf();
-      if (cluster.length && start >= clusterEnd) flush();
-      cluster.push(task);
-      clusterEnd = Math.max(clusterEnd, end);
-    });
-    flush();
-
-    return out;
-  }, [events, dayStart]);
+  const events = useMemo(() => eventsOfDay(items, day), [items, day]);
+  const tasks = useMemo(() => tasksOfDay(items, day), [items, day]);
+  const blocks = useMemo<TimeBlock[]>(() => layoutDay(events, day), [events, day]);
 
   const now = dayjs();
   const isToday = day.isSame(now, "day");
