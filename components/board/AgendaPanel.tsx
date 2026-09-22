@@ -8,15 +8,25 @@
  * thể rơi ngoài 20 thẻ đó. Gom ở client sẽ thiếu việc mà màn vẫn trông bình
  * thường — loại lỗi rất khó phát hiện.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Tooltip } from "antd";
-import { AlertTriangle, CalendarClock, PanelRightClose, Timer } from "lucide-react";
+import dayjs from "dayjs";
+import {
+  AlertTriangle,
+  CalendarClock,
+  PanelRightClose,
+  Plus,
+  Timer,
+} from "lucide-react";
 import { boardApi } from "@/apis/board.api";
 import { useCurrentProject } from "@/hooks/useProjects";
+import { useTasks } from "@/hooks/useTaskApp";
+import TaskDetailDrawer from "@/components/tasks/TaskDetailDrawer";
+import TaskFormModal from "@/components/tasks/TaskFormModal";
 import { CardSummary } from "@/models/board";
-import { PRIORITY_META } from "@/models/task";
+import { ItemKind, PRIORITY_META, Task } from "@/models/task";
 import { useBoard } from "./BoardStore";
 import { G } from "./ui";
 import styles from "./board.module.scss";
@@ -32,6 +42,29 @@ export function AgendaPanel() {
   const { board, agendaOpen, setAgendaOpen } = useBoard();
 
   const { projectId } = useCurrentProject();
+  const [creating, setCreating] = useState(false);
+  const [viewing, setViewing] = useState<Task | null>(null);
+  /** Lịch hẹn đang sửa — mở lại form ở chế độ sửa, giữ nguyên khung giờ cũ */
+  const [editing, setEditing] = useState<Task | null>(null);
+
+  /*
+   * Lịch hẹn hôm nay. Hỏi `/tasks` chứ không hỏi API bảng: sự kiện không thuộc
+   * bảng nào (`boardId = null`), nên endpoint bảng sẽ không bao giờ trả về.
+   */
+  const today = dayjs();
+  const { data: appointmentData } = useTasks({
+    kind: ItemKind.EVENT,
+    from: today.startOf("day").toISOString(),
+    to: today.endOf("day").toISOString(),
+    limit: 20,
+  });
+  const appointments = useMemo(
+    () =>
+      (appointmentData?.items ?? [])
+        .filter((e) => e.startAt)
+        .sort((a, b) => dayjs(a.startAt!).valueOf() - dayjs(b.startAt!).valueOf()),
+    [appointmentData],
+  );
   const { data, isLoading } = useQuery({
     queryKey: ["board", "agenda"],
     queryFn: () => boardApi.agenda(undefined, projectId ?? undefined),
@@ -67,7 +100,14 @@ export function AgendaPanel() {
   const overdue = data?.overdue ?? [];
 
   return (
-    <div className={`${styles.glassPanel} w-[264px] shrink-0 hidden @5xl:flex flex-col overflow-hidden`}>
+    /*
+     * Ngưỡng hiện panel hạ từ @5xl (1024px) xuống @3xl (768px).
+     *
+     * Với Hộp thư đến chiếm 292px bên trái, vùng canvas hiếm khi vượt 1024px
+     * trên màn 1440 — nên panel này (và cả mục Lịch hẹn trong đó) gần như
+     * không bao giờ hiện, trông như tính năng không tồn tại.
+     */
+    <div className={`${styles.glassPanel} w-[264px] shrink-0 hidden @3xl:flex flex-col overflow-hidden`}>
       <div
         className="flex items-center gap-2 px-3 h-11 shrink-0"
         style={{ borderBottom: `1px solid ${G.line}` }}
@@ -115,6 +155,68 @@ export function AgendaPanel() {
           >
             <AlertTriangle size={12} className="shrink-0 mt-0.5" />
             Xếp nhiều hơn thời gian còn lại — nên dời bớt sang mai.
+          </div>
+        )}
+      </div>
+
+      {/*
+        LỊCH HẸN HÔM NAY.
+
+        Sự kiện cố tình không nằm trên bảng (bảng là nơi làm việc, không phải
+        nơi xem lịch — xem `docs/backend/calendar-events.md`), nhưng "hôm nay
+        mấy giờ có hẹn" lại là thứ phải biết TRƯỚC KHI xếp việc trong ngày.
+        Nên nó thuộc về đúng chỗ này: khung lịch hôm nay, ngay trên danh sách
+        việc đến hạn.
+      */}
+      <div className="px-3 py-2.5 shrink-0" style={{ borderBottom: `1px solid ${G.line}` }}>
+        <div className="flex items-center gap-2 mb-1.5">
+          <span
+            className="text-[11px] font-semibold uppercase tracking-wide flex-1"
+            style={{ color: G.textMuted }}
+          >
+            Lịch hẹn ({appointments.length})
+          </span>
+          <Tooltip title="Thêm lịch hẹn hôm nay">
+            <button
+              onClick={() => setCreating(true)}
+              className="grid place-items-center size-6 rounded-md border-0 bg-transparent
+                hover:bg-white/15 cursor-pointer"
+              style={{ color: G.textSoft }}
+            >
+              <Plus size={14} />
+            </button>
+          </Tooltip>
+        </div>
+
+        {appointments.length === 0 ? (
+          <div className="text-[11.5px]" style={{ color: G.textFaint }}>
+            Hôm nay không có hẹn nào.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {appointments.map((event) => (
+              <button
+                key={event.id}
+                onClick={() => setViewing(event)}
+                className="flex items-center gap-2 h-7 px-2 rounded-md border-0 cursor-pointer text-left"
+                style={{ background: "rgba(255,255,255,.12)" }}
+              >
+                <span
+                  className="text-[11px] font-semibold tabular-nums shrink-0"
+                  style={{ color: G.info }}
+                >
+                  {event.allDay
+                    ? "cả ngày"
+                    : dayjs(event.startAt!).format("HH:mm")}
+                </span>
+                <span
+                  className="flex-1 min-w-0 truncate text-[12px]"
+                  style={{ color: G.text }}
+                >
+                  {event.title}
+                </span>
+              </button>
+            ))}
           </div>
         )}
       </div>
@@ -171,6 +273,32 @@ export function AgendaPanel() {
           </div>
         )}
       </div>
+
+      {/* Dùng lại đúng form của màn Công việc — mở sẵn ở chế độ Lịch hẹn */}
+      <TaskFormModal
+        open={creating || !!editing}
+        task={editing}
+        onClose={() => {
+          setCreating(false);
+          setEditing(null);
+        }}
+        defaultKind={ItemKind.EVENT}
+        defaultDeadline={dayjs()}
+      />
+      <TaskDetailDrawer
+        task={viewing}
+        onClose={() => setViewing(null)}
+        /*
+         * Sửa lịch hẹn: đóng ngăn xem rồi MỞ FORM ở chế độ sửa.
+         *
+         * Bản đầu tôi chỉ đóng ngăn xem — nghĩa là bấm nút bút chì không làm
+         * gì cả, và không còn đường nào để đổi khung giờ của một lịch hẹn.
+         */
+        onEdit={(task) => {
+          setViewing(null);
+          setEditing(task);
+        }}
+      />
     </div>
   );
 }

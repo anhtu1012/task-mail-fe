@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, useMemo, useState } from "react";
+import { DragEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   App,
   Badge,
@@ -10,6 +10,7 @@ import {
   Grid,
   List,
   Radio,
+  Segmented,
   Tag,
   Tooltip,
 } from "antd";
@@ -30,12 +31,17 @@ import { taskApi } from "@/apis/task.api";
 import {
   useBoardLabels,
   useInvalidateTaskData,
-  useMe,
   useTasks,
   useTaskTypes,
 } from "@/hooks/useTaskApp";
 import { repeatText } from "@/models/board";
 import { projectOccurrences } from "@/utils/client/recurrence";
+import DayTimeline, { rangeText } from "./_components/DayTimeline";
+import WeekTimeline from "./_components/WeekTimeline";
+import AgendaList from "./_components/AgendaList";
+import { useStickyState } from "@/components/board/useStickyState";
+
+type CalendarView = "month" | "week" | "day" | "agenda";
 
 /**
  * Một dòng trên lịch: việc thật, hoặc một lượt lặp DỰ KIẾN của việc đó.
@@ -43,27 +49,105 @@ import { projectOccurrences } from "@/utils/client/recurrence";
  */
 type CalendarEntry = { task: Task; at: string; projected: boolean };
 import {
+  ItemKind,
   PRIORITY_META,
   STATUS_META,
   Task,
   TaskPriority,
   TaskStatus,
-  isAdminRole,
 } from "@/models/task";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 
 const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+
+/** Chiều cao một làn thanh sự kiện. Dùng ở CẢ hai nơi: lớp thanh và phần chừa
+ *  chỗ bên dưới — tách ra hằng số để hai bên không bao giờ lệch nhau. */
+const LANE_HEIGHT = 21;
 
 export default function CalendarPage() {
   const { message } = App.useApp();
   const screens = Grid.useBreakpoint();
   // Dùng chung một danh sách khoá với mọi màn khác — xem useInvalidateTaskData
   const invalidate = useInvalidateTaskData();
-  const { data: me } = useMe();
-  const admin = isAdminRole(me?.role);
 
   const [month, setMonth] = useState<Dayjs>(dayjs());
   const [status, setStatus] = useState<TaskStatus | undefined>();
+  /**
+   * Chế độ xem. Tháng trả lời "tháng này bận chỗ nào"; Ngày trả lời "9 giờ mai
+   * tôi có trống không" — hai câu khác nhau nên không gộp vào một lưới được.
+   */
+  /**
+   * Bốn chế độ, mỗi chế độ trả lời một câu khác nhau:
+   *   tháng  — tháng này bận chỗ nào
+   *   tuần   — dời việc này sang hôm nào thì hợp
+   *   ngày   — hôm nay còn khung giờ nào trống
+   *   lịch trình — tiếp theo là gì (và là chế độ duy nhất dùng tốt trên màn hẹp)
+   *
+   * Nhớ lại lựa chọn: người dùng gần như luôn quay lại đúng chế độ họ quen.
+   */
+  const [view, setView] = useStickyState<CalendarView>("calendar:view", "month");
+  const [focusDay, setFocusDay] = useState<Dayjs>(dayjs());
+
+  /** Đầu tuần (thứ Hai) của ngày đang xem — dùng cho chế độ Tuần */
+  const weekStart = useMemo(
+    () => focusDay.subtract((focusDay.day() + 6) % 7, "day").startOf("day"),
+    [focusDay],
+  );
+
+  /** Nhảy tới/lui MỘT KỲ của chế độ đang xem, không phải luôn luôn một tháng */
+  const step = useCallback(
+    (direction: 1 | -1) => {
+      if (view === "month") {
+        setMonth((m) => m.add(direction, "month"));
+        return;
+      }
+      const unit = view === "week" ? "week" : "day";
+      setFocusDay((d) => {
+        const next = d.add(direction, unit);
+        // Giữ lưới tháng bám theo ngày đang xem, để đổi về chế độ tháng không lạc
+        setMonth(next);
+        return next;
+      });
+    },
+    [view],
+  );
+
+  const goToday = useCallback(() => {
+    setMonth(dayjs());
+    setFocusDay(dayjs());
+  }, []);
+
+  /*
+   * Phím tắt kiểu lịch quen thuộc: M/W/D/A đổi chế độ, ←/→ đổi kỳ, T về hôm nay.
+   * Bỏ qua khi con trỏ đang ở ô nhập, nếu không gõ chữ "d" vào tiêu đề sẽ nhảy
+   * mất màn hình.
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (
+        e.metaKey ||
+        e.ctrlKey ||
+        el?.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(el?.tagName ?? "")
+      ) {
+        return;
+      }
+      const map: Record<string, CalendarView> = {
+        m: "month",
+        w: "week",
+        d: "day",
+        a: "agenda",
+      };
+      const next = map[e.key.toLowerCase()];
+      if (next) return setView(next);
+      if (e.key === "ArrowLeft") return step(-1);
+      if (e.key === "ArrowRight") return step(1);
+      if (e.key.toLowerCase() === "t") goToday();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step, goToday, setView]);
 
   // 42 ô = 6 tuần, bắt đầu từ thứ 2 của tuần chứa mùng 1
   const gridStart = useMemo(() => {
@@ -72,12 +156,10 @@ export default function CalendarPage() {
     const offset = (first.day() + 6) % 7; // 0 = thứ 2
     return first.subtract(offset, "day");
   }, [month]);
-  const days = useMemo(
-    () => Array.from({ length: 42 }, (_, i) => gridStart.add(i, "day")),
-    [gridStart],
-  );
-
   const { data, isFetching } = useTasks({
+    // Lịch là màn DUY NHẤT cần cả việc lẫn sự kiện; các màn khác để mặc định
+    // (chỉ việc) — xem ghi chú ở QueryTaskParams.kind
+    kind: "ALL",
     limit: 100, // tối đa backend cho phép
     status,
     from: gridStart.startOf("day").toISOString(),
@@ -110,6 +192,75 @@ export default function CalendarPage() {
    * dấu `projected` để giao diện vẽ khác đi: chúng KHÔNG phải việc có thật —
    * không kéo thả, không sửa, và sẽ không xảy ra nếu người dùng bỏ dở chuỗi.
    */
+  /** Sự kiện vẽ thành thanh ngang, không phải chip theo ngày */
+  const events = useMemo(
+    () => tasks.filter((t) => t.kind === ItemKind.EVENT && t.startAt && t.endAt),
+    [tasks],
+  );
+
+  const weeks = useMemo(
+    () =>
+      Array.from({ length: 6 }, (_, w) =>
+        Array.from({ length: 7 }, (_, d) => gridStart.add(w * 7 + d, "day")),
+      ),
+    [gridStart],
+  );
+
+  /**
+   * Thanh sự kiện của từng tuần, đã xếp làn.
+   *
+   * Một sự kiện kéo dài nhiều ngày bị CẮT theo từng tuần: lưới lịch xuống dòng
+   * mỗi 7 ô nên không có cách nào vẽ một thanh liền mạch vắt qua hai hàng.
+   *
+   * Xếp làn tham lam: duyệt theo thứ tự bắt đầu (dài hơn trước khi cùng ngày),
+   * đặt vào làn đầu tiên còn trống. Đủ tốt cho lịch cá nhân, và quan trọng hơn
+   * là ổn định — cùng một tập sự kiện luôn ra cùng một cách xếp.
+   */
+  const barsByWeek = useMemo(() => {
+    return weeks.map((week) => {
+      const weekStart = week[0].startOf("day");
+      const weekEnd = week[6].endOf("day");
+
+      const segments = events
+        .filter(
+          (e) =>
+            !dayjs(e.startAt!).isAfter(weekEnd) &&
+            !dayjs(e.endAt!).isBefore(weekStart),
+        )
+        .map((event) => {
+          const start = dayjs(event.startAt!);
+          const end = dayjs(event.endAt!);
+          const from = start.isBefore(weekStart) ? weekStart : start;
+          const to = end.isAfter(weekEnd) ? weekEnd : end;
+          return {
+            event,
+            colStart: from.diff(weekStart, "day"),
+            span: Math.max(1, to.startOf("day").diff(from.startOf("day"), "day") + 1),
+            // Bị cắt ở đầu/cuối tuần -> bo góc phẳng để thấy là còn tiếp
+            clippedStart: start.isBefore(weekStart),
+            clippedEnd: end.isAfter(weekEnd),
+            startsHere: !start.isBefore(weekStart),
+          };
+        })
+        .sort(
+          (a, b) =>
+            a.colStart - b.colStart || b.span - a.span ||
+            a.event.title.localeCompare(b.event.title),
+        );
+
+      const laneEnds: number[] = [];
+      return segments.map((seg) => {
+        let lane = laneEnds.findIndex((end) => end <= seg.colStart);
+        if (lane === -1) {
+          lane = laneEnds.length;
+          laneEnds.push(0);
+        }
+        laneEnds[lane] = seg.colStart + seg.span;
+        return { ...seg, lane };
+      });
+    });
+  }, [weeks, events]);
+
   const tasksByDay = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
     const push = (at: string, entry: CalendarEntry) => {
@@ -121,6 +272,8 @@ export default function CalendarPage() {
     const gridEnd = gridStart.add(41, "day");
 
     tasks.forEach((task) => {
+      // Sự kiện đi đường riêng (thanh ngang) — bỏ qua ở luồng chip theo ngày
+      if (task.kind === ItemKind.EVENT) return;
       if (!task.deadline) return;
       push(task.deadline, { task, at: task.deadline, projected: false });
 
@@ -146,15 +299,58 @@ export default function CalendarPage() {
     return map;
   }, [tasks, gridStart]);
 
+  /**
+   * Nguồn cho chế độ Lịch trình.
+   *
+   * `tasksByDay` cố tình KHÔNG chứa sự kiện (chúng đi đường thanh ngang ở lưới
+   * tháng), nên phải ghép lại ở đây — nếu không, chế độ Lịch trình sẽ im lặng
+   * bỏ sót đúng loại mục mà người dùng quan tâm nhất: cái có giờ hẹn.
+   */
+  const agendaEntries = useMemo(
+    () => [
+      ...[...tasksByDay.values()].flat(),
+      ...events.map((event) => ({
+        task: event,
+        at: event.startAt!,
+        projected: false,
+      })),
+    ],
+    [tasksByDay, events],
+  );
+
   const [selectedDay, setSelectedDay] = useState<Dayjs | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [defaultDeadline, setDefaultDeadline] = useState<Dayjs | null>(null);
 
-  const selectedDayTasks = selectedDay
-    ? (tasksByDay.get(selectedDay.format("YYYY-MM-DD")) ?? [])
-    : [];
+  /**
+   * Danh sách của ngày đang mở: việc + sự kiện GIAO với ngày đó.
+   *
+   * Sự kiện phải xét theo khoảng, không theo ngày bắt đầu: chuyến công tác
+   * 22→25 thì ngày 24 cũng phải thấy nó, dù nó không bắt đầu hôm ấy.
+   */
+  const selectedDayTasks: CalendarEntry[] = useMemo(() => {
+    if (!selectedDay) return [];
+    const start = selectedDay.startOf("day");
+    const end = selectedDay.endOf("day");
+
+    const ofDay = tasksByDay.get(selectedDay.format("YYYY-MM-DD")) ?? [];
+    const eventsOfDay: CalendarEntry[] = events
+      .filter(
+        (e) =>
+          !dayjs(e.startAt!).isAfter(end) && !dayjs(e.endAt!).isBefore(start),
+      )
+      .map((event) => ({
+        task: event,
+        at: event.startAt!,
+        projected: false,
+      }));
+
+    return [...eventsOfDay, ...ofDay].sort(
+      (a, b) => dayjs(a.at).valueOf() - dayjs(b.at).valueOf(),
+    );
+  }, [selectedDay, tasksByDay, events]);
 
   const openCreate = (deadline?: Dayjs | null) => {
     setEditingTask(null);
@@ -216,18 +412,36 @@ export default function CalendarPage() {
       {/* ===== Header ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Button
-            icon={<ChevronLeft size={16} />}
-            onClick={() => setMonth((m) => m.subtract(1, "month"))}
-          />
-          <span className="font-bold text-lg text-slate-700 min-w-[170px] text-center capitalize">
-            {month.format("MMMM YYYY")}
+          <Button icon={<ChevronLeft size={16} />} onClick={() => step(-1)} />
+          {/* Tiêu đề đổi theo chế độ — "Tháng 9" vô nghĩa khi đang xem một ngày */}
+          <span className="font-bold text-lg text-slate-700 min-w-[210px] text-center capitalize">
+            {view === "month"
+              ? month.format("MMMM YYYY")
+              : view === "week"
+                ? `${weekStart.format("DD/MM")} – ${weekStart
+                    .add(6, "day")
+                    .format("DD/MM/YYYY")}`
+                : view === "day"
+                  ? focusDay.format("dddd, DD/MM/YYYY")
+                  : "Sắp tới"}
           </span>
-          <Button
-            icon={<ChevronRight size={16} />}
-            onClick={() => setMonth((m) => m.add(1, "month"))}
-          />
-          <Button onClick={() => setMonth(dayjs())}>Hôm nay</Button>
+          <Button icon={<ChevronRight size={16} />} onClick={() => step(1)} />
+          <Tooltip title="Phím T">
+            <Button onClick={goToday}>Hôm nay</Button>
+          </Tooltip>
+
+          <Tooltip title="Phím tắt: M tháng · W tuần · D ngày · A lịch trình · ←/→ đổi kỳ">
+            <Segmented
+              value={view}
+              onChange={(v) => setView(v as CalendarView)}
+              options={[
+                { label: "Tháng", value: "month" },
+                { label: "Tuần", value: "week" },
+                { label: "Ngày", value: "day" },
+                { label: "Lịch trình", value: "agenda" },
+              ]}
+            />
+          </Tooltip>
           {isFetching && (
             <span className="text-xs text-slate-400 ml-1">đang tải…</span>
           )}
@@ -283,10 +497,42 @@ export default function CalendarPage() {
           </span>
         ))}
         <span className="text-slate-300">•</span>
-        <span>💡 Kéo thả task sang ngày khác để dời deadline</span>
+        {/* Ba loại hiển thị khác nhau trên cùng một lưới — nói thẳng ra để
+            khỏi phải đoán viền đứt với thanh đặc khác nhau chỗ nào */}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-4 rounded-sm bg-slate-400" />
+          lịch hẹn
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-4 rounded-sm border border-slate-300 bg-white" />
+          công việc
+        </span>
+        <span className="text-slate-300">•</span>
+        <span>Kéo thả công việc sang ngày khác để dời hạn</span>
       </div>
 
-      {/* ===== Month grid ===== */}
+      {view === "day" ? (
+        <DayTimeline
+          day={focusDay}
+          items={tasks}
+          onSelect={setViewingTask}
+          onCreateAt={(at) => openCreate(at)}
+        />
+      ) : view === "week" ? (
+        <WeekTimeline
+          weekStart={weekStart}
+          items={tasks}
+          onSelect={setViewingTask}
+          onCreateAt={(at) => openCreate(at)}
+          onPickDay={(day) => {
+            setFocusDay(day);
+            setView("day");
+          }}
+        />
+      ) : view === "agenda" ? (
+        <AgendaList entries={agendaEntries} from={dayjs()} onSelect={setViewingTask} />
+      ) : (
+      /* ===== Month grid ===== */
       <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
         <div className="min-w-[560px]">
         {/* Weekday header */}
@@ -303,9 +549,25 @@ export default function CalendarPage() {
           ))}
         </div>
 
-        {/* Cells */}
-        <div className="grid grid-cols-7">
-          {days.map((day) => {
+        {/*
+          Lưới chia theo TUẦN, không phải 42 ô phẳng.
+
+          Bắt buộc phải vậy để vẽ được sự kiện kéo dài nhiều ngày: một thanh
+          vắt từ thứ Ba sang thứ Sáu chỉ đặt được khi có một hàng lưới riêng để
+          nó chiếm 4 cột. Với 42 ô phẳng thì mỗi ô là một ốc đảo.
+
+          Mỗi tuần gồm hai lớp chồng nhau: lớp ô (ngày + việc) và lớp thanh sự
+          kiện phủ lên phần đầu ô. Ô chừa sẵn chiều cao đúng bằng số làn để
+          thanh không đè lên nội dung.
+        */}
+        {weeks.map((week, weekIndex) => {
+          const bars = barsByWeek[weekIndex];
+          const laneCount = bars.reduce((max, b) => Math.max(max, b.lane + 1), 0);
+
+          return (
+            <div key={week[0].format("YYYY-MM-DD")} className="relative">
+              <div className="grid grid-cols-7">
+          {week.map((day) => {
             const key = day.format("YYYY-MM-DD");
             const items = tasksByDay.get(key) ?? [];
             const inMonth = day.isSame(month, "month");
@@ -332,11 +594,11 @@ export default function CalendarPage() {
                   isOver
                     ? "bg-sky-50 ring-2 ring-inset ring-sky-400"
                     : isToday
-                      ? "bg-blue-50/60"
+                      ? "bg-sky-50 ring-1 ring-inset ring-sky-200"
                       : isWeekend && inMonth
-                        ? "bg-slate-50/50 hover:bg-slate-50"
+                        ? "bg-slate-50 hover:bg-slate-100/70"
                         : "hover:bg-slate-50"
-                } ${!inMonth ? "bg-slate-50/30" : ""}`}
+                } ${!inMonth ? "bg-slate-100/60 text-slate-300" : ""}`}
               >
                 {/* Day number + quick add */}
                 <div className="flex items-center justify-between mb-1">
@@ -363,8 +625,19 @@ export default function CalendarPage() {
                   </button>
                 </div>
 
-                {/* Task chips */}
-                <div className="flex flex-col gap-1">
+                {/*
+                  Chừa chỗ cho thanh sự kiện ở ĐÂY, không phải bằng padding của
+                  cả ô.
+
+                  Bản đầu tôi đặt `paddingTop` lên chính ô — nhưng số ngày cũng
+                  nằm trong ô, nên nó bị đẩy xuống đúng vùng dành cho thanh sự
+                  kiện và hai thứ đè lên nhau. Lùi phần nội dung xuống mới đúng:
+                  số ngày ở yên trên cùng, thanh nằm ngay dưới nó.
+                */}
+                <div
+                  className="flex flex-col gap-1"
+                  style={{ marginTop: laneCount * LANE_HEIGHT }}
+                >
                   {shown.map((entry) => {
                     const { task, at, projected } = entry;
                     const finished =
@@ -408,19 +681,19 @@ export default function CalendarPage() {
                           .join(" · ")}
                         className={`flex items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px] leading-tight transition-all ${
                           finished
-                            ? "border-slate-100 bg-slate-50 cursor-pointer"
+                            ? "border-slate-100 bg-slate-50 text-slate-300 cursor-pointer"
                             : "cursor-grab active:cursor-grabbing hover:shadow-sm"
                         } ${
                           overdue
-                            ? "border-red-200 bg-red-50"
+                            ? "border-red-300 bg-red-50 font-medium"
                             : !finished
-                              ? "border-slate-200 bg-white"
+                              ? "border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,.06)]"
                               : ""
                         } ${draggingId === task.id ? "opacity-40" : ""} ${
                           projected ? "border-dashed opacity-70" : ""
                         }`}
                         style={{
-                          borderLeftWidth: 3,
+                          borderLeftWidth: 4,
                           borderLeftColor: type?.color
                             ? type.color
                             : PRIORITY_META[task.priority].color,
@@ -493,15 +766,78 @@ export default function CalendarPage() {
               </div>
             );
           })}
-        </div>
+              </div>
+
+              {/* Lớp thanh sự kiện — phủ lên phần đầu các ô của tuần này */}
+              <div
+                className="pointer-events-none absolute left-0 right-0 grid grid-cols-7 px-1"
+                /*
+                 * `gridAutoRows` khoá chiều cao một làn = LANE_HEIGHT. Nhờ vậy
+                 * phần chừa chỗ bên dưới (marginTop của cụm việc) khớp chính
+                 * xác; để lưới tự co thì lệch vài pixel mỗi làn và với hai làn
+                 * là thanh đè lên việc.
+                 */
+                style={{ top: 34, gridAutoRows: `${LANE_HEIGHT}px` }}
+              >
+                {bars.map((bar) => {
+                  const { event } = bar;
+                  const color = PRIORITY_META[event.priority].color;
+                  return (
+                    <button
+                      key={`${event.id}-${weekIndex}`}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingTask(event);
+                      }}
+                      title={`${event.code} — ${event.title}`}
+                      className="pointer-events-auto flex items-center gap-1 px-1.5 text-[11px]
+                        leading-none truncate border-0 cursor-pointer text-left"
+                      /*
+                       * Nền ĐẶC, chữ trắng — không phải nền nhạt 13% như trước.
+                       *
+                       * Trên ô trắng, một thanh nhạt gần như tan vào nền: phải
+                       * nhìn kỹ mới biết ngày đó có lịch hẹn. Đặc màu thì lướt
+                       * mắt qua cả tháng là thấy ngay ngày nào kín.
+                       */
+                      style={{
+                        height: LANE_HEIGHT - 2,
+                        marginBottom: 2,
+                        gridColumn: `${bar.colStart + 1} / span ${bar.span}`,
+                        gridRow: bar.lane + 1,
+                        background: color,
+                        color: "#fff",
+                        // Bị cắt ở mép tuần thì để phẳng góc đó — dấu hiệu
+                        // "còn tiếp sang tuần khác"
+                        borderRadius: `${bar.clippedStart ? 0 : 4}px ${
+                          bar.clippedEnd ? 0 : 4
+                        }px ${bar.clippedEnd ? 0 : 4}px ${bar.clippedStart ? 0 : 4}px`,
+                      }}
+                    >
+                      {/* Giờ bắt đầu chỉ hiện ở tuần mà sự kiện thật sự bắt đầu,
+                          và chỉ khi không phải sự kiện cả ngày */}
+                      {bar.startsHere && !event.allDay && (
+                        <span className="font-semibold tabular-nums shrink-0">
+                          {dayjs(event.startAt!).format("HH:mm")}
+                        </span>
+                      )}
+                      <span className="truncate">{event.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
         </div>
       </div>
+      )}
 
       {/* ===== Drawer danh sách task của 1 ngày ===== */}
       <Drawer
         open={!!selectedDay}
         onClose={() => setSelectedDay(null)}
-        width={screens.sm ? 440 : "100%"}
+        width={screens.sm ? 560 : "100%"}
         title={
           selectedDay && (
             <span className="inline-flex items-center gap-2">
@@ -526,6 +862,26 @@ export default function CalendarPage() {
           </Button>
         }
       >
+        {/*
+          TIMELINE THEO GIỜ đặt lên trên cùng.
+
+          Danh sách bên dưới trả lời "hôm nay có những gì", còn timeline trả
+          lời "lúc nào trống" — câu thứ hai mới là lý do người ta bấm vào một
+          ngày. Dùng lại đúng component của chế độ xem Ngày, không dựng thứ hai.
+        */}
+        {selectedDay && (
+          <div className="mb-4">
+            <DayTimeline
+              day={selectedDay}
+              items={selectedDayTasks
+                .filter((e) => !e.projected)
+                .map((e) => e.task)}
+              onSelect={setViewingTask}
+              onCreateAt={(at) => openCreate(at)}
+            />
+          </div>
+        )}
+
         {selectedDayTasks.length ? (
           <List
             dataSource={selectedDayTasks}
@@ -549,6 +905,15 @@ export default function CalendarPage() {
                         <span className="font-mono text-[11px] text-slate-400">
                           {task.code}
                         </span>
+                        {task.kind === ItemKind.EVENT && (
+                          <Tag
+                            bordered={false}
+                            color="purple"
+                            style={{ fontSize: 10, lineHeight: "16px", margin: 0 }}
+                          >
+                            lịch hẹn
+                          </Tag>
+                        )}
                         {projected && (
                           <Tooltip title="Lượt lặp tính trước — chỉ thành việc thật khi bạn hoàn thành lượt hiện tại">
                             <Tag
@@ -584,7 +949,10 @@ export default function CalendarPage() {
                         )}
                         <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
                           <CalendarClock size={11} />
-                          {dayjs(at).format("HH:mm")}
+                          {/* Sự kiện hiện KHOẢNG, việc hiện MỘT mốc */}
+                          {task.kind === ItemKind.EVENT
+                            ? rangeText(task)
+                            : dayjs(at).format("HH:mm")}
                         </span>
 
                         {/* Thời lượng dự kiến — có sẵn trong dữ liệu, trước
@@ -669,7 +1037,6 @@ export default function CalendarPage() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         task={editingTask}
-        isAdmin={admin}
         defaultDeadline={defaultDeadline}
       />
       <TaskDetailDrawer

@@ -18,6 +18,7 @@ import { isRichTextEmpty } from "@/utils/client/richText";
 import {
   CATEGORY_META,
   DEADLINE_META,
+  ItemKind,
   PRIORITY_META,
   STATUS_META,
   Task,
@@ -46,7 +47,7 @@ export default function TaskDetailDrawer({ task, onClose, onEdit }: Props) {
     <Drawer
       open={!!task}
       onClose={onClose}
-      width={520}
+      width={620}
       title={
         task && (
           <div className="flex items-center gap-2">
@@ -131,9 +132,26 @@ export default function TaskDetailDrawer({ task, onClose, onEdit }: Props) {
             <Descriptions.Item label="Ghi chú">
               <span className="whitespace-pre-wrap">{task.note || "—"}</span>
             </Descriptions.Item>
-            <Descriptions.Item label="Hạn hoàn thành">
-              {fmt(task.deadline)}
-            </Descriptions.Item>
+            {/*
+              Lịch hẹn hiện KHUNG GIỜ, việc hiện HẠN CHÓT — hai loại có hai mốc
+              khác nhau. Trước đây màn này chỉ biết `deadline`, nên mở một lịch
+              hẹn ra chỉ thấy đúng mốc bắt đầu mà không biết nó kéo dài bao lâu.
+            */}
+            {task.kind === ItemKind.EVENT ? (
+              <Descriptions.Item label="Khung giờ">
+                {task.allDay ? (
+                  "Cả ngày"
+                ) : (
+                  <span className="tabular-nums">
+                    {fmt(task.startAt)} → {fmt(task.endAt)}
+                  </span>
+                )}
+              </Descriptions.Item>
+            ) : (
+              <Descriptions.Item label="Hạn hoàn thành">
+                {fmt(task.deadline)}
+              </Descriptions.Item>
+            )}
             <Descriptions.Item label="Ngày giao">
               {fmt(task.assignedAt)}
             </Descriptions.Item>

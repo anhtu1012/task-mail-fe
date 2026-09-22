@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import dayjs from "dayjs";
 import { Popover, Tooltip } from "antd";
 import {
   AlertTriangle,
@@ -18,6 +20,8 @@ import {
   Undo2,
   X,
 } from "lucide-react";
+import TaskFormModal from "@/components/tasks/TaskFormModal";
+import { ItemKind } from "@/models/task";
 import { useBoard } from "./BoardStore";
 import { C, G, LabelChip } from "./ui";
 import styles from "./board.module.scss";
@@ -45,6 +49,8 @@ export function BoardToolbar({ onOpenInbox }: { onOpenInbox?: () => void } = {})
     setAgendaOpen,
     setPaletteOpen,
   } = useBoard();
+
+  const [creatingEvent, setCreatingEvent] = useState(false);
 
   const activeCount =
     filter.labelIds.length +
@@ -233,6 +239,27 @@ export function BoardToolbar({ onOpenInbox }: { onOpenInbox?: () => void } = {})
         />
       </div>
 
+      {/*
+        TẠO LỊCH HẸN — luôn hiện, không ẩn theo bề ngang.
+
+        Trước đó lối vào duy nhất nằm trong khung "Lịch hôm nay", mà khung đó
+        bị chặn bởi HAI lớp ẩn độc lập: chỉ hiện từ 768px bề ngang vùng canvas,
+        và có thể bị đóng (trạng thái đóng còn được nhớ lại). Đóng một lần là
+        mất hẳn đường tạo lịch hẹn — nút mở lại nó cũng chỉ hiện từ 1152px.
+
+        Thanh công cụ thì luôn có mặt, nên lối vào đặt ở đây mới chắc chắn.
+      */}
+      <Tooltip title="Tạo lịch hẹn (có giờ bắt đầu — kết thúc)">
+        <button
+          onClick={() => setCreatingEvent(true)}
+          aria-label="Tạo lịch hẹn"
+          className={`${styles.glassGhost} flex items-center gap-1.5 h-8 px-2.5 shrink-0 text-[13px]`}
+        >
+          <CalendarClock size={15} />
+          <span className="hidden @3xl:inline">Lịch hẹn</span>
+        </button>
+      </Tooltip>
+
       {/* Hoàn tác / làm lại — kéo nhầm thẻ là chuyện thường, phải sửa được ngay */}
       <div className="hidden @4xl:flex items-center gap-1 shrink-0">
         <Tooltip title={canUndo ? `Hoàn tác ${lastLabel ?? ""} (Ctrl+Z)` : "Chưa có gì để hoàn tác"}>
@@ -273,7 +300,9 @@ export function BoardToolbar({ onOpenInbox }: { onOpenInbox?: () => void } = {})
         <button
           onClick={() => setAgendaOpen(!agendaOpen)}
           aria-label="Lịch hôm nay"
-          className="hidden @6xl:grid place-items-center size-8 shrink-0 rounded-lg cursor-pointer"
+          /* Cùng ngưỡng với chính khung lịch (@3xl): nút bật/tắt mà hiện muộn
+             hơn thứ nó bật/tắt thì có lúc panel ẩn mà không có cách nào gọi lại */
+          className="hidden @3xl:grid place-items-center size-8 shrink-0 rounded-lg cursor-pointer"
           style={
             agendaOpen
               ? { background: "rgba(190,224,244,.9)", color: "#062b47", border: "1px solid rgba(190,224,244,.9)" }
@@ -325,6 +354,14 @@ export function BoardToolbar({ onOpenInbox }: { onOpenInbox?: () => void } = {})
           )}
         </button>
       </Popover>
+
+      {/* Form tạo lịch hẹn — dùng lại đúng form của màn Công việc */}
+      <TaskFormModal
+        open={creatingEvent}
+        onClose={() => setCreatingEvent(false)}
+        defaultKind={ItemKind.EVENT}
+        defaultDeadline={dayjs()}
+      />
     </div>
   );
 }

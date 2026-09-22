@@ -25,6 +25,20 @@ export enum TaskStatus {
   CANCELLED = "CANCELLED",
 }
 
+/**
+ * Việc cần làm hay sự kiện lịch — hai thứ dùng chung một bảng ở backend.
+ *
+ * Khác nhau ở MỐC THỜI GIAN:
+ *   TASK  : `deadline` — một mốc phải xong trước.
+ *   EVENT : `startAt`..`endAt` — một khoảng có mặt. Backend nhân bản `deadline`
+ *           từ `startAt` để bộ nhắc chạy được, nhưng giao diện KHÔNG đọc
+ *           `deadline` của sự kiện.
+ */
+export enum ItemKind {
+  TASK = "TASK",
+  EVENT = "EVENT",
+}
+
 export enum TaskCategory {
   WORK = "WORK",
   PERSONAL = "PERSONAL",
@@ -126,6 +140,15 @@ export type Task = {
    * 22/09/2026 để Lịch / Kanban / Công việc hiện được cùng lượng thông tin như
    * bảng — trước đó cùng một việc mà hai màn nói hai kiểu.
    */
+  /** TASK (mặc định) hay EVENT — quyết định đọc `deadline` hay `startAt/endAt` */
+  kind?: ItemKind;
+  /** Chỉ EVENT */
+  startAt?: string | null;
+  /** Chỉ EVENT */
+  endAt?: string | null;
+  /** Chỉ EVENT — sự kiện cả ngày thì bỏ qua phần giờ */
+  allDay?: boolean;
+
   repeat?: RepeatRule | null;
   estimateMinutes?: number | null;
   /** Chỉ có id; tên và màu nhãn lấy từ `useBoardLabels()` */
@@ -151,6 +174,11 @@ export type TaskStats = {
 
 export type QueryTaskParams = {
   /**
+   * Bỏ trống = backend CHỈ trả việc, không kèm sự kiện. Lịch là màn duy nhất
+   * gửi `"ALL"`.
+   */
+  kind?: ItemKind | "ALL";
+  /**
    * Phân vùng dữ liệu, KHÔNG phải bộ lọc tuỳ chọn: thiếu nó thì backend trả
    * việc của mọi dự án và người dùng sẽ thấy dữ liệu lẫn lộn giữa các dự án.
    * `useTasks` tự chèn từ dự án đang mở nên trang không cần tự truyền.
@@ -172,6 +200,13 @@ export type CreateTaskInput = {
   /** `useCreateTask` tự chèn từ dự án đang mở nếu form không truyền */
   projectId?: string;
   title: string;
+  /** Bỏ trống = TASK */
+  kind?: ItemKind;
+  /** Bắt buộc khi `kind = EVENT` */
+  startAt?: string;
+  /** Bắt buộc khi `kind = EVENT`, phải >= startAt */
+  endAt?: string;
+  allDay?: boolean;
   description?: string;
   note?: string;
   taskTypeId?: string;

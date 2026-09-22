@@ -30,7 +30,6 @@ import { taskApi } from "@/apis/task.api";
 import {
   useCompleteTask,
   useInvalidateTaskData,
-  useMe,
   useTasks,
   useTaskTypes,
 } from "@/hooks/useTaskApp";
@@ -41,7 +40,6 @@ import {
   TaskCategory,
   TaskPriority,
   TaskStatus,
-  isAdminRole,
 } from "@/models/task";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 
@@ -54,8 +52,6 @@ const COLUMNS: { status: TaskStatus; title: string; accent: string; bg: string }
 
 export default function KanbanPage() {
   const { message } = App.useApp();
-  const { data: me } = useMe();
-  const admin = isAdminRole(me?.role);
 
   const [priority, setPriority] = useState<TaskPriority | undefined>();
   const [category, setCategory] = useState<TaskCategory | undefined>();
@@ -440,7 +436,6 @@ export default function KanbanPage() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         task={editingTask}
-        isAdmin={admin}
       />
       <TaskDetailDrawer
         task={viewingTask ? liveViewingTask : null}

@@ -631,7 +631,6 @@ export default function TasksPage() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         task={editingTask}
-        isAdmin={admin}
       />
       <TaskDetailDrawer
         task={viewingTask ? liveViewingTask : null}
