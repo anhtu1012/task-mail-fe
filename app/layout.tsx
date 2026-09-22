@@ -29,7 +29,10 @@ var KEY=${JSON.stringify(THEME_STORAGE_KEY)};
 var DEF=${JSON.stringify(DEFAULT_THEME)};
 var BG=${JSON.stringify(
   Object.fromEntries(
-    BACKGROUNDS.map((b) => [b.id, { image: b.image, color: b.color, tone: b.tone }]),
+    BACKGROUNDS.map((b) => [
+      b.id,
+      { image: b.image, color: b.color, tone: b.tone },
+    ]),
   ),
 )};
 var raw=localStorage.getItem(KEY);
@@ -50,8 +53,8 @@ r.style.setProperty('--accent',t.accent);
 r.dataset.tone=bg.tone;
 }catch(e){}})();`;
 
-const title = "Task - Terminal Operating System";
-const description = "Task - Terminal Operating System";
+const title = "Task";
+const description = "Task";
 const { metadata } = siteMetadata({ title, description });
 export { metadata };
 
@@ -69,12 +72,10 @@ export default function RootLayout({
       className={beVietnamPro.variable}
     >
       <head title="">
-        <link rel="icon" href="/images/CEH-LOGO.png" sizes="any" />
+        <link rel="icon" href="/images" sizes="any" />
         {/* Áp giao diện đã lưu TRƯỚC khi React dựng cây, nếu không mở trang
             sẽ thấy nháy nền mặc định một nhịp rồi mới đổi */}
-        <script
-          dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body suppressHydrationWarning={true} className={beVietnamPro.className}>
         <AppProvider>{children}</AppProvider>

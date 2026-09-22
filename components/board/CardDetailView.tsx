@@ -19,7 +19,10 @@ import {
   CheckSquare,
   ChevronDown,
   Clock,
+  CircleDot,
+  FileCode,
   FileText,
+  LoaderCircle,
   Hourglass,
   Image as ImageIcon,
   Link2,
@@ -43,13 +46,34 @@ import {
   Checklist,
   repeatText,
 } from "@/models/board";
-import { PRIORITY_META, TaskPriority } from "@/models/task";
+import {
+  PRIORITY_META,
+  STATUS_META,
+  TaskPriority,
+  TaskStatus,
+} from "@/models/task";
+
+/**
+ * Màu hex cho từng trạng thái.
+ *
+ * `STATUS_META.color` là tên màu của antd ("processing", "success"...) — dùng
+ * được cho <Tag> nhưng không cắm thẳng vào `style` được. Bảng này giữ đúng
+ * nghĩa màu đó dưới dạng hex.
+ */
+const STATUS_COLORS: Record<TaskStatus, string> = {
+  [TaskStatus.TODO]: "#64748b",
+  [TaskStatus.IN_PROGRESS]: "#0ea5e9",
+  [TaskStatus.DONE]: "#2a9d8f",
+  [TaskStatus.CANCELLED]: "#e63946",
+};
 import { isRichTextEmpty } from "@/utils/client/richText";
 import { useBoard } from "./BoardStore";
 import { useCardDetail } from "./useCardDetail";
 import { SNOOZE_OPTIONS } from "./snooze";
 import { RichTextEditor } from "./RichTextEditor";
+import { nextOccurrenceAfter } from "@/utils/client/recurrence";
 import LabelPicker from "./LabelPicker";
+import MarkdownImport from "./MarkdownImport";
 import RepeatPicker from "./RepeatPicker";
 import { C, LabelChip, fmtBytes, fmtDateTime, fmtShort } from "./ui";
 import styles from "./board.module.scss";
@@ -72,6 +96,8 @@ export function CardDetailView({
   const detail = useCardDetail(cardId);
   const card = detail.card;
   const [repeatOpen, setRepeatOpen] = useState(false);
+  const [completing, setCompleting] = useState(false);
+
 
   if (detail.isLoading) {
     return (
@@ -182,15 +208,24 @@ export function CardDetailView({
         )}
 
         <button
-          onClick={() => toggleComplete(card.id)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border-0 cursor-pointer text-[13px] font-medium"
+          disabled={completing}
+          onClick={() => {
+            setCompleting(true);
+            void toggleComplete(card.id).finally(() => setCompleting(false));
+          }}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border-0 cursor-pointer
+            text-[13px] font-medium disabled:cursor-wait"
           style={
             done
               ? { background: C.success50, color: C.success }
               : { background: C.success, color: "#fff" }
           }
         >
-          <CheckSquare size={14} />
+          {completing ? (
+            <LoaderCircle size={14} className="animate-spin" />
+          ) : (
+            <CheckSquare size={14} />
+          )}
           {done ? "Đã xong" : "Hoàn thành"}
         </button>
 
@@ -276,6 +311,67 @@ export function CardDetailView({
                 </Field>
               )}
 
+              {/*
+                TRẠNG THÁI — trước đây bảng hoàn toàn không hiện.
+
+                Bảng chỉ biết "xong hay chưa" qua `completedAt`, nên một việc
+                ĐANG LÀM trông y hệt việc chưa ai đụng tới, còn việc ĐÃ HUỶ
+                trông như việc vẫn phải làm. Trạng thái chỉ đổi được bằng cách
+                kéo thẻ vào cột có ánh xạ `mapsToStatus` — mà bảng mặc định giờ
+                chỉ có một cột, nên thực tế là không đổi được.
+              */}
+              <Field icon={<CircleDot size={13} />} label="Trạng thái">
+                <div className="flex gap-1 flex-wrap">
+                  {Object.values(TaskStatus).map((st) => {
+                    const on = card.status === st;
+                    const meta = STATUS_META[st];
+                    const color = STATUS_COLORS[st];
+                    return (
+                      <button
+                        key={st}
+                        disabled={completing}
+                        onClick={() => {
+                          if (on) return;
+                          /*
+                           * "Hoàn thành" phải đi qua endpoint complete, không
+                           * phải PATCH: chỉ nó mới sinh lượt lặp kế tiếp. Đang
+                           * xong mà chọn trạng thái khác thì mở lại trước (để
+                           * xoá `completedAt`) rồi mới đặt trạng thái muốn có.
+                           */
+                          if (st === TaskStatus.DONE) {
+                            setCompleting(true);
+                            void toggleComplete(card.id).finally(() =>
+                              setCompleting(false),
+                            );
+                            return;
+                          }
+                          if (done) {
+                            setCompleting(true);
+                            void toggleComplete(card.id)
+                              .then(() => {
+                                if (st !== TaskStatus.TODO) {
+                                  detail.updateCard.mutate({ status: st });
+                                }
+                              })
+                              .finally(() => setCompleting(false));
+                            return;
+                          }
+                          detail.updateCard.mutate({ status: st });
+                        }}
+                        className="h-7 px-2 rounded-lg text-[12px] font-medium border-0 cursor-pointer transition-colors disabled:cursor-wait"
+                        style={{
+                          background: on ? `${color}1f` : C.muted,
+                          color: on ? color : C.mutedForeground,
+                          boxShadow: on ? `inset 0 0 0 1px ${color}55` : undefined,
+                        }}
+                      >
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+
               <Field icon={<Zap size={13} />} label="Ưu tiên">
                 <div className="flex gap-1">
                   {Object.values(TaskPriority).map((p) => {
@@ -323,6 +419,7 @@ export function CardDetailView({
                   content={
                     <RepeatPicker
                       value={card.repeat}
+                      anchor={card.deadline}
                       onChange={(rule) => detail.updateCard.mutate({ repeat: rule })}
                       onClose={() => setRepeatOpen(false)}
                     />
@@ -340,9 +437,29 @@ export function CardDetailView({
                           }
                     }
                   >
-                    {card.repeat ? repeatText(card.repeat) : "Không lặp"}
+                    {card.repeat
+                      ? repeatText(card.repeat, card.deadline)
+                      : "Không lặp"}
                   </button>
                 </Popover>
+
+                {/*
+                  Ngày của lượt kế tiếp.
+
+                  "Mỗi 2 tuần vào T2, T5" là luật, không phải câu trả lời —
+                  thứ người ta thật sự muốn biết là "vậy lần sau là hôm nào".
+                  Tính ở client bằng đúng hàm mà trang Lịch dùng; backend chỉ
+                  tạo thẻ kế tiếp lúc bấm hoàn thành nên không có sẵn để hỏi.
+                */}
+                {nextOccurrenceAfter(card.deadline, card.repeat) && (
+                  <span
+                    className="text-[12px] ml-2"
+                    style={{ color: C.mutedForeground }}
+                  >
+                    lượt sau:{" "}
+                    {fmtShort(nextOccurrenceAfter(card.deadline, card.repeat)!)}
+                  </span>
+                )}
               </Field>
 
               <Field icon={<TagIcon size={13} />} label="Nhãn">
@@ -525,7 +642,26 @@ function CardTitle({
 function DescriptionSection({ card, detail }: { card: CardDetail; detail: DetailApi }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(card.description ?? "");
+  const [importing, setImporting] = useState(false);
   const hasDescription = !isRichTextEmpty(card.description);
+
+  /**
+   * Chèn HTML vừa chuyển từ Markdown.
+   *
+   * Đang mở trình soạn thảo thì ghi vào bản nháp để người dùng còn sửa tiếp
+   * rồi mới bấm Lưu; đang ở chế độ đọc thì lưu thẳng — bắt họ bấm thêm một nút
+   * "Lưu" nữa sau khi đã bấm "Chèn" là thừa.
+   */
+  const insertMarkdown = (html: string, mode: "append" | "replace") => {
+    const base = editing ? draft : (card.description ?? "");
+    const next =
+      mode === "append" && !isRichTextEmpty(base) ? `${base}${html}` : html;
+    if (editing) {
+      setDraft(next);
+    } else {
+      detail.updateCard.mutate({ description: next });
+    }
+  };
 
   const open = () => {
     setDraft(card.description ?? "");
@@ -544,17 +680,34 @@ function DescriptionSection({ card, detail }: { card: CardDetail; detail: Detail
       icon={<AlignLeft size={16} />}
       title="Mô tả chi tiết"
       action={
-        !editing && hasDescription ? (
+        <div className="flex items-center gap-1.5">
           <button
-            onClick={open}
+            onClick={() => setImporting(true)}
+            title="Dán hoặc chọn tệp .md, xem trước rồi chèn"
             className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border-0 text-[12.5px] cursor-pointer"
             style={{ background: C.muted, color: C.neutral700 }}
           >
-            <Pencil size={13} /> Sửa
+            <FileCode size={13} /> Markdown
           </button>
-        ) : null
+          {!editing && hasDescription && (
+            <button
+              onClick={open}
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border-0 text-[12.5px] cursor-pointer"
+              style={{ background: C.muted, color: C.neutral700 }}
+            >
+              <Pencil size={13} /> Sửa
+            </button>
+          )}
+        </div>
       }
     >
+      <MarkdownImport
+        open={importing}
+        hasExisting={hasDescription}
+        onClose={() => setImporting(false)}
+        onInsert={insertMarkdown}
+      />
+
       {editing ? (
         <div className="flex flex-col gap-2">
           <RichTextEditor autoFocus value={draft} onChange={setDraft} />

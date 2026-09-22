@@ -16,20 +16,32 @@ import {
 import dayjs, { Dayjs } from "dayjs";
 import {
   CalendarClock,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Mail,
   Plus,
+  Repeat,
+  Timer,
 } from "lucide-react";
 import TaskDetailDrawer from "@/components/tasks/TaskDetailDrawer";
 import TaskFormModal from "@/components/tasks/TaskFormModal";
 import { taskApi } from "@/apis/task.api";
 import {
+  useBoardLabels,
   useInvalidateTaskData,
   useMe,
   useTasks,
   useTaskTypes,
 } from "@/hooks/useTaskApp";
+import { repeatText } from "@/models/board";
+import { projectOccurrences } from "@/utils/client/recurrence";
+
+/**
+ * Một dòng trên lịch: việc thật, hoặc một lượt lặp DỰ KIẾN của việc đó.
+ * `at` là mốc của riêng dòng này — với lượt dự kiến nó khác `task.deadline`.
+ */
+type CalendarEntry = { task: Task; at: string; projected: boolean };
 import {
   PRIORITY_META,
   STATUS_META,
@@ -72,6 +84,7 @@ export default function CalendarPage() {
     to: gridStart.add(41, "day").endOf("day").toISOString(),
   });
   const { data: taskTypes } = useTaskTypes();
+  const { labelById } = useBoardLabels();
 
   // Optimistic: taskId -> deadline mới (khi kéo thả dời ngày)
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -86,21 +99,52 @@ export default function CalendarPage() {
     [data, overrides],
   );
 
+  /**
+   * Lịch xếp theo ngày, gồm CẢ các lượt lặp dự kiến.
+   *
+   * Một việc lặp chỉ có MỘT hàng trong cơ sở dữ liệu — backend chỉ tạo lượt kế
+   * tiếp lúc người dùng bấm hoàn thành lượt hiện tại. Nên trước đây "họp giao
+   * ban mỗi thứ Hai" chỉ hiện đúng một ô trên cả tháng.
+   *
+   * Các lượt dự kiến được tính ở trình duyệt (`projectOccurrences`) và đánh
+   * dấu `projected` để giao diện vẽ khác đi: chúng KHÔNG phải việc có thật —
+   * không kéo thả, không sửa, và sẽ không xảy ra nếu người dùng bỏ dở chuỗi.
+   */
   const tasksByDay = useMemo(() => {
-    const map = new Map<string, Task[]>();
+    const map = new Map<string, CalendarEntry[]>();
+    const push = (at: string, entry: CalendarEntry) => {
+      const key = dayjs(at).format("YYYY-MM-DD");
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(entry);
+    };
+
+    const gridEnd = gridStart.add(41, "day");
+
     tasks.forEach((task) => {
       if (!task.deadline) return;
-      const key = dayjs(task.deadline).format("YYYY-MM-DD");
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(task);
+      push(task.deadline, { task, at: task.deadline, projected: false });
+
+      // Việc đã xong hoặc đã huỷ thì chuỗi lặp dừng ở đó — chiếu tiếp là hứa
+      // hão với người dùng
+      const closed =
+        task.status === TaskStatus.DONE || task.status === TaskStatus.CANCELLED;
+      if (closed || !task.repeat) return;
+
+      projectOccurrences(task.deadline, task.repeat, gridStart, gridEnd).forEach(
+        (occurrence) =>
+          push(occurrence.deadline, {
+            task,
+            at: occurrence.deadline,
+            projected: true,
+          }),
+      );
     });
+
     map.forEach((list) =>
-      list.sort(
-        (a, b) => dayjs(a.deadline).valueOf() - dayjs(b.deadline).valueOf(),
-      ),
+      list.sort((a, b) => dayjs(a.at).valueOf() - dayjs(b.at).valueOf()),
     );
     return map;
-  }, [tasks]);
+  }, [tasks, gridStart]);
 
   const [selectedDay, setSelectedDay] = useState<Dayjs | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
@@ -159,6 +203,12 @@ export default function CalendarPage() {
     }
   };
 
+  /** Có việc lặp nào trong tháng đang xem không — quyết định hiện chú giải */
+  const hasRepeating = useMemo(
+    () => tasks.some((t) => !!t.repeat),
+    [tasks],
+  );
+
   const today = dayjs();
 
   return (
@@ -180,6 +230,19 @@ export default function CalendarPage() {
           <Button onClick={() => setMonth(dayjs())}>Hôm nay</Button>
           {isFetching && (
             <span className="text-xs text-slate-400 ml-1">đang tải…</span>
+          )}
+
+          {/*
+            Chú giải — viền đứt mà không giải thích thì người dùng chỉ thấy lạ.
+            Chỉ hiện khi trong tháng thật sự có việc lặp, để không chiếm chỗ vô ích.
+          */}
+          {hasRepeating && (
+            <Tooltip title="Các lượt lặp được tính trước để bạn thấy lịch trình. Chúng chỉ thành việc thật khi bạn hoàn thành lượt hiện tại.">
+              <span className="inline-flex items-center gap-1.5 ml-1 text-[11.5px] text-slate-400">
+                <span className="inline-block w-4 border-t-2 border-dashed border-slate-400" />
+                lượt lặp dự kiến
+              </span>
+            </Tooltip>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -302,19 +365,24 @@ export default function CalendarPage() {
 
                 {/* Task chips */}
                 <div className="flex flex-col gap-1">
-                  {shown.map((task) => {
+                  {shown.map((entry) => {
+                    const { task, at, projected } = entry;
                     const finished =
                       task.status === TaskStatus.DONE ||
                       task.status === TaskStatus.CANCELLED;
+                    // Lượt dự kiến chưa tới hạn theo định nghĩa — không bao giờ
+                    // tô đỏ quá hạn dù mốc của nó nằm ở quá khứ trên lưới
                     const overdue =
-                      !finished && dayjs(task.deadline).isBefore(today);
+                      !finished && !projected && dayjs(at).isBefore(today);
                     const type = taskTypes?.find(
                       (t) => t.id === task.taskTypeId,
                     );
                     return (
                       <div
-                        key={task.id}
-                        draggable={!finished}
+                        key={projected ? `${task.id}@${at}` : task.id}
+                        // Kéo một lượt DỰ KIẾN là vô nghĩa: nó không có bản ghi
+                        // nào để dời, dời chỉ có thể dời việc gốc
+                        draggable={!finished && !projected}
                         onDragStart={(e) => {
                           e.dataTransfer.setData("text/task-id", task.id);
                           setDraggingId(task.id);
@@ -327,7 +395,17 @@ export default function CalendarPage() {
                           e.stopPropagation();
                           setViewingTask(task);
                         }}
-                        title={`${task.code} — ${task.title} (${dayjs(task.deadline).format("HH:mm")})`}
+                        title={[
+                          `${task.code} — ${task.title}`,
+                          dayjs(at).format("HH:mm"),
+                          projected ? "Lượt lặp dự kiến" : null,
+                          task.repeat ? repeatText(task.repeat, task.deadline) : null,
+                          task.estimateMinutes
+                            ? `${task.estimateMinutes} phút`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                         className={`flex items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px] leading-tight transition-all ${
                           finished
                             ? "border-slate-100 bg-slate-50 cursor-pointer"
@@ -338,12 +416,17 @@ export default function CalendarPage() {
                             : !finished
                               ? "border-slate-200 bg-white"
                               : ""
-                        } ${draggingId === task.id ? "opacity-40" : ""}`}
+                        } ${draggingId === task.id ? "opacity-40" : ""} ${
+                          projected ? "border-dashed opacity-70" : ""
+                        }`}
                         style={{
                           borderLeftWidth: 3,
                           borderLeftColor: type?.color
                             ? type.color
                             : PRIORITY_META[task.priority].color,
+                          // Lượt dự kiến: viền đứt + nhạt hơn, để phân biệt
+                          // ngay với việc có thật mà không cần đọc chữ
+                          borderLeftStyle: projected ? "dashed" : "solid",
                         }}
                       >
                         <span
@@ -363,12 +446,40 @@ export default function CalendarPage() {
                         >
                           {task.title}
                         </span>
+                        {/* Chấm màu nhãn — ô ngày quá hẹp cho chip có chữ,
+                            nhưng vẫn phải thấy việc này thuộc nhóm nào */}
+                        {(task.labelIds ?? []).length > 0 && (
+                          <span className="flex items-center gap-0.5 shrink-0">
+                            {(task.labelIds ?? [])
+                              .slice(0, 3)
+                              .map((id) => labelById.get(id))
+                              .filter((l) => !!l)
+                              .map((l) => (
+                                <span
+                                  key={l!.id}
+                                  title={l!.name}
+                                  className="size-1.5 rounded-full"
+                                  style={{ background: l!.color }}
+                                />
+                              ))}
+                          </span>
+                        )}
+
+                        {/* Việc lặp: trước đây lịch không hề cho biết, nên một
+                            việc lặp hàng tuần nhìn y hệt việc chỉ có một lần */}
+                        {task.repeat && (
+                          <Repeat
+                            size={10}
+                            className="shrink-0 text-sky-500"
+                          />
+                        )}
+
                         <span
                           className={`shrink-0 tabular-nums ${
                             overdue ? "text-red-400" : "text-slate-400"
                           }`}
                         >
-                          {dayjs(task.deadline).format("HH:mm")}
+                          {dayjs(at).format("HH:mm")}
                         </span>
                       </div>
                     );
@@ -393,8 +504,9 @@ export default function CalendarPage() {
         width={screens.sm ? 440 : "100%"}
         title={
           selectedDay && (
-            <span>
-              📅 {selectedDay.format("dddd, DD/MM/YYYY")}
+            <span className="inline-flex items-center gap-2">
+              <CalendarDays size={16} className="text-slate-500" />
+              {selectedDay.format("dddd, DD/MM/YYYY")}
               <Badge
                 count={selectedDayTasks.length}
                 color="#0a436d"
@@ -417,12 +529,15 @@ export default function CalendarPage() {
         {selectedDayTasks.length ? (
           <List
             dataSource={selectedDayTasks}
-            renderItem={(task) => {
+            renderItem={(entry) => {
+              const { task, at, projected } = entry;
               const type = taskTypes?.find((t) => t.id === task.taskTypeId);
               return (
                 <List.Item
+                  // Bấm vào lượt dự kiến vẫn mở VIỆC GỐC — nó là cùng một việc,
+                  // và đó cũng là bản ghi duy nhất sửa được
                   onClick={() => setViewingTask(task)}
-                  style={{ cursor: "pointer" }}
+                  style={{ cursor: "pointer", opacity: projected ? 0.75 : 1 }}
                 >
                   <div className="flex w-full items-start gap-3">
                     <span
@@ -434,6 +549,17 @@ export default function CalendarPage() {
                         <span className="font-mono text-[11px] text-slate-400">
                           {task.code}
                         </span>
+                        {projected && (
+                          <Tooltip title="Lượt lặp tính trước — chỉ thành việc thật khi bạn hoàn thành lượt hiện tại">
+                            <Tag
+                              bordered={false}
+                              color="blue"
+                              style={{ fontSize: 10, lineHeight: "16px", margin: 0 }}
+                            >
+                              dự kiến
+                            </Tag>
+                          </Tooltip>
+                        )}
                         {task.sourceMailAccountId && (
                           <Tooltip title="Tự tạo từ email">
                             <Mail size={11} className="text-cyan-500" />
@@ -458,9 +584,62 @@ export default function CalendarPage() {
                         )}
                         <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
                           <CalendarClock size={11} />
-                          {dayjs(task.deadline).format("HH:mm")}
+                          {dayjs(at).format("HH:mm")}
                         </span>
+
+                        {/* Thời lượng dự kiến — có sẵn trong dữ liệu, trước
+                            giờ chỉ bảng công việc dùng tới */}
+                        {!!task.estimateMinutes && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                            <Timer size={11} />
+                            {task.estimateMinutes} phút
+                          </span>
+                        )}
+
+                        {/* Lặp lại: ngăn kéo đủ rộng nên ghi hẳn thành chữ,
+                            "Mỗi 2 tuần vào T2, T5" rõ hơn một biểu tượng */}
+                        {task.repeat && (
+                          <Tooltip title="Việc lặp lại">
+                            <span className="inline-flex items-center gap-1 text-[11px] text-sky-600">
+                              <Repeat size={11} />
+                              {repeatText(task.repeat, task.deadline)}
+                            </span>
+                          </Tooltip>
+                        )}
                       </div>
+
+                      {/* Nhãn: ngăn kéo rộng nên hiện chip có chữ, giới hạn 4
+                          cái rồi gom phần dư — cùng quy tắc với thẻ ở bảng */}
+                      {(task.labelIds ?? []).length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                          {(task.labelIds ?? [])
+                            .slice(0, 4)
+                            .map((id) => labelById.get(id))
+                            .filter((l) => !!l)
+                            .map((l) => (
+                              <span
+                                key={l!.id}
+                                className="inline-flex items-center gap-1 h-[18px] px-1.5 rounded-md text-[10.5px] font-semibold"
+                                style={{
+                                  background: `${l!.color}1f`,
+                                  color: l!.color,
+                                  border: `1px solid ${l!.color}39`,
+                                }}
+                              >
+                                <span
+                                  className="inline-block size-1.5 rounded-full"
+                                  style={{ background: l!.color }}
+                                />
+                                {l!.name}
+                              </span>
+                            ))}
+                          {(task.labelIds ?? []).length > 4 && (
+                            <span className="text-[10.5px] text-slate-400 font-semibold">
+                              +{(task.labelIds ?? []).length - 4}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <Tag color={STATUS_META[task.status].color}>
                       {STATUS_META[task.status].label}

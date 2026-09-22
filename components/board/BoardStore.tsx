@@ -31,6 +31,7 @@ import {
   BoardList,
   BoardSnapshot,
   CardSummary,
+  CardDetail,
   CreateCardInput,
   INBOX_KEY,
   LABEL_COLORS,
@@ -56,6 +57,34 @@ import { useStickyState } from "./useStickyState";
  * nhất là quay lại dự án cũ thì phải tải lại bảng.
  */
 export const BOARD_QUERY_KEY = ["board", "snapshot"] as const;
+
+/**
+ * Khoá cache của MỘT thẻ đang mở chi tiết.
+ *
+ * Đặt ở đây chứ không ở `useCardDetail` vì cả hai chiều đều cần: hook chi tiết
+ * ghi vào snapshot, và snapshot (hoàn thành / mở lại / sửa thẻ) phải ghi ngược
+ * vào chi tiết. Để mỗi bên tự viết khoá là mở đường cho hai chuỗi lệch nhau.
+ */
+export const cardDetailKey = (cardId: string) =>
+  ["board", "card", cardId] as const;
+
+/**
+ * Một thẻ vừa bấm thêm, chưa có id thật.
+ *
+ * Tồn tại vì tạo thẻ phải đi một vòng mạng (và đôi khi hai vòng, nếu quick-add
+ * còn phải tạo nhãn mới trước). Trước đây trong quãng đó màn hình **không đổi
+ * gì cả** — người dùng bấm Enter, không thấy gì, nên bấm tiếp và tạo ra hai
+ * việc trùng nhau.
+ *
+ * Cố tình KHÔNG nhét một `CardSummary` giả vào cache: thẻ giả sẽ lọt vào bộ
+ * lọc, phép đếm, kéo thả và cả Ctrl+Z. Đây là danh sách riêng, chỉ để vẽ.
+ */
+export type PendingAdd = {
+  key: string;
+  listId: string | null;
+  title: string;
+  atTop: boolean;
+};
 
 // ==========================================
 // HOÀN TÁC
@@ -143,14 +172,18 @@ type BoardContextValue = {
   commitMove: (cardId: string, from: { listId: string | null; position: number }) => void;
   /**
    * Bất đồng bộ vì có thể phải tạo nhãn mới trước khi tạo thẻ (quick-add gõ
-   * "#nhãnchưacó"). Nơi gọi không cần chờ.
+   * "#nhãnchưacó"). Ô nhập `await` để hiện trạng thái đang lưu.
    */
   addCard: (listId: string | null, text: string, atTop?: boolean) => Promise<void>;
+  /** Thẻ đang chờ server trả lời — cột vẽ ô mờ ở đúng chỗ nó sắp xuất hiện */
+  pendingAdds: PendingAdd[];
   updateCard: (cardId: string, patch: UpdateCardInput) => void;
   deleteCard: (cardId: string) => void;
   snoozeCard: (cardId: string, deadline: string | null, label: string) => void;
   /** Trả về Promise để nút bấm hiện được trạng thái đang chờ */
   toggleComplete: (cardId: string) => Promise<void>;
+  /** Chuyển thẻ xuống cuối một cột khác — lối đi không cần kéo thả */
+  moveCardToList: (cardId: string, toListId: string | null) => void;
   addList: (title: string) => void;
   renameList: (listId: string, title: string) => void;
   archiveList: (listId: string) => void;
@@ -208,6 +241,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   /** Khoá cột đang tải trang kế tiếp — để đúng một nút hiện trạng thái chờ */
   const [loadingMore, setLoadingMore] = useState<string | null>(null);
+  const [pendingAdds, setPendingAdds] = useState<PendingAdd[]>([]);
 
   // Lịch sử hoàn tác là STATE chứ không phải ref: nút hoàn tác/làm lại đọc nó
   // lúc render, mà đọc ref trong render là sai (React không đảm bảo render lại).
@@ -229,6 +263,23 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     refetchOnWindowFocus: true,
   });
 
+  /**
+   * Vá cache của thẻ đang mở chi tiết.
+   *
+   * Màn chi tiết đọc từ một query RIÊNG (`["board","card",id]`), không phải từ
+   * snapshot. Thiếu bước này thì bấm "Hoàn thành" ngay trong màn chi tiết sẽ
+   * đổi thẻ ngoài bảng nhưng chính màn đang mở vẫn hiện như chưa xong — cho
+   * tới khi hết 30 giây staleTime. Đây đúng là lỗi người dùng báo.
+   */
+  const patchCardDetail = useCallback(
+    (cardId: string, fn: (card: CardDetail) => CardDetail) => {
+      queryClient.setQueryData<CardDetail>(cardDetailKey(cardId), (prev) =>
+        prev ? fn(prev) : prev,
+      );
+    },
+    [queryClient],
+  );
+
   /** Sửa cache tại chỗ — mọi cập nhật lạc quan đều đi qua đây */
   const patchSnapshot = useCallback(
     (fn: (snap: BoardSnapshot) => BoardSnapshot) => {
@@ -248,6 +299,23 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     queryClient.invalidateQueries({ queryKey: ["task-stats"] });
     // Thẻ dự án hiện số việc đang mở / trễ hạn -> ghi ở bảng cũng làm nó sai
     queryClient.invalidateQueries({ queryKey: ["projects"] });
+  }, [queryClient]);
+
+  /**
+   * Làm mới những màn KHÁC sau khi ghi ở bảng.
+   *
+   * Cố tình không đụng `BOARD_QUERY_KEY`: snapshot vừa được vá lạc quan rồi,
+   * tải lại nó là thêm một vòng mạng cho mỗi lần bấm — hoàn thành 10 việc là
+   * 20 request, chạm ngay trần 20 req/60s của backend.
+   *
+   * Các khoá còn lại đang không hoạt động khi người dùng đứng ở bảng, nên
+   * React Query chỉ đánh dấu cũ chứ không gọi API — miễn phí, mà mở sang trang
+   * Công việc là thấy số đúng.
+   */
+  const invalidateOutside = useCallback(() => {
+    [["tasks"], ["task"], ["task-stats"], ["projects"], ["board", "agenda"]].forEach(
+      (queryKey) => queryClient.invalidateQueries({ queryKey }),
+    );
   }, [queryClient]);
 
   const onFail = useCallback(
@@ -445,8 +513,15 @@ export function BoardProvider({ children }: { children: ReactNode }) {
 
   const toggleCardLabel = useCallback(
     (cardId: string, labelId: string) => {
-      const card = derived.cardById.get(cardId);
+      /*
+       * Đọc nhãn hiện tại từ SNAPSHOT, và lùi về cache chi tiết nếu thẻ không
+       * nằm trong 20 thẻ đầu của cột — giống `toggleComplete`.
+       */
+      const card =
+        derived.cardById.get(cardId) ??
+        queryClient.getQueryData<CardDetail>(cardDetailKey(cardId));
       if (!card) return;
+
       const next = card.labelIds.includes(labelId)
         ? card.labelIds.filter((id) => id !== labelId)
         : [...card.labelIds, labelId];
@@ -457,9 +532,42 @@ export function BoardProvider({ children }: { children: ReactNode }) {
           c.id === cardId ? { ...c, labelIds: next } : c,
         ),
       }));
+
+      /*
+       * PHẢI vá cả cache chi tiết. Thiếu dòng này sinh ra một lỗi nhìn rất khó
+       * hiểu: màn chi tiết đọc `labelIds` từ query riêng của nó, nên bấm lần
+       * đầu thì nhãn ĐÃ được gắn ở máy chủ nhưng giao diện không hiện dấu tích
+       * — người dùng bấm lại, lần này `next` thành mảng rỗng và API xoá đúng
+       * cái nhãn vừa gắn. Triệu chứng nhìn thấy: "bấm chọn nhãn không được, API
+       * gửi {labelIds: []}".
+       */
+      patchCardDetail(cardId, (detail) => ({ ...detail, labelIds: next }));
+
       boardApi.setCardLabels(cardId, next).catch(onFail);
     },
-    [derived.cardById, patchSnapshot, onFail],
+    [derived.cardById, queryClient, patchSnapshot, patchCardDetail, onFail],
+  );
+
+  /**
+   * Chuyển thẻ sang cột khác KHÔNG cần kéo thả.
+   *
+   * Kéo thả trước đây là cách duy nhất, mà nó loại hẳn bàn phím, màn hình cảm
+   * ứng nhỏ và cả trường hợp cột đích đang nằm ngoài vùng nhìn thấy (phải kéo
+   * thẻ trong lúc canvas tự cuộn ngang — thao tác khó nhất của cả màn).
+   *
+   * Dùng lại đúng `previewMove` + `commitMove` của luồng kéo thả, nên lịch sử
+   * hoàn tác, cập nhật lạc quan và cách tính `position` giống hệt.
+   */
+  const moveCardToList = useCallback(
+    (cardId: string, toListId: string | null) => {
+      const card = derived.cardById.get(cardId);
+      if (!card || card.listId === toListId) return;
+      const from = { listId: card.listId, position: card.position };
+      // Thả xuống cuối cột đích — chỗ dễ đoán nhất khi không tự chọn vị trí
+      previewMove(cardId, toListId, rawSiblings(toListId, cardId).length);
+      commitMove(cardId, from);
+    },
+    [derived.cardById, previewMove, commitMove, rawSiblings],
   );
 
   const addCard = useCallback(
@@ -467,6 +575,13 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       // Tách hạn / ưu tiên / nhãn / thời lượng ngay từ dòng người dùng gõ.
       // Backend KHÔNG phân tích chuỗi tự nhiên (§4.2) nên việc này phải làm ở đây.
       const parsed = quickParse(text);
+
+      // Hiện ngay một ô mờ ở đúng cột, trước cả khi gọi API
+      const pendingKey = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      setPendingAdds((prev) => [
+        ...prev,
+        { key: pendingKey, listId, title: parsed.title, atTop },
+      ]);
 
       /*
        * Nhãn chưa tồn tại thì TẠO LUÔN.
@@ -510,7 +625,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
         estimateMinutes: parsed.estimateMinutes ?? undefined,
       };
 
-      boardApi
+      // `await` để ô nhập biết lúc nào xong mà tắt trạng thái đang lưu
+      await boardApi
         .createCard(listId, input)
         .then((card) => {
           patchSnapshot((snap) => ({
@@ -527,7 +643,12 @@ export function BoardProvider({ children }: { children: ReactNode }) {
             redo: () => boardApi.restoreCard(card.id, true),
           });
         })
-        .catch(onFail);
+        .catch(onFail)
+        .finally(() => {
+          // Gỡ ô mờ dù thành công hay lỗi — lỗi đã có thông báo riêng, để ô mờ
+          // nằm lại vĩnh viễn thì tệ hơn nhiều
+          setPendingAdds((prev) => prev.filter((p) => p.key !== pendingKey));
+        });
     },
     [
       data,
@@ -560,6 +681,9 @@ export function BoardProvider({ children }: { children: ReactNode }) {
             : c,
         ),
       }));
+      // Thẻ có thể đang mở ở màn chi tiết (menu ⋯ đổi ưu tiên chẳng hạn) — màn
+      // đó đọc từ query riêng nên phải vá cả hai, xem ghi chú ở toggleCardLabel
+      patchCardDetail(cardId, (detail) => ({ ...detail, ...patch }));
 
       boardApi
         .updateCard(cardId, patch)
@@ -580,7 +704,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
         })
         .catch(onFail);
     },
-    [derived.cardById, patchSnapshot, pushHistory, onFail],
+    [derived.cardById, patchSnapshot, patchCardDetail, pushHistory, onFail],
   );
 
   const deleteCard = useCallback(
@@ -615,6 +739,11 @@ export function BoardProvider({ children }: { children: ReactNode }) {
           c.id === cardId ? { ...c, deadline, deadlineStatus: "IN_PROGRESS" } : c,
         ),
       }));
+      patchCardDetail(cardId, (detail) => ({
+        ...detail,
+        deadline,
+        deadlineStatus: "IN_PROGRESS",
+      }));
       boardApi
         .snoozeCard(cardId, deadline)
         .then((card) => {
@@ -630,12 +759,22 @@ export function BoardProvider({ children }: { children: ReactNode }) {
         })
         .catch(onFail);
     },
-    [derived.cardById, patchSnapshot, pushHistory, onFail],
+    [derived.cardById, patchSnapshot, patchCardDetail, pushHistory, onFail],
   );
 
   const toggleComplete = useCallback(
     (cardId: string): Promise<void> => {
-      const card = derived.cardById.get(cardId);
+      /*
+       * Tìm thẻ ở snapshot trước, không thấy thì hỏi cache chi tiết.
+       *
+       * Snapshot chỉ chứa 20 thẻ đầu mỗi cột, nên mở thẳng một thẻ bằng URL
+       * (link chia sẻ, hoặc thẻ nằm sâu trong cột) thì nó KHÔNG có ở đó. Bản
+       * cũ `return` im lặng — người dùng bấm "Hoàn thành" và không có gì xảy
+       * ra, cũng không có lỗi nào để lần ra.
+       */
+      const card =
+        derived.cardById.get(cardId) ??
+        queryClient.getQueryData<CardDetail>(cardDetailKey(cardId));
       if (!card) return Promise.resolve();
       const wasDone = card.completedAt !== null;
 
@@ -647,6 +786,13 @@ export function BoardProvider({ children }: { children: ReactNode }) {
               ...snap,
               cards: snap.cards.map((c) => (c.id === res.id ? res : c)),
             }));
+            patchCardDetail(cardId, (card) => ({
+              ...card,
+              status: res.status,
+              completedAt: res.completedAt,
+              deadlineStatus: res.deadlineStatus,
+            }));
+            invalidateOutside();
             pushHistory({
               label: "mở lại việc",
               undo: () => boardApi.completeCard(cardId, true),
@@ -666,10 +812,20 @@ export function BoardProvider({ children }: { children: ReactNode }) {
               ...(next ? [next] : []),
             ],
           }));
+          patchCardDetail(cardId, (card) => ({
+            ...card,
+            status: completed.status,
+            completedAt: completed.completedAt,
+            deadlineStatus: completed.deadlineStatus,
+            // Việc lặp có thể được backend chuyển sang cột "Hoàn thành" nếu bảng
+            // có cột ánh xạ DONE — lấy theo response chứ đừng đoán
+            listId: completed.listId,
+          }));
+          invalidateOutside();
           message.success(
             next
-              ? `${completed.code} đã hoàn thành 🎉 — đã tạo lượt kế tiếp ${next.code}`
-              : `${completed.code} đã hoàn thành 🎉`,
+              ? `${completed.code} đã hoàn thành — đã tạo lượt kế tiếp ${next.code}`
+              : `${completed.code} đã hoàn thành`,
           );
 
           /**
@@ -701,7 +857,16 @@ export function BoardProvider({ children }: { children: ReactNode }) {
         })
         .catch(onFail);
     },
-    [derived.cardById, patchSnapshot, pushHistory, onFail, message],
+    [
+      derived.cardById,
+      queryClient,
+      patchSnapshot,
+      patchCardDetail,
+      invalidateOutside,
+      pushHistory,
+      onFail,
+      message,
+    ],
   );
 
   // ---------- danh sách ----------
@@ -870,6 +1035,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       previewMove,
       commitMove,
       addCard,
+      pendingAdds,
+      moveCardToList,
       updateCard,
       deleteCard,
       snoozeCard,
@@ -911,6 +1078,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       previewMove,
       commitMove,
       addCard,
+      pendingAdds,
+      moveCardToList,
       updateCard,
       deleteCard,
       snoozeCard,

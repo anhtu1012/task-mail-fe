@@ -4,22 +4,45 @@ import { CSSProperties, memo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Dropdown } from "antd";
+import { Dropdown, Tooltip } from "antd";
 import {
   AlignLeft,
+  Ban,
   Check,
   CheckSquare,
+  Circle,
+  CircleDot,
   Clock,
+  Flag,
   Hourglass,
   LoaderCircle,
+  MoreHorizontal,
+  MoveRight,
   Paperclip,
   Repeat,
   RotateCcw,
   StickyNote,
   Timer,
+  Trash2,
 } from "lucide-react";
-import { CardSummary, repeatText } from "@/models/board";
-import { PRIORITY_META, TaskPriority } from "@/models/task";
+import { CardSummary, repeatShort, repeatText } from "@/models/board";
+import {
+  PRIORITY_META,
+  STATUS_META,
+  TaskPriority,
+  TaskStatus,
+} from "@/models/task";
+
+/** Trạng thái -> sắc thái của <Badge> trên nền kính */
+const STATUS_TONE: Record<
+  TaskStatus,
+  "muted" | "primary" | "success" | "danger"
+> = {
+  [TaskStatus.TODO]: "muted",
+  [TaskStatus.IN_PROGRESS]: "primary",
+  [TaskStatus.DONE]: "success",
+  [TaskStatus.CANCELLED]: "danger",
+};
 import { useBoard } from "./BoardStore";
 import { SNOOZE_OPTIONS } from "./snooze";
 import { Badge, G, LabelChip, SourceIcon, fmtShort } from "./ui";
@@ -31,12 +54,27 @@ type Props = {
   overlay?: boolean;
 };
 
+/**
+ * Số nhãn hiện kèm chữ trên một thẻ. Quá ba cái thì hàng nhãn bắt đầu xuống
+ * dòng và đẩy tiêu đề xuống — mà tiêu đề mới là thứ cần đọc trước.
+ */
+const MAX_VISIBLE_LABELS = 3;
+
 const fmtDuration = (min: number) =>
   min < 60 ? `${min}p` : min % 60 === 0 ? `${min / 60}h` : `${Math.floor(min / 60)}h${min % 60}`;
 
 function CardTileBase({ card, overlay = false }: Props) {
   const router = useRouter();
-  const { labelById, board, snoozeCard, toggleComplete } = useBoard();
+  const {
+    labelById,
+    board,
+    lists,
+    snoozeCard,
+    toggleComplete,
+    moveCardToList,
+    updateCard,
+    deleteCard,
+  } = useBoard();
   /** Đang chờ máy chủ trả lời cho đúng thẻ này — để nút không im lìm */
   const [completing, setCompleting] = useState(false);
 
@@ -69,7 +107,12 @@ function CardTileBase({ card, overlay = false }: Props) {
     .map((id) => labelById.get(id))
     .filter((l): l is NonNullable<typeof l> => !!l);
 
-  const hasMeta =
+  /*
+   * Không còn cờ `hasMeta`: trạng thái luôn có mặt nên hàng phụ luôn được vẽ.
+   * Giữ lại biến chỉ để biết thẻ có thông tin gì ngoài trạng thái hay không —
+   * dùng cho khoảng cách dòng.
+   */
+  const hasOtherMeta =
     !!card.deadline ||
     card.hasDescription ||
     !!card.repeat ||
@@ -123,7 +166,7 @@ function CardTileBase({ card, overlay = false }: Props) {
             cursor-pointer transition-opacity focus-visible:opacity-100
             ${done ? "opacity-100" : "opacity-0 group-hover/card:opacity-100"}`}
           style={{
-            right: done ? 6 : 34, // thẻ xong không có nút dời hạn -> lùi ra mép
+            right: done ? 34 : 62, // chừa chỗ cho menu ⋯ (và nút dời hạn khi chưa xong)
             background: done ? "rgba(42,157,143,.16)" : "rgba(255,255,255,.22)",
             border: `1px solid ${done ? "rgba(42,157,143,.4)" : "rgba(255,255,255,.3)"}`,
             color: done ? "#2a9d8f" : G.text,
@@ -137,6 +180,91 @@ function CardTileBase({ card, overlay = false }: Props) {
             <Check size={14} />
           )}
         </button>
+      )}
+
+      {/*
+        Menu thao tác — lối đi thay cho kéo thả.
+
+        Chuyển cột trước đây BẮT BUỘC phải kéo: không dùng được bằng bàn phím,
+        rất khó trên màn hình nhỏ, và càng khó khi cột đích nằm ngoài vùng nhìn
+        thấy. Menu này làm cùng việc đó bằng hai cú bấm.
+      */}
+      {!overlay && (
+        <Dropdown
+          trigger={["click"]}
+          placement="bottomRight"
+          menu={{
+            items: [
+              {
+                key: "move",
+                icon: <MoveRight size={14} />,
+                label: "Chuyển tới",
+                children: [
+                  ...lists
+                    .filter((l) => l.id !== card.listId)
+                    .map((l) => ({
+                      key: `move-${l.id}`,
+                      label: l.title,
+                      onClick: () => moveCardToList(card.id, l.id),
+                    })),
+                  ...(card.listId !== null
+                    ? [
+                        {
+                          key: "move-inbox",
+                          label: "Hộp thư đến",
+                          onClick: () => moveCardToList(card.id, null),
+                        },
+                      ]
+                    : []),
+                ],
+              },
+              {
+                key: "priority",
+                icon: <Flag size={14} />,
+                label: "Mức ưu tiên",
+                children: Object.values(TaskPriority).map((p) => ({
+                  key: `priority-${p}`,
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="inline-block size-2 rounded-full"
+                        style={{ background: PRIORITY_META[p].color }}
+                      />
+                      {PRIORITY_META[p].label}
+                    </span>
+                  ),
+                  disabled: p === card.priority,
+                  onClick: () => updateCard(card.id, { priority: p }),
+                })),
+              },
+              { type: "divider" as const },
+              {
+                key: "delete",
+                danger: true,
+                icon: <Trash2 size={14} />,
+                label: "Xoá việc",
+                onClick: () => deleteCard(card.id),
+              },
+            ],
+          }}
+        >
+          <button
+            aria-label="Thao tác khác"
+            title="Thao tác khác"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute top-1.5 right-1.5 z-10 grid place-items-center size-6 rounded-md
+              border-0 cursor-pointer opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100
+              transition-opacity"
+            style={{
+              background: "rgba(255,255,255,.22)",
+              border: "1px solid rgba(255,255,255,.3)",
+              color: G.text,
+            }}
+          >
+            <MoreHorizontal size={13} />
+          </button>
+        </Dropdown>
       )}
 
       {/* Hoãn nhanh — chỉ hiện khi rê vào thẻ, để không làm rối lúc đọc lướt */}
@@ -174,7 +302,7 @@ function CardTileBase({ card, overlay = false }: Props) {
             title="Dời hạn"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
-            className="absolute top-1.5 right-1.5 z-10 grid place-items-center size-6 rounded-md
+            className="absolute top-1.5 right-[34px] z-10 grid place-items-center size-6 rounded-md
               border-0 cursor-pointer opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100
               transition-opacity"
             style={{
@@ -189,11 +317,48 @@ function CardTileBase({ card, overlay = false }: Props) {
       )}
 
       <div className="px-2.5 py-2 flex flex-col gap-1.5">
+        {/*
+          Nhãn: hiện tối đa ba cái có chữ, phần dư gom thành "+N".
+
+          Trước đây vẽ hết — thẻ có sáu nhãn thì riêng hàng nhãn đã cao hơn cả
+          tiêu đề, và tiêu đề mới là thứ người ta đọc để nhận ra việc. Ba cái
+          đầu vẫn đủ để nhận diện, phần dư vẫn xem được: rê chuột vào "+N" ra
+          danh sách đầy đủ, mà bấm vào thẻ thì màn chi tiết hiện trọn.
+        */}
         {labels.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {labels.map((l) => (
+          <div className="flex flex-wrap items-center gap-1">
+            {labels.slice(0, MAX_VISIBLE_LABELS).map((l) => (
               <LabelChip key={l.id} label={l} size="sm" onGlass />
             ))}
+
+            {labels.length > MAX_VISIBLE_LABELS && (
+              <Tooltip
+                title={
+                  <span className="flex flex-col gap-0.5">
+                    {labels.slice(MAX_VISIBLE_LABELS).map((l) => (
+                      <span key={l.id} className="flex items-center gap-1.5">
+                        <span
+                          className="inline-block size-2 rounded-full shrink-0"
+                          style={{ background: l.color }}
+                        />
+                        {l.name}
+                      </span>
+                    ))}
+                  </span>
+                }
+              >
+                <span
+                  className="inline-flex items-center h-[18px] px-1.5 rounded-md text-[10.5px] font-semibold cursor-default"
+                  style={{
+                    background: "rgba(255,255,255,.22)",
+                    border: `1px solid ${G.line}`,
+                    color: G.text,
+                  }}
+                >
+                  +{labels.length - MAX_VISIBLE_LABELS}
+                </span>
+              </Tooltip>
+            )}
           </div>
         )}
 
@@ -222,9 +387,37 @@ function CardTileBase({ card, overlay = false }: Props) {
           </span>
         </div>
 
-        {hasMeta && (
-          <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1">
+        <div
+          className={`flex items-center flex-wrap gap-x-2.5 ${
+            hasOtherMeta ? "gap-y-1" : ""
+          }`}
+        >
             <SourceIcon source={card.source} onGlass />
+
+            {/*
+              Trạng thái — LUÔN hiện, kể cả "Chờ xử lý".
+
+              Bản đầu tôi ẩn trạng thái mặc định cho đỡ rối, nhưng như vậy thẻ
+              không có huy hiệu lại thành mơ hồ: không rõ là chưa làm hay là
+              giao diện chưa kịp tải. Hiện đủ bốn trạng thái, và "Chờ xử lý"
+              dùng sắc thái mờ nhất để không tranh chỗ với tiêu đề.
+            */}
+            <Badge
+              onGlass
+              tone={STATUS_TONE[card.status]}
+              title={`Trạng thái: ${STATUS_META[card.status].label}`}
+            >
+              {card.status === TaskStatus.CANCELLED ? (
+                <Ban size={11.5} />
+              ) : card.status === TaskStatus.DONE ? (
+                <CheckSquare size={11.5} />
+              ) : card.status === TaskStatus.IN_PROGRESS ? (
+                <CircleDot size={11.5} />
+              ) : (
+                <Circle size={11.5} />
+              )}
+              {STATUS_META[card.status].label}
+            </Badge>
 
             {card.deadline && (
               <Badge
@@ -244,9 +437,25 @@ function CardTileBase({ card, overlay = false }: Props) {
               </Badge>
             )}
 
-            {card.repeat && (
-              <Badge onGlass tone="primary" title={repeatText(card.repeat)}>
+            {/*
+              Việc đã xong/đã huỷ KHÔNG hiện dấu lặp nữa.
+
+              Backend giữ nguyên luật lặp trên thẻ đã hoàn thành (đã kiểm: ba
+              thẻ DONE vẫn còn `repeat`), nhưng chính thẻ đó sẽ không lặp thêm
+              lần nào — lượt kế tiếp đã là một thẻ KHÁC, sinh ra ngay lúc bấm
+              hoàn thành. Để dấu lặp lại trên đó thì cả cột "đã xong" đeo biểu
+              tượng lặp, nhìn như còn việc phải làm.
+            */}
+            {card.repeat && !done && card.status !== TaskStatus.CANCELLED && (
+              <Badge
+                onGlass
+                tone="primary"
+                // Tooltip giữ câu đầy đủ (gồm cả phần kết thúc chuỗi) — chip
+                // chỉ đủ chỗ cho nhịp lặp
+                title={repeatText(card.repeat, card.deadline)}
+              >
                 <Repeat size={11.5} />
+                {repeatShort(card.repeat, card.deadline)}
               </Badge>
             )}
 
@@ -280,8 +489,7 @@ function CardTileBase({ card, overlay = false }: Props) {
                 {card.noteCount}
               </Badge>
             )}
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

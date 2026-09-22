@@ -14,7 +14,12 @@ import {
 } from "antd";
 import dayjs, { Dayjs } from "dayjs";
 import { Link2, Plus, Trash2 } from "lucide-react";
-import { useCreateTask, useTaskTypes, useUpdateTask } from "@/hooks/useTaskApp";
+import {
+  useAssignableUsers,
+  useCreateTask,
+  useTaskTypes,
+  useUpdateTask,
+} from "@/hooks/useTaskApp";
 import { RichTextEditor } from "@/components/board/RichTextEditor";
 import TaskSubtasks from "@/components/tasks/TaskSubtasks";
 import { isRichTextEmpty } from "@/utils/client/richText";
@@ -62,6 +67,8 @@ export default function TaskFormModal({
 }: Props) {
   const [form] = Form.useForm<FormValues>();
   const { data: taskTypes } = useTaskTypes();
+  // Chỉ admin mới gọi được `GET /users`, nên chỉ bật khi đúng vai
+  const { users, isLoading: usersLoading } = useAssignableUsers(isAdmin);
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const isEdit = !!task;
@@ -276,19 +283,27 @@ export default function TaskFormModal({
               <Form.Item
                 name="assigneeId"
                 label={
-                  <Tooltip title="Chưa có API danh sách user — dán trực tiếp UUID của người nhận việc. Bỏ trống = giao cho chính bạn.">
-                    <span>Người thực hiện (UUID)</span>
+                  <Tooltip title="Bỏ trống = giao cho chính bạn">
+                    <span>Người thực hiện</span>
                   </Tooltip>
                 }
-                rules={[
-                  {
-                    pattern:
-                      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-                    message: "UUID không hợp lệ",
-                  },
-                ]}
               >
-                <Input placeholder="UUID người nhận việc (chỉ admin)" allowClear />
+                {/*
+                  Trước đây là ô nhập UUID — người dùng phải tự đi đâu đó tìm
+                  id 36 ký tự rồi dán vào, vì backend chưa có endpoint liệt kê
+                  người dùng. Giờ đã có `GET /users` (chỉ admin).
+                */}
+                <Select
+                  allowClear
+                  showSearch
+                  loading={usersLoading}
+                  placeholder="Giao cho chính tôi"
+                  optionFilterProp="label"
+                  options={users.map((u) => ({
+                    label: u.email,
+                    value: u.id,
+                  }))}
+                />
               </Form.Item>
             )}
 

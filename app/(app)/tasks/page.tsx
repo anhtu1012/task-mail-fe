@@ -37,6 +37,7 @@ import { getApiErrorMessage } from "@/utils/client/apiError";
 import { exportTasksToCsv } from "@/utils/client/exportTasksToCsv";
 import { richTextToPlain } from "@/utils/client/richText";
 import {
+  useAssignableUsers,
   useCompleteTask,
   useDeleteTask,
   useInvalidateTaskData,
@@ -91,6 +92,7 @@ export default function TasksPage() {
   const { projectId } = useCurrentProject();
   const { data: me } = useMe();
   const admin = isAdminRole(me?.role);
+  const { users, isLoading: usersLoading, labelFor } = useAssignableUsers(admin);
 
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -328,6 +330,27 @@ export default function TasksPage() {
         <Tag color={STATUS_META[status].color}>{STATUS_META[status].label}</Tag>
       ),
     },
+    /*
+     * Cột người thực hiện — CHỈ admin.
+     *
+     * Người dùng thường chỉ thấy việc của chính mình nên cột này lặp lại cùng
+     * một cái tên ở mọi hàng. Admin thì ngược lại: lọc được theo người mà bảng
+     * không cho biết hàng nào của ai là vô nghĩa.
+     */
+    ...(admin
+      ? [
+          {
+            title: "Người thực hiện",
+            dataIndex: "assigneeId",
+            width: 190,
+            render: (_: unknown, task: Task) => (
+              <span className="text-[13px] text-slate-600">
+                {task.assignee?.email ?? labelFor(task.assigneeId)}
+              </span>
+            ),
+          } as ColumnsType<Task>[number],
+        ]
+      : []),
     {
       title: "",
       key: "actions",
@@ -488,18 +511,21 @@ export default function TasksPage() {
             onChange={(range) => setFilter("range", range)}
           />
           {admin && (
-            <Tooltip title="Chỉ admin — lọc theo UUID người thực hiện">
-              <Input
+            <Tooltip title="Chỉ admin — lọc theo người thực hiện">
+              {/*
+                Trước đây là ô gõ UUID, kèm cảnh báo vàng khi gõ sai định dạng.
+                Không ai nhớ được UUID; giờ chọn từ danh sách người dùng thật.
+              */}
+              <Select
                 allowClear
-                placeholder="Assignee UUID (admin)"
+                showSearch
+                loading={usersLoading}
+                placeholder="Người thực hiện"
                 style={{ width: 220 }}
+                optionFilterProp="label"
                 value={filters.assigneeId}
-                onChange={(e) => setFilter("assigneeId", e.target.value)}
-                status={
-                  filters.assigneeId && !UUID_RE.test(filters.assigneeId)
-                    ? "warning"
-                    : undefined
-                }
+                onChange={(value) => setFilter("assigneeId", value)}
+                options={users.map((u) => ({ label: u.email, value: u.id }))}
               />
             </Tooltip>
           )}

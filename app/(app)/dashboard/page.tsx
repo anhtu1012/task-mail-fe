@@ -8,6 +8,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Gauge,
+  History,
   Mail,
   TrendingUp,
 } from "lucide-react";
@@ -204,7 +205,7 @@ export default function DashboardPage() {
             ) : (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="Không có công việc nào sắp đến hạn 🎉"
+                description="Không có công việc nào sắp đến hạn"
               />
             )}
           </Card>
@@ -212,7 +213,12 @@ export default function DashboardPage() {
         <Col xs={24} lg={12}>
           <Card
             variant="borderless"
-            title="🕓 Công việc gần đây"
+            title={
+              <span className="inline-flex items-center gap-2">
+                <History size={16} className="text-slate-400" />
+                Công việc gần đây
+              </span>
+            }
             extra={<Link href="/tasks">Xem tất cả</Link>}
           >
             {recentLoading ? (

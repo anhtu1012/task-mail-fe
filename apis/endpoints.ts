@@ -75,6 +75,10 @@ export const API_ENDPOINTS = {
   NOTES: {
     DETAIL: (id: string) => `/notes/${id}`,
   },
+  USERS: {
+    // Chỉ ADMIN gọi được — dùng cho ô chọn người thực hiện
+    ROOT: "/users",
+  },
   TASK_TYPES: {
     ROOT: "/task-types",
     DETAIL: (id: string) => `/task-types/${id}`,

@@ -15,6 +15,7 @@ import {
 import { BoardList, CardSummary } from "@/models/board";
 import { useBoard } from "./BoardStore";
 import { CardTile } from "./CardTile";
+import { PendingCardTile } from "./PendingCardTile";
 import { Composer } from "./Composer";
 import { G } from "./ui";
 import styles from "./board.module.scss";
@@ -36,8 +37,16 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
     filterActive,
     loadMoreCards,
     loadingMore,
+    pendingAdds,
   } = useBoard();
-  const [adding, setAdding] = useState(false);
+  /**
+   * Ô thêm việc mở ở đâu: cuối cột (mặc định) hay đầu cột.
+   *
+   * Có nút "+" ở đầu cột vì việc gấp thường phải nằm trên cùng. Trước đây chỉ
+   * thêm được ở cuối rồi phải kéo thẻ ngược lên — thêm một thao tác cho đúng
+   * cái trường hợp đang vội nhất.
+   */
+  const [adding, setAdding] = useState<null | "top" | "bottom">(null);
   const [renaming, setRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState(list.title);
 
@@ -58,8 +67,9 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
   });
 
   // Dẫn xuất chứ không setState trong effect — tránh render lồng
-  const showComposer = adding || autoAdd;
+  const composerAt = adding ?? (autoAdd ? "bottom" : null);
 
+  const pending = pendingAdds.filter((p) => p.listId === list.id);
   const total = totalByList.get(list.id) ?? cards.length;
   const overWip = list.wipLimit !== null && cards.length > list.wipLimit;
 
@@ -151,12 +161,24 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
           {total !== cards.length ? `${cards.length}/${total}` : cards.length}
         </span>
 
+        <button
+          type="button"
+          aria-label={`Thêm việc vào đầu ${list.title}`}
+          title="Thêm việc lên đầu cột"
+          onClick={() => setAdding("top")}
+          className="grid place-items-center size-6 shrink-0 rounded-md border-0 bg-transparent cursor-pointer
+            opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-white/15"
+          style={{ color: G.textSoft }}
+        >
+          <Plus size={14} />
+        </button>
+
         <Dropdown
           trigger={["click"]}
           menu={{
             items: [
               { key: "rename", label: "Đổi tên danh sách", onClick: () => setRenaming(true) },
-              { key: "add", label: "Thêm việc", onClick: () => setAdding(true) },
+              { key: "add", label: "Thêm việc", onClick: () => setAdding("bottom") },
               { type: "divider" as const },
               {
                 key: "archive",
@@ -181,14 +203,42 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
       {/* ===== Thẻ ===== */}
       <div
         ref={setBodyRef}
-        className={`${styles.scrollArea} flex flex-col gap-2 p-2 overflow-y-auto`}
-        style={{ maxHeight: "calc(100vh - 260px)" }}
+        /*
+          Chiều cao co theo cột (cột đã có `max-h-full`), không đóng đinh
+          `calc(100vh - 260px)` như trước: con số đó đúng với đúng một bố cục,
+          còn ở chế độ toàn màn hình hoặc màn hình thấp thì cột bị cắt cụt hoặc
+          tràn ra ngoài khung.
+        */
+        className={`${styles.scrollArea} flex-1 min-h-0 flex flex-col gap-2 p-2 overflow-y-auto`}
       >
+        {composerAt === "top" && (
+          <Composer
+            parse
+            placeholder="Việc cần làm... (vd: Gọi khách hàng mai 9h !gấp)"
+            submitLabel="Thêm lên đầu"
+            onSubmit={(text) => addCard(list.id, text, true)}
+            onCancel={() => setAdding(null)}
+          />
+        )}
+
+        {/* Thẻ đang tạo, thêm ở đầu cột */}
+        {pending
+          .filter((p) => p.atTop)
+          .map((p) => (
+            <PendingCardTile key={p.key} title={p.title} />
+          ))}
+
         <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
             <CardTile key={card.id} card={card} />
           ))}
         </SortableContext>
+
+        {pending
+          .filter((p) => !p.atTop)
+          .map((p) => (
+            <PendingCardTile key={p.key} title={p.title} />
+          ))}
 
         {/*
           `/full` chỉ trả 20 thẻ đầu mỗi cột. Không có nút này thì thẻ thứ 21
@@ -220,7 +270,7 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
           </button>
         )}
 
-        {cards.length === 0 && (
+        {cards.length === 0 && pending.length === 0 && (
           <div
             className="grid place-items-center h-[68px] rounded-lg text-[12px] transition-colors"
             style={
@@ -233,27 +283,40 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
                 : { border: `1px dashed ${G.line}`, color: G.textMuted }
             }
           >
-            {filterActive && total > 0 ? "Không khớp bộ lọc" : "Kéo việc vào đây"}
+            {filterActive && total > 0 ? (
+              "Không khớp bộ lọc"
+            ) : (
+              /* Bấm được, không chỉ là chữ: cột rỗng là lúc người dùng cần
+                 thêm việc nhất, bắt họ đi tìm nút ở cuối cột là thừa */
+              <button
+                type="button"
+                onClick={() => setAdding("bottom")}
+                className="w-full h-full rounded-lg border-0 bg-transparent cursor-pointer text-[12px]"
+                style={{ color: "inherit" }}
+              >
+                Kéo việc vào đây, hoặc bấm để thêm
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {/* ===== Footer ===== */}
       <div className="px-2 pb-2 shrink-0">
-        {showComposer ? (
+        {composerAt === "bottom" ? (
           <Composer
             parse
             placeholder="Việc cần làm... (vd: Gọi khách hàng mai 9h !gấp)"
             submitLabel="Thêm việc"
             onSubmit={(text) => addCard(list.id, text)}
             onCancel={() => {
-              setAdding(false);
+              setAdding(null);
               onAutoAddDone?.();
             }}
           />
         ) : (
           <button
-            onClick={() => setAdding(true)}
+            onClick={() => setAdding("bottom")}
             className="w-full flex items-center gap-2 h-8 px-2 rounded-lg border-0 bg-transparent
               text-[13px] cursor-pointer text-left hover:bg-white/15 transition-colors"
             style={{ color: G.textSoft }}

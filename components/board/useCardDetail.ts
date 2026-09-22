@@ -22,9 +22,9 @@ import {
 } from "@/models/board";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { isRichTextEmpty } from "@/utils/client/richText";
-import { BOARD_QUERY_KEY } from "./BoardStore";
+import { BOARD_QUERY_KEY, cardDetailKey } from "./BoardStore";
 
-export const cardDetailKey = (cardId: string) => ["board", "card", cardId] as const;
+export { cardDetailKey };
 
 export function useCardDetail(cardId: string) {
   const { message } = App.useApp();

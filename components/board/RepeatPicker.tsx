@@ -30,10 +30,13 @@ const UNIT_OPTIONS = [
 
 export default function RepeatPicker({
   value,
+  anchor,
   onChange,
   onClose,
 }: {
   value: RepeatRule | null;
+  /** Hạn chót của việc — dòng xem trước cần nó để nói rõ "vào thứ mấy" */
+  anchor?: string | null;
   onChange: (rule: RepeatRule | null) => void;
   onClose?: () => void;
 }) {
@@ -204,7 +207,7 @@ export default function RepeatPicker({
         className="rounded-lg px-2.5 py-2 text-[12.5px]"
         style={{ background: C.primary50, color: C.primary }}
       >
-        {repeatText(draft)}
+        {repeatText(draft, anchor)}
       </div>
 
       <div className="flex gap-2">

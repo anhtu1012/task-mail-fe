@@ -22,8 +22,10 @@ import {
   X,
 } from "lucide-react";
 import { INBOX_KEY } from "@/models/board";
+import { useStickyState } from "./useStickyState";
 import { useBoard } from "./BoardStore";
 import { CardTile } from "./CardTile";
+import { PendingCardTile } from "./PendingCardTile";
 import { Composer } from "./Composer";
 import { INBOX_DROP_ID } from "./BoardWorkspace";
 import { G } from "./ui";
@@ -47,9 +49,18 @@ export function InboxPanel({
     filterActive,
     loadMoreCards,
     loadingMore,
+    pendingAdds,
   } = useBoard();
-  const [width, setWidth] = useState(292);
-  const [collapsed, setCollapsed] = useState(false);
+  const pending = pendingAdds.filter((p) => p.listId === null);
+  /*
+   * Độ rộng và trạng thái thu gọn được NHỚ LẠI.
+   *
+   * Trước đây là state thường: người dùng thu gọn Hộp thư đến cho rộng bảng,
+   * chuyển sang trang khác rồi quay lại là nó bung ra y như cũ. Kéo giãn độ
+   * rộng cũng mất. Cùng một thao tác phải làm lại mỗi lần mở bảng.
+   */
+  const [width, setWidth] = useStickyState("board:inboxWidth", 292);
+  const [collapsed, setCollapsed] = useStickyState("board:inboxCollapsed", false);
   const [adding, setAdding] = useState(false);
   const draggingSplitter = useRef(false);
   const startX = useRef(0);
@@ -80,7 +91,7 @@ export function InboxPanel({
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [width],
+    [width, setWidth],
   );
 
   if (collapsed && !mobile) {
@@ -196,6 +207,10 @@ export function InboxPanel({
             ))}
           </SortableContext>
 
+          {pending.map((p) => (
+            <PendingCardTile key={p.key} title={p.title} />
+          ))}
+
           {/* Hộp thư đến cũng chỉ được trả 20 thẻ đầu — xem ghi chú ở ListColumn */}
           {!filterActive && inboxCards.length < inboxTotal && (
             <button
@@ -219,7 +234,7 @@ export function InboxPanel({
             </button>
           )}
 
-          {inboxCards.length === 0 && <EmptyInbox />}
+          {inboxCards.length === 0 && pending.length === 0 && <EmptyInbox />}
         </div>
       </div>
 

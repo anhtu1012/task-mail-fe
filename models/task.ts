@@ -32,6 +32,32 @@ export enum TaskCategory {
 
 export type DeadlineStatus = "IN_PROGRESS" | "ON_TIME" | "LATE";
 
+/**
+ * Luật lặp.
+ *
+ * `unit` + `interval` là phần bắt buộc; bốn trường còn lại là "lặp nâng cao",
+ * bỏ trống hết thì hành vi đúng như bản cũ — lặp mãi, giữ nguyên thứ/ngày của
+ * hạn chót.
+ *
+ * Backend tự dọn theo đơn vị: gửi `weekdays` kèm `unit: "DAY"` thì nó bị bỏ,
+ * nên đừng dựa vào việc đọc lại được thứ đã gửi ở đơn vị khác.
+ *
+ * Đặt ở đây chứ không ở `models/board` vì thẻ trên bảng và task ở các màn cũ
+ * là CÙNG một bản ghi; `models/board` xuất lại kiểu này.
+ */
+export type RepeatRule = {
+  unit: "DAY" | "WEEK" | "MONTH";
+  interval: number;
+  /** 0=CN..6=T7. Chỉ dùng cho WEEK. Rỗng = giữ đúng thứ của hạn hiện tại */
+  weekdays?: number[];
+  /** 1..31. Chỉ dùng cho MONTH. Tháng ngắn hơn thì kẹp về ngày cuối tháng */
+  dayOfMonth?: number | null;
+  /** ISO — không sinh lượt nào vượt mốc này */
+  until?: string | null;
+  /** Số lượt còn lại SAU lượt hiện tại. null = lặp mãi, 0 = đây là lượt cuối */
+  remaining?: number | null;
+};
+
 // ==========================================
 // AUTH
 // ==========================================
@@ -41,6 +67,19 @@ export type AuthTokenResponse = {
 };
 
 export type MeResponse = {
+  id: string;
+  email: string;
+  role: Role;
+};
+
+/**
+ * Người dùng ở mức đủ để hiển thị và để chọn khi giao việc.
+ *
+ * KHÔNG có tên riêng: bảng `users` phía backend chỉ có email, kể cả tài khoản
+ * đăng nhập bằng Google. `email` là thứ duy nhất người đọc nhận ra được, nên
+ * mọi chỗ "tên người" trong giao diện đều đang hiển thị email.
+ */
+export type UserSummary = {
   id: string;
   email: string;
   role: Role;
@@ -61,18 +100,8 @@ export type ApiErrorBody = {
 export type Task = {
   id: string;
   code: string; // "TSK-000123"
-  /**
-   * Dự án chứa việc này.
-   *
-   * TUỲ CHỌN vì **backend chưa trả field này về**: `TaskDto` (và cả
-   * `CardSummary` của bảng) không có `projectId`, dù DB đã lưu và
-   * `?projectId=` lọc đúng. Đã kiểm thật trên backend local 19/09/2026.
-   *
-   * Nghĩa là: đừng đọc `task.projectId` để quyết định gì — nó luôn
-   * `undefined`. Dự án đang mở lấy từ `useCurrentProject()`. Khi backend bổ
-   * sung vào DTO thì đổi lại thành bắt buộc.
-   */
-  projectId?: string;
+  /** Dự án chứa việc này. Backend trả từ 22/09/2026 */
+  projectId: string;
   title: string;
   description?: string | null;
   note?: string | null;
@@ -82,12 +111,25 @@ export type Task = {
   status: TaskStatus;
   deadlineStatus: DeadlineStatus;
   assigneeId: string;
+  /** Người thực hiện ở dạng đọc được — backend trả kèm từ 22/09/2026 */
+  assignee?: UserSummary | null;
   creatorId?: string | null;
+  creator?: UserSummary | null;
   assignedAt?: string | null;
   deadline?: string | null;
   completedAt?: string | null;
   attachments: string[];
   sourceMailAccountId?: string | null; // != null => task tự tạo từ email
+
+  /**
+   * Ba trường dưới đây vốn chỉ có ở API bảng. Backend bổ sung vào `/tasks` từ
+   * 22/09/2026 để Lịch / Kanban / Công việc hiện được cùng lượng thông tin như
+   * bảng — trước đó cùng một việc mà hai màn nói hai kiểu.
+   */
+  repeat?: RepeatRule | null;
+  estimateMinutes?: number | null;
+  /** Chỉ có id; tên và màu nhãn lấy từ `useBoardLabels()` */
+  labelIds?: string[];
   createdAt: string;
   updatedAt: string;
 };

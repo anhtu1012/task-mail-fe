@@ -1,6 +1,15 @@
 "use client";
 
-import { Button, Descriptions, Drawer, Popconfirm, Space, Tag, Typography } from "antd";
+import {
+  Button,
+  Descriptions,
+  Drawer,
+  Popconfirm,
+  Space,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
 import dayjs from "dayjs";
 import { CheckCheck, Mail, Pencil, Trash2 } from "lucide-react";
 import { useCompleteTask, useDeleteTask, useTaskTypes } from "@/hooks/useTaskApp";
@@ -138,7 +147,20 @@ export default function TaskDetailDrawer({ task, onClose, onEdit }: Props) {
               {fmt(task.updatedAt)}
             </Descriptions.Item>
             <Descriptions.Item label="Người thực hiện">
-              <span className="font-mono text-xs">{task.assigneeId}</span>
+              {/*
+                Trước đây in nguyên UUID 36 ký tự ra cho người dùng đọc. Giờ
+                backend trả kèm `assignee`; vẫn để `assigneeId` làm phương án
+                cuối cho dữ liệu cũ trong cache.
+              */}
+              {task.assignee?.email ? (
+                <span>{task.assignee.email}</span>
+              ) : (
+                <Tooltip title="Chưa tra được người thực hiện">
+                  <span className="font-mono text-xs text-slate-400">
+                    {task.assigneeId}
+                  </span>
+                </Tooltip>
+              )}
             </Descriptions.Item>
           </Descriptions>
 
