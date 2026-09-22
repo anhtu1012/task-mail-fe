@@ -101,7 +101,11 @@ export default function CalendarPage() {
         setMonth((m) => m.add(direction, "month"));
         return;
       }
-      const unit = view === "week" ? "week" : "day";
+      /*
+       * Lịch trình nhảy theo TUẦN: nó là danh sách dài, bước từng ngày thì phải
+       * bấm cả chục lần mới thấy đổi. Ngày thì bước từng ngày.
+       */
+      const unit = view === "day" ? "day" : "week";
       setFocusDay((d) => {
         const next = d.add(direction, unit);
         // Giữ lưới tháng bám theo ngày đang xem, để đổi về chế độ tháng không lạc
@@ -423,7 +427,9 @@ export default function CalendarPage() {
                     .format("DD/MM/YYYY")}`
                 : view === "day"
                   ? focusDay.format("dddd, DD/MM/YYYY")
-                  : "Sắp tới"}
+                  : focusDay.isSame(dayjs(), "day")
+                    ? "Sắp tới"
+                    : `Từ ${focusDay.format("DD/MM/YYYY")}`}
           </span>
           <Button icon={<ChevronRight size={16} />} onClick={() => step(1)} />
           <Tooltip title="Phím T">
@@ -530,7 +536,13 @@ export default function CalendarPage() {
           }}
         />
       ) : view === "agenda" ? (
-        <AgendaList entries={agendaEntries} from={dayjs()} onSelect={setViewingTask} />
+        <AgendaList
+          entries={agendaEntries}
+          /* Bắt đầu từ ngày đang xem chứ không cứng ở hôm nay — nếu không thì
+             ←/→ đổi dữ liệu tải về mà màn hình không đổi gì */
+          from={focusDay}
+          onSelect={setViewingTask}
+        />
       ) : (
       /* ===== Month grid ===== */
       <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
