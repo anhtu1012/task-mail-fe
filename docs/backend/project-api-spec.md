@@ -267,7 +267,7 @@ trên bảng mới chắc chắn hỏng. FE muốn gắn nhãn ở dự án mớ
 
 | Endpoint | `projectId` |
 |---|---|
-| `GET /boards/me/full` | query. Chưa có bảng cho dự án đó thì **tự tạo** cùng bộ 5 cột mặc định |
+| `GET /boards/me/full` | query. Chưa có bảng cho dự án đó thì **tự tạo**, kèm **đúng một** cột mẫu "Hôm nay" (trước 22/09/2026 là năm cột — xem `DEFAULT_LISTS` của backend) |
 | `GET /boards/me/agenda` | query |
 | `GET /boards/me/search` | query |
 | `GET /boards/me/today` | query |

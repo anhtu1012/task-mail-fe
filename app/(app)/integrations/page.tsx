@@ -17,6 +17,7 @@ import dayjs from "dayjs";
 import {
   BellRing,
   Bot,
+  CheckCircle2,
   ExternalLink,
   Link2,
   Mail,
@@ -101,7 +102,7 @@ export default function IntegrationsPage() {
   useEffect(() => {
     if (zalo?.linked && linkCode) {
       setLinkCode(null);
-      message.success("Liên kết Zalo thành công! 🎉");
+      message.success("Liên kết Zalo thành công");
     }
   }, [zalo?.linked, linkCode, message]);
 
@@ -244,7 +245,7 @@ export default function IntegrationsPage() {
           <Skeleton active paragraph={{ rows: 2 }} />
         ) : zalo?.linked ? (
           <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-            <span className="text-xl">✅</span>
+            <CheckCircle2 size={20} className="text-emerald-500" />
             <div>
               <div className="font-medium text-emerald-800">
                 Đã liên kết Zalo

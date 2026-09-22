@@ -388,10 +388,50 @@ khỏi mọi endpoint đọc nhưng checklist/ghi chú/đính kèm **không bị
 ### 4.8 `PATCH /tasks/:id` (endpoint cũ, mở rộng)
 
 Giữ nguyên toàn bộ field cũ, **nhận thêm**: `cover`, `estimateMinutes`,
-`repeat` (`{unit, interval}` hoặc `null`), `labelIds` (thay thế toàn bộ nhãn).
+`repeat` (xem 4.8.1), `labelIds` (thay thế toàn bộ nhãn).
 `description` được làm sạch HTML khi ghi. Response vẫn là `TaskResponseDto` cũ.
 
+#### 4.8.1 `repeat` — lặp nâng cao (cập nhật 22/09/2026)
+
+Trước đây `repeat` chỉ có `{unit, interval}`. Nay thêm bốn trường **tuỳ chọn**;
+bỏ trống hết thì hành vi đúng như cũ, nên dữ liệu và client cũ không phải sửa.
+
+```jsonc
+{
+  "unit": "WEEK",        // DAY | WEEK | MONTH
+  "interval": 2,         // 1..365
+  "weekdays": [1, 4],    // 0=CN..6=T7. CHỈ dùng cho WEEK. Rỗng = giữ thứ của hạn
+  "dayOfMonth": 31,      // 1..31. CHỈ dùng cho MONTH
+  "until": "2026-12-31T00:00:00.000Z",  // không sinh lượt nào vượt mốc này
+  "remaining": 5         // số lượt CÒN LẠI sau lượt hiện tại. null = lặp mãi
+}
+```
+
+Bốn điểm dễ hiểu sai:
+
+1. **Backend dọn theo đơn vị.** Gửi `weekdays` kèm `unit: "DAY"` thì nó bị bỏ
+   hẳn, không lưu. Đọc lại sẽ không thấy — đúng như thiết kế.
+2. **`remaining` đếm ngược trên từng lượt.** Mỗi thẻ sinh ra mang
+   `remaining - 1`; tới 0 là lượt cuối, hoàn thành nó không sinh thêm gì.
+3. **Ngày 31 ở tháng ngắn hơn thì kẹp về cuối tháng**, không tràn sang tháng
+   sau: 31/03 + 1 tháng = 30/04.
+4. **Thứ và ngày tính theo múi giờ của CHỦ việc**, không phải UTC và cũng không
+   phải của người đang bấm hoàn thành. Việc hạn 06:00 sáng thứ Hai giờ Việt Nam
+   là 23:00 Chủ nhật theo UTC — tính bằng UTC sẽ lệch đúng một ngày.
+
 ### 4.9 Nhãn của thẻ
+
+> **Cập nhật 22/09/2026 — `BoardLabel` có thêm `icon`.**
+>
+> `icon` là `string | null`, lấy trong danh sách đóng: `tag`, `star`, `flag`,
+> `bell`, `heart`, `zap`, `phone`, `mail`, `users`, `folder`, `coins`, `bug`.
+> Tên ngoài danh sách trả **400**. `null` = nhãn chỉ có màu, và đó là giá trị
+> của mọi nhãn tạo trước ngày này.
+>
+> `POST /boards/:id/labels` và `PATCH /labels/:id` đều nhận `icon`. Ở `PATCH`,
+> **bỏ trống = giữ nguyên, gửi `null` = gỡ icon** — hai thứ khác nhau, đừng gộp.
+> Nguồn: `LABEL_ICONS` ở backend và `models/board.ts` phía FE, sửa một nơi là
+> phải sửa cả hai.
 
 | Method | Path | Body | Trả về |
 |---|---|---|---|

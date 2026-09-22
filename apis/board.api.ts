@@ -24,7 +24,9 @@ import {
   CreateCardInput,
   CreateListInput,
   MoveCardResult,
+  CardAttachment,
   CardNote,
+  SaveLabelInput,
   SearchResponse,
   UpdateCardInput,
   UpdateListInput,
@@ -314,8 +316,34 @@ class BoardApi extends AxiosService {
     );
   }
 
+  /** Sửa ghi chú đã viết. Backend giữ `createdAt` và đặt `editedAt`. */
+  public updateNote(noteId: string, content: string): Promise<CardNote> {
+    return this.patch<CardNote, { content: string }>(
+      API_ENDPOINTS.NOTES.DETAIL(noteId),
+      { content },
+    );
+  }
+
   public deleteNote(noteId: string): Promise<void> {
     return this.delete<void>(API_ENDPOINTS.NOTES.DETAIL(noteId));
+  }
+
+  // ==========================================
+  // ĐÍNH KÈM
+  // ==========================================
+  /**
+   * Đính kèm là **liên kết**, không phải tải tệp lên: backend lưu `url` chứ
+   * không có kho tệp. Ảnh dán từ clipboard đi đường khác (nhúng thẳng vào mô
+   * tả dưới dạng data URI), đừng nhầm hai thứ.
+   */
+  public addAttachment(
+    cardId: string,
+    input: { name: string; url: string; kind?: CardAttachment["kind"] },
+  ): Promise<CardAttachment> {
+    return this.post<CardAttachment, typeof input>(
+      API_ENDPOINTS.CARDS.ATTACHMENTS(cardId),
+      clean(input) as typeof input,
+    );
   }
 
   // ==========================================
@@ -327,6 +355,39 @@ class BoardApi extends AxiosService {
       API_ENDPOINTS.BOARD.ME_LABELS,
       params({ projectId }),
     );
+  }
+
+  /** `slug` do backend sinh từ tên — FE không gửi và không đoán trước được */
+  public createLabel(
+    boardId: string,
+    input: { name: string; color: string; icon?: string | null },
+  ): Promise<BoardLabel> {
+    return this.post<BoardLabel, typeof input>(
+      API_ENDPOINTS.BOARD.CREATE_LABEL(boardId),
+      clean(input) as typeof input,
+    );
+  }
+
+  /**
+   * Đổi tên nhãn thì backend sinh lại `slug`, nên cú pháp quick-add `#nhãn` cũ
+   * sẽ thôi khớp — đó là hành vi đúng, nhưng cần nhớ khi viết thông báo.
+   *
+   * `icon: null` gỡ icon; bỏ trống `icon` thì giữ nguyên. `clean` ở đây chỉ
+   * loại `undefined` nên `null` vẫn đi được tới backend.
+   */
+  public updateLabel(
+    labelId: string,
+    input: SaveLabelInput,
+  ): Promise<BoardLabel> {
+    return this.patch<BoardLabel, SaveLabelInput>(
+      API_ENDPOINTS.LABELS.DETAIL(labelId),
+      clean(input),
+    );
+  }
+
+  /** Xoá nhãn gỡ nó khỏi MỌI thẻ đang gắn — backend làm bằng cascade */
+  public deleteLabel(labelId: string): Promise<void> {
+    return this.delete<void>(API_ENDPOINTS.LABELS.DETAIL(labelId));
   }
 }
 

@@ -11,7 +11,7 @@
  * cụ cá nhân, thứ có giá trị là những gì mình tự nhắc mình.
  */
 import { useState } from "react";
-import { Dropdown, Progress, Spin } from "antd";
+import { Dropdown, Popover, Progress, Spin } from "antd";
 import {
   AlignLeft,
   ArrowLeft,
@@ -19,7 +19,10 @@ import {
   CheckSquare,
   ChevronDown,
   Clock,
+  CircleDot,
+  FileCode,
   FileText,
+  LoaderCircle,
   Hourglass,
   Image as ImageIcon,
   Link2,
@@ -36,13 +39,42 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { COVER_PRESETS, CardDetail, Checklist, repeatText } from "@/models/board";
-import { PRIORITY_META, TaskPriority } from "@/models/task";
+import {
+  COVER_PRESETS,
+  CardDetail,
+  CardNote,
+  Checklist,
+  repeatText,
+} from "@/models/board";
+import {
+  PRIORITY_META,
+  STATUS_META,
+  TaskPriority,
+  TaskStatus,
+} from "@/models/task";
+
+/**
+ * Màu hex cho từng trạng thái.
+ *
+ * `STATUS_META.color` là tên màu của antd ("processing", "success"...) — dùng
+ * được cho <Tag> nhưng không cắm thẳng vào `style` được. Bảng này giữ đúng
+ * nghĩa màu đó dưới dạng hex.
+ */
+const STATUS_COLORS: Record<TaskStatus, string> = {
+  [TaskStatus.TODO]: "#64748b",
+  [TaskStatus.IN_PROGRESS]: "#0ea5e9",
+  [TaskStatus.DONE]: "#2a9d8f",
+  [TaskStatus.CANCELLED]: "#e63946",
+};
 import { isRichTextEmpty } from "@/utils/client/richText";
 import { useBoard } from "./BoardStore";
 import { useCardDetail } from "./useCardDetail";
 import { SNOOZE_OPTIONS } from "./snooze";
 import { RichTextEditor } from "./RichTextEditor";
+import { nextOccurrenceAfter } from "@/utils/client/recurrence";
+import LabelPicker from "./LabelPicker";
+import MarkdownImport from "./MarkdownImport";
+import RepeatPicker from "./RepeatPicker";
 import { C, LabelChip, fmtBytes, fmtDateTime, fmtShort } from "./ui";
 import styles from "./board.module.scss";
 
@@ -63,6 +95,9 @@ export function CardDetailView({
   const { lists, labelById, snoozeCard, toggleComplete, deleteCard } = useBoard();
   const detail = useCardDetail(cardId);
   const card = detail.card;
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const [completing, setCompleting] = useState(false);
+
 
   if (detail.isLoading) {
     return (
@@ -173,15 +208,24 @@ export function CardDetailView({
         )}
 
         <button
-          onClick={() => toggleComplete(card.id)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border-0 cursor-pointer text-[13px] font-medium"
+          disabled={completing}
+          onClick={() => {
+            setCompleting(true);
+            void toggleComplete(card.id).finally(() => setCompleting(false));
+          }}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border-0 cursor-pointer
+            text-[13px] font-medium disabled:cursor-wait"
           style={
             done
               ? { background: C.success50, color: C.success }
               : { background: C.success, color: "#fff" }
           }
         >
-          <CheckSquare size={14} />
+          {completing ? (
+            <LoaderCircle size={14} className="animate-spin" />
+          ) : (
+            <CheckSquare size={14} />
+          )}
           {done ? "Đã xong" : "Hoàn thành"}
         </button>
 
@@ -267,6 +311,67 @@ export function CardDetailView({
                 </Field>
               )}
 
+              {/*
+                TRẠNG THÁI — trước đây bảng hoàn toàn không hiện.
+
+                Bảng chỉ biết "xong hay chưa" qua `completedAt`, nên một việc
+                ĐANG LÀM trông y hệt việc chưa ai đụng tới, còn việc ĐÃ HUỶ
+                trông như việc vẫn phải làm. Trạng thái chỉ đổi được bằng cách
+                kéo thẻ vào cột có ánh xạ `mapsToStatus` — mà bảng mặc định giờ
+                chỉ có một cột, nên thực tế là không đổi được.
+              */}
+              <Field icon={<CircleDot size={13} />} label="Trạng thái">
+                <div className="flex gap-1 flex-wrap">
+                  {Object.values(TaskStatus).map((st) => {
+                    const on = card.status === st;
+                    const meta = STATUS_META[st];
+                    const color = STATUS_COLORS[st];
+                    return (
+                      <button
+                        key={st}
+                        disabled={completing}
+                        onClick={() => {
+                          if (on) return;
+                          /*
+                           * "Hoàn thành" phải đi qua endpoint complete, không
+                           * phải PATCH: chỉ nó mới sinh lượt lặp kế tiếp. Đang
+                           * xong mà chọn trạng thái khác thì mở lại trước (để
+                           * xoá `completedAt`) rồi mới đặt trạng thái muốn có.
+                           */
+                          if (st === TaskStatus.DONE) {
+                            setCompleting(true);
+                            void toggleComplete(card.id).finally(() =>
+                              setCompleting(false),
+                            );
+                            return;
+                          }
+                          if (done) {
+                            setCompleting(true);
+                            void toggleComplete(card.id)
+                              .then(() => {
+                                if (st !== TaskStatus.TODO) {
+                                  detail.updateCard.mutate({ status: st });
+                                }
+                              })
+                              .finally(() => setCompleting(false));
+                            return;
+                          }
+                          detail.updateCard.mutate({ status: st });
+                        }}
+                        className="h-7 px-2 rounded-lg text-[12px] font-medium border-0 cursor-pointer transition-colors disabled:cursor-wait"
+                        style={{
+                          background: on ? `${color}1f` : C.muted,
+                          color: on ? color : C.mutedForeground,
+                          boxShadow: on ? `inset 0 0 0 1px ${color}55` : undefined,
+                        }}
+                      >
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+
               <Field icon={<Zap size={13} />} label="Ưu tiên">
                 <div className="flex gap-1">
                   {Object.values(TaskPriority).map((p) => {
@@ -300,26 +405,83 @@ export function CardDetailView({
                 </Field>
               )}
 
-              {card.repeat && (
-                <Field icon={<Repeat size={13} />} label="Lặp lại">
-                  <span
-                    className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[13px]"
-                    style={{ background: C.primary50, color: C.primary }}
+              {/*
+                Lặp lại luôn hiện dòng này, kể cả khi việc chưa lặp: trước đây
+                nó chỉ hiện khi ĐÃ có luật lặp, nên không có đường nào để đặt
+                lần đầu.
+              */}
+              <Field icon={<Repeat size={13} />} label="Lặp lại">
+                <Popover
+                  open={repeatOpen}
+                  onOpenChange={setRepeatOpen}
+                  trigger="click"
+                  placement="bottomLeft"
+                  content={
+                    <RepeatPicker
+                      value={card.repeat}
+                      anchor={card.deadline}
+                      onChange={(rule) => detail.updateCard.mutate({ repeat: rule })}
+                      onClose={() => setRepeatOpen(false)}
+                    />
+                  }
+                >
+                  <button
+                    className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg cursor-pointer text-[13px]"
+                    style={
+                      card.repeat
+                        ? { background: C.primary50, color: C.primary, border: "none" }
+                        : {
+                            background: "#fff",
+                            color: C.neutral500,
+                            border: `1px dashed ${C.border}`,
+                          }
+                    }
                   >
-                    {repeatText(card.repeat)}
-                  </span>
-                </Field>
-              )}
+                    {card.repeat
+                      ? repeatText(card.repeat, card.deadline)
+                      : "Không lặp"}
+                  </button>
+                </Popover>
 
-              {labels.length > 0 && (
-                <Field icon={<TagIcon size={13} />} label="Nhãn">
-                  <span className="flex flex-wrap gap-1.5">
-                    {labels.map((l) => (
-                      <LabelChip key={l.id} label={l} />
-                    ))}
+                {/*
+                  Ngày của lượt kế tiếp.
+
+                  "Mỗi 2 tuần vào T2, T5" là luật, không phải câu trả lời —
+                  thứ người ta thật sự muốn biết là "vậy lần sau là hôm nào".
+                  Tính ở client bằng đúng hàm mà trang Lịch dùng; backend chỉ
+                  tạo thẻ kế tiếp lúc bấm hoàn thành nên không có sẵn để hỏi.
+                */}
+                {nextOccurrenceAfter(card.deadline, card.repeat) && (
+                  <span
+                    className="text-[12px] ml-2"
+                    style={{ color: C.mutedForeground }}
+                  >
+                    lượt sau:{" "}
+                    {fmtShort(nextOccurrenceAfter(card.deadline, card.repeat)!)}
                   </span>
-                </Field>
-              )}
+                )}
+              </Field>
+
+              <Field icon={<TagIcon size={13} />} label="Nhãn">
+                <span className="flex flex-wrap items-center gap-1.5">
+                  {labels.map((l) => (
+                    <LabelChip key={l.id} label={l} />
+                  ))}
+                  <LabelPicker cardId={card.id} selectedIds={card.labelIds}>
+                    <button
+                      className="inline-flex items-center gap-1 h-[22px] px-2 rounded-md cursor-pointer text-[11.5px] font-semibold"
+                      style={{
+                        background: "#fff",
+                        color: C.neutral500,
+                        border: `1px dashed ${C.border}`,
+                      }}
+                    >
+                      <Plus size={12} />
+                      {labels.length ? "Nhãn" : "Gắn nhãn"}
+                    </button>
+                  </LabelPicker>
+                </span>
+              </Field>
             </div>
 
             {/* Nguồn — thứ Trello không có */}
@@ -347,8 +509,11 @@ export function CardDetailView({
 
             <DescriptionSection card={card} detail={detail} />
 
-            {card.attachments.length > 0 && (
-              <Section icon={<Paperclip size={16} />} title="Tệp đính kèm">
+            {/*
+              Mục này trước đây chỉ hiện khi ĐÃ có đính kèm, nên không có đường
+              nào thêm cái đầu tiên. Giờ luôn hiện, kèm ô thêm liên kết.
+            */}
+            <Section icon={<Paperclip size={16} />} title="Tệp đính kèm">
                 <div className="flex flex-col gap-2">
                   {card.attachments.map((att) => (
                     <div key={att.id} className="flex items-center gap-3">
@@ -381,9 +546,9 @@ export function CardDetailView({
                       </div>
                     </div>
                   ))}
+                  <AttachmentComposer detail={detail} />
                 </div>
               </Section>
-            )}
 
             {card.checklists.map((cl) => (
               <ChecklistBlock key={cl.id} checklist={cl} detail={detail} />
@@ -477,7 +642,26 @@ function CardTitle({
 function DescriptionSection({ card, detail }: { card: CardDetail; detail: DetailApi }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(card.description ?? "");
+  const [importing, setImporting] = useState(false);
   const hasDescription = !isRichTextEmpty(card.description);
+
+  /**
+   * Chèn HTML vừa chuyển từ Markdown.
+   *
+   * Đang mở trình soạn thảo thì ghi vào bản nháp để người dùng còn sửa tiếp
+   * rồi mới bấm Lưu; đang ở chế độ đọc thì lưu thẳng — bắt họ bấm thêm một nút
+   * "Lưu" nữa sau khi đã bấm "Chèn" là thừa.
+   */
+  const insertMarkdown = (html: string, mode: "append" | "replace") => {
+    const base = editing ? draft : (card.description ?? "");
+    const next =
+      mode === "append" && !isRichTextEmpty(base) ? `${base}${html}` : html;
+    if (editing) {
+      setDraft(next);
+    } else {
+      detail.updateCard.mutate({ description: next });
+    }
+  };
 
   const open = () => {
     setDraft(card.description ?? "");
@@ -496,17 +680,34 @@ function DescriptionSection({ card, detail }: { card: CardDetail; detail: Detail
       icon={<AlignLeft size={16} />}
       title="Mô tả chi tiết"
       action={
-        !editing && hasDescription ? (
+        <div className="flex items-center gap-1.5">
           <button
-            onClick={open}
+            onClick={() => setImporting(true)}
+            title="Dán hoặc chọn tệp .md, xem trước rồi chèn"
             className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border-0 text-[12.5px] cursor-pointer"
             style={{ background: C.muted, color: C.neutral700 }}
           >
-            <Pencil size={13} /> Sửa
+            <FileCode size={13} /> Markdown
           </button>
-        ) : null
+          {!editing && hasDescription && (
+            <button
+              onClick={open}
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border-0 text-[12.5px] cursor-pointer"
+              style={{ background: C.muted, color: C.neutral700 }}
+            >
+              <Pencil size={13} /> Sửa
+            </button>
+          )}
+        </div>
       }
     >
+      <MarkdownImport
+        open={importing}
+        hasExisting={hasDescription}
+        onClose={() => setImporting(false)}
+        onInsert={insertMarkdown}
+      />
+
       {editing ? (
         <div className="flex flex-col gap-2">
           <RichTextEditor autoFocus value={draft} onChange={setDraft} />
@@ -806,33 +1007,7 @@ function NotesColumn({ card, detail }: { card: CardDetail; detail: DetailApi }) 
 
       <div className="flex flex-col gap-2">
         {card.notes.map((note) => (
-          <div
-            key={note.id}
-            className="group/note rounded-xl bg-white px-3 py-2.5"
-            style={{ border: `1px solid ${C.border}` }}
-          >
-            <div
-              className="text-[13.5px] whitespace-pre-wrap leading-relaxed"
-              style={{ color: C.foreground }}
-            >
-              {note.content}
-            </div>
-            <div className="flex items-center justify-between mt-1.5">
-              <span className="text-[11.5px]" style={{ color: C.mutedForeground }}>
-                {fmtDateTime(note.createdAt)}
-                {note.editedAt && " · đã sửa"}
-              </span>
-              <button
-                aria-label="Xoá ghi chú"
-                onClick={() => detail.deleteNote.mutate(note.id)}
-                className="opacity-0 group-hover/note:opacity-100 grid place-items-center size-6
-                  rounded border-0 bg-transparent cursor-pointer"
-                style={{ color: C.neutral500 }}
-              >
-                <Trash2 size={13} />
-              </button>
-            </div>
-          </div>
+          <NoteRow key={note.id} note={note} detail={detail} />
         ))}
       </div>
 
@@ -869,6 +1044,192 @@ function NotesColumn({ card, detail }: { card: CardDetail; detail: DetailApi }) 
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Một ghi chú: xem, sửa tại chỗ, xoá.
+ *
+ * Bấm vào chữ là vào chế độ sửa — không có nút "Sửa" riêng, vì ghi chú là thứ
+ * người ta sửa nhiều hơn đọc. Esc huỷ, Ctrl+Enter lưu, giống hệt ô soạn ở trên
+ * để không phải học hai lối bấm khác nhau trong cùng một cột.
+ */
+function NoteRow({ note, detail }: { note: CardNote; detail: DetailApi }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note.content);
+
+  const save = () => {
+    const content = draft.trim();
+    // Không gửi request khi chữ không đổi, và không cho lưu ghi chú rỗng
+    if (!content || content === note.content) {
+      setDraft(note.content);
+      setEditing(false);
+      return;
+    }
+    detail.updateNote.mutate({ noteId: note.id, content });
+    setEditing(false);
+  };
+
+  return (
+    <div
+      className="group/note rounded-xl bg-white px-3 py-2.5"
+      style={{ border: `1px solid ${C.border}` }}
+    >
+      {editing ? (
+        <>
+          <textarea
+            autoFocus
+            rows={Math.min(8, Math.max(2, draft.split("\n").length))}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setDraft(note.content);
+                setEditing(false);
+              }
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
+            }}
+            className="w-full resize-none rounded-lg px-2 py-1.5 text-[13.5px] outline-none"
+            style={{ border: `1px solid ${C.primary200}`, color: C.foreground }}
+          />
+          <div className="flex items-center gap-2 mt-1.5">
+            <button
+              onClick={save}
+              className="h-7 px-2.5 rounded-lg border-0 text-white text-[12.5px] cursor-pointer"
+              style={{ background: C.primary }}
+            >
+              Lưu
+            </button>
+            <button
+              onClick={() => {
+                setDraft(note.content);
+                setEditing(false);
+              }}
+              className="h-7 px-2.5 rounded-lg text-[12.5px] cursor-pointer bg-transparent"
+              style={{ border: `1px solid ${C.border}`, color: C.neutral700 }}
+            >
+              Huỷ
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div
+            role="button"
+            tabIndex={0}
+            title="Bấm để sửa"
+            onClick={() => setEditing(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") setEditing(true);
+            }}
+            className="text-[13.5px] whitespace-pre-wrap leading-relaxed cursor-text"
+            style={{ color: C.foreground }}
+          >
+            {note.content}
+          </div>
+          <div className="flex items-center justify-between mt-1.5">
+            <span className="text-[11.5px]" style={{ color: C.mutedForeground }}>
+              {fmtDateTime(note.createdAt)}
+              {note.editedAt && " · đã sửa"}
+            </span>
+            <div className="flex items-center gap-0.5">
+              <button
+                aria-label="Sửa ghi chú"
+                onClick={() => setEditing(true)}
+                className="opacity-0 group-hover/note:opacity-100 focus-visible:opacity-100
+                  grid place-items-center size-6 rounded border-0 bg-transparent cursor-pointer"
+                style={{ color: C.neutral500 }}
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                aria-label="Xoá ghi chú"
+                onClick={() => detail.deleteNote.mutate(note.id)}
+                className="opacity-0 group-hover/note:opacity-100 focus-visible:opacity-100
+                  grid place-items-center size-6 rounded border-0 bg-transparent cursor-pointer"
+                style={{ color: C.neutral500 }}
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Thêm một liên kết đính kèm.
+ *
+ * Hai ô chứ không phải một: dán URL thì tên tự điền từ đuôi đường dẫn, nhưng
+ * vẫn sửa được — "bao-gia-v3.pdf" dễ đọc hơn một chuỗi 80 ký tự có token.
+ */
+function AttachmentComposer({ detail }: { detail: DetailApi }) {
+  const [url, setUrl] = useState("");
+  const [name, setName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
+
+  const submit = () => {
+    const link = url.trim();
+    if (!link) return;
+    detail.addAttachment.mutate({ name: name.trim() || link, url: link });
+    setUrl("");
+    setName("");
+    setNameTouched(false);
+  };
+
+  /** Lấy phần cuối đường dẫn làm tên gợi ý; URL hỏng thì thôi, không nổ */
+  const suggestName = (value: string): string => {
+    try {
+      const path = new URL(value).pathname;
+      return decodeURIComponent(path.split("/").filter(Boolean).at(-1) ?? "");
+    } catch {
+      return "";
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 mt-1">
+      <div className="flex gap-1.5">
+        <input
+          value={url}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            if (!nameTouched) setName(suggestName(e.target.value));
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+          }}
+          placeholder="Dán liên kết (Google Drive, hợp đồng, ảnh...)"
+          className="flex-1 min-w-0 h-8 rounded-lg px-2.5 text-[13px] outline-none"
+          style={{ border: `1px solid ${C.border}`, color: C.foreground }}
+        />
+        <button
+          onClick={submit}
+          disabled={!url.trim() || detail.addAttachment.isPending}
+          className="h-8 px-3 rounded-lg border-0 text-[13px] cursor-pointer disabled:opacity-50"
+          style={{ background: C.muted, color: C.neutral700 }}
+        >
+          Thêm
+        </button>
+      </div>
+      {url.trim() && (
+        <input
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            setNameTouched(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+          }}
+          placeholder="Tên hiển thị"
+          className="h-8 rounded-lg px-2.5 text-[13px] outline-none"
+          style={{ border: `1px solid ${C.border}`, color: C.foreground }}
+        />
+      )}
     </div>
   );
 }

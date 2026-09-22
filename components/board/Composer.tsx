@@ -10,7 +10,7 @@
  * Enter = lưu · Shift+Enter = xuống dòng · Esc = huỷ · click ra ngoài = huỷ (khi chưa gõ).
  */
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Clock, Tag, Timer, X, Zap } from "lucide-react";
+import { Clock, LoaderCircle, Tag, Timer, X, Zap } from "lucide-react";
 import { PRIORITY_META } from "@/models/task";
 import { QUICK_ADD_HINTS, quickParse } from "@/utils/client/quickParse";
 import { useBoard } from "./BoardStore";
@@ -20,7 +20,11 @@ import styles from "./board.module.scss";
 type Props = {
   placeholder: string;
   submitLabel: string;
-  onSubmit: (value: string) => void;
+  /**
+   * Trả về Promise thì ô nhập tự khoá và hiện vòng quay tới khi xong. Trả về
+   * `void` vẫn chạy bình thường (ô đặt tên danh sách dùng kiểu này).
+   */
+  onSubmit: (value: string) => void | Promise<void>;
   onCancel: () => void;
   /** Bật bản xem trước (ô thêm thẻ) — ô đặt tên danh sách thì tắt */
   parse?: boolean;
@@ -36,6 +40,7 @@ export function Composer({
   autoFocus = true,
 }: Props) {
   const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
   const { labels } = useBoard();
   const ref = useRef<HTMLTextAreaElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -80,14 +85,28 @@ export function Composer({
     el.style.height = `${el.scrollHeight}px`;
   };
 
-  const submit = () => {
+  const submit = async () => {
     const trimmed = value.trim();
-    if (!trimmed) return;
-    onSubmit(trimmed);
+    if (!trimmed || saving) return;
+
+    /*
+     * Xoá ô ngay chứ không đợi máy chủ: ô mờ ở trong cột đã gánh phần "đang
+     * lưu", còn ở đây người dùng cần gõ tiếp việc thứ hai ngay lập tức. Đây là
+     * ô nhập liên tiếp — bắt chờ từng việc một thì nhập mười việc thành cực hình.
+     */
     setValue("");
     if (ref.current) {
       ref.current.style.height = "auto";
       ref.current.focus();
+    }
+
+    const result = onSubmit(trimmed);
+    if (!(result instanceof Promise)) return;
+    setSaving(true);
+    try {
+      await result;
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -168,11 +187,24 @@ export function Composer({
         <button
           type="button"
           onClick={submit}
-          className="h-8 px-3 rounded-lg text-[13px] font-medium border-0 cursor-pointer"
+          disabled={!value.trim()}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[13px] font-medium
+            border-0 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed"
           style={{ background: "rgba(190,224,244,.92)", color: "#062b47" }}
         >
           {submitLabel}
         </button>
+
+        {/* Việc trước còn đang gửi — ô vẫn gõ tiếp được, chỉ là nói cho biết */}
+        {saving && (
+          <span
+            className="inline-flex items-center gap-1.5 text-[12px]"
+            style={{ color: G.textMuted }}
+          >
+            <LoaderCircle size={13} className="animate-spin" />
+            Đang lưu...
+          </span>
+        )}
         <button
           type="button"
           aria-label="Huỷ"

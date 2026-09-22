@@ -18,16 +18,22 @@ import {
   AlertTriangle,
   CalendarClock,
   CheckCheck,
+  LoaderCircle,
   Mail,
   Plus,
   RotateCw,
   Search,
 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import TaskDetailDrawer from "@/components/tasks/TaskDetailDrawer";
 import TaskFormModal from "@/components/tasks/TaskFormModal";
 import { taskApi } from "@/apis/task.api";
-import { useCompleteTask, useMe, useTasks, useTaskTypes } from "@/hooks/useTaskApp";
+import {
+  useCompleteTask,
+  useInvalidateTaskData,
+  useMe,
+  useTasks,
+  useTaskTypes,
+} from "@/hooks/useTaskApp";
 import {
   CATEGORY_META,
   PRIORITY_META,
@@ -48,7 +54,6 @@ const COLUMNS: { status: TaskStatus; title: string; accent: string; bg: string }
 
 export default function KanbanPage() {
   const { message } = App.useApp();
-  const queryClient = useQueryClient();
   const { data: me } = useMe();
   const admin = isAdminRole(me?.role);
 
@@ -116,10 +121,8 @@ export default function KanbanPage() {
     task.status !== TaskStatus.CANCELLED &&
     dayjs(task.deadline).isBefore(dayjs());
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    queryClient.invalidateQueries({ queryKey: ["task-stats"] });
-  };
+  // Dùng chung một danh sách khoá với mọi màn khác — xem useInvalidateTaskData
+  const invalidate = useInvalidateTaskData();
 
   const handleDrop = async (event: DragEvent, status: TaskStatus) => {
     event.preventDefault();
@@ -354,13 +357,25 @@ export default function KanbanPage() {
                             {canComplete && (
                               <Tooltip title="Hoàn thành ngay">
                                 <button
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center size-5 rounded border-0 cursor-pointer bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white"
+                                  disabled={
+                                    completeTask.isPending &&
+                                    completeTask.variables === task.id
+                                  }
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center size-5 rounded border-0 cursor-pointer bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white disabled:opacity-100"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     completeTask.mutate(task.id);
                                   }}
                                 >
-                                  <CheckCheck size={13} />
+                                  {completeTask.isPending &&
+                                  completeTask.variables === task.id ? (
+                                    <LoaderCircle
+                                      size={13}
+                                      className="animate-spin"
+                                    />
+                                  ) : (
+                                    <CheckCheck size={13} />
+                                  )}
                                 </button>
                               </Tooltip>
                             )}

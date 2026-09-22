@@ -245,7 +245,22 @@ enum RepeatUnit { DAY WEEK MONTH }
 
 ### 3.3 Dữ liệu khởi tạo
 
-Mỗi người khi đăng nhập lần đầu được tạo sẵn một bảng với 5 danh sách:
+> **Cập nhật 22/09/2026:** mục này mô tả bộ khởi tạo **cũ**. Từ nay bảng mới
+> chỉ được tạo sẵn **một** danh sách mẫu. Bảng năm cột bên dưới giữ lại để tra
+> cứu, vì mọi bảng tạo trước ngày này vẫn đang có đủ năm danh sách đó.
+
+Mỗi bảng mới (một bảng cho mỗi dự án) được tạo sẵn **đúng một** danh sách:
+
+| Danh sách | `mapsToStatus` | `wipLimit` |
+|---|---|---|
+| Hôm nay | `TODO` | `null` |
+
+Người dùng tự thêm các danh sách còn lại bằng nút "Thêm danh sách". Nguồn sự
+thật là `DEFAULT_LISTS` trong `src/common/constants/board.constants.ts` của
+backend.
+
+<details>
+<summary>Bộ năm danh sách cũ (bảng tạo trước 22/09/2026)</summary>
 
 | Danh sách | `mapsToStatus` | `wipLimit` |
 |---|---|---|
@@ -254,6 +269,8 @@ Mỗi người khi đăng nhập lần đầu được tạo sẵn một bảng 
 | Tuần này | `null` | null |
 | Sau này | `null` | null |
 | Hoàn thành | `DONE` | null |
+
+</details>
 
 Toàn bộ task đang có của người đó: gán `listId` theo `status` qua bảng trên, `position` đánh bội số 1024 theo `createdAt`.
 

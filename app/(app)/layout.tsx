@@ -29,6 +29,7 @@ import {
 } from "@/contexts/ThemeContext";
 import ThemeSettings from "@/components/global/ThemeSettings/ThemeSettings";
 import ProjectSwitcher from "./_components/ProjectSwitcher";
+import SyncIndicator from "./_components/SyncIndicator";
 import styles from "./layout.module.scss";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -266,6 +267,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       )}
 
       <main className={styles.main}>
+        <SyncIndicator />
         <div className={styles.content}>{children}</div>
       </main>
 

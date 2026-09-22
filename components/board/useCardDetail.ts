@@ -22,9 +22,9 @@ import {
 } from "@/models/board";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { isRichTextEmpty } from "@/utils/client/richText";
-import { BOARD_QUERY_KEY } from "./BoardStore";
+import { BOARD_QUERY_KEY, cardDetailKey } from "./BoardStore";
 
-export const cardDetailKey = (cardId: string) => ["board", "card", cardId] as const;
+export { cardDetailKey };
 
 export function useCardDetail(cardId: string) {
   const { message } = App.useApp();
@@ -152,6 +152,33 @@ export function useCardDetail(cardId: string) {
   });
 
   // ==========================================
+  // ĐÍNH KÈM
+  // ==========================================
+  /**
+   * Đính kèm ở đây là LIÊN KẾT, không phải tải tệp lên — backend không có kho
+   * tệp. `kind` suy từ đuôi URL để thẻ hiện đúng icon; đoán sai cũng chỉ sai
+   * cái icon, nên không đáng bắt người dùng chọn.
+   */
+  const addAttachment = useMutation({
+    mutationFn: ({ name, url }: { name: string; url: string }) =>
+      boardApi.addAttachment(cardId, {
+        name,
+        url,
+        kind: /\.(png|jpe?g|gif|webp|svg|avif)(\?|$)/i.test(url)
+          ? "IMAGE"
+          : "LINK",
+      }),
+    onSuccess: (attachment) => {
+      patchDetail((card) => ({
+        ...card,
+        attachments: [...card.attachments, attachment],
+      }));
+      patchSummary((c) => ({ ...c, attachmentCount: c.attachmentCount + 1 }));
+    },
+    onError: onFail,
+  });
+
+  // ==========================================
   // GHI CHÚ
   // ==========================================
   const addNote = useMutation({
@@ -160,6 +187,35 @@ export function useCardDetail(cardId: string) {
       // Ghi chú mới nhất đứng đầu, giống thứ tự server trả
       patchDetail((card) => ({ ...card, notes: [note, ...card.notes] }));
       patchSummary((c) => ({ ...c, noteCount: c.noteCount + 1 }));
+    },
+    onError: onFail,
+  });
+
+  /**
+   * Sửa ghi chú.
+   *
+   * Vá lạc quan ngay lúc gửi: ghi chú là chỗ người dùng gõ liên tục, đợi một
+   * vòng mạng mới thấy chữ mình vừa sửa thì cảm giác như bị mất chữ. `editedAt`
+   * đặt tạm ở client rồi được ghi đè bằng giá trị thật của server.
+   */
+  const updateNote = useMutation({
+    mutationFn: ({ noteId, content }: { noteId: string; content: string }) =>
+      boardApi.updateNote(noteId, content),
+    onMutate: ({ noteId, content }) => {
+      patchDetail((card) => ({
+        ...card,
+        notes: card.notes.map((n) =>
+          n.id === noteId
+            ? { ...n, content, editedAt: new Date().toISOString() }
+            : n,
+        ),
+      }));
+    },
+    onSuccess: (note) => {
+      patchDetail((card) => ({
+        ...card,
+        notes: card.notes.map((n) => (n.id === note.id ? note : n)),
+      }));
     },
     onError: onFail,
   });
@@ -182,7 +238,9 @@ export function useCardDetail(cardId: string) {
     addChecklistItem,
     toggleChecklistItem,
     deleteChecklistItem,
+    addAttachment,
     addNote,
+    updateNote,
     deleteNote,
   };
 }

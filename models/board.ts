@@ -14,7 +14,16 @@
  * Trộn hai thứ này là lỗi hay gặp nhất: canvas sẽ tưởng thẻ không có checklist
  * chỉ vì `/full` không trả về chúng.
  */
-import { DeadlineStatus, TaskCategory, TaskPriority, TaskStatus } from "./task";
+import {
+  DeadlineStatus,
+  RepeatRule,
+  TaskCategory,
+  TaskPriority,
+  TaskStatus,
+} from "./task";
+
+/** Luật lặp dùng chung — định nghĩa ở `models/task`, xuất lại cho tiện dùng */
+export type { RepeatRule };
 
 // ==========================================
 // POSITION
@@ -54,8 +63,53 @@ export type BoardLabel = {
   boardId: string;
   name: string;
   color: string; // hex
+  /** Tên icon trong LABEL_ICONS. null = nhãn chỉ có màu (mọi nhãn cũ đều vậy) */
+  icon: string | null;
   /** Không dấu — quick-add khớp "#baogia" theo trường này */
   slug: string;
+};
+
+/**
+ * Icon hợp lệ của nhãn — phải khớp `LABEL_ICONS` của backend.
+ *
+ * Danh sách ĐÓNG ở cả hai đầu: backend trả 400 cho tên lạ, còn ở đây nó quyết
+ * định component nào được import. Thêm icon mới thì sửa CẢ HAI nơi, nếu không
+ * nhãn tạo được nhưng ô icon trống trơn.
+ */
+export const LABEL_ICONS = [
+  "tag",
+  "star",
+  "flag",
+  "bell",
+  "heart",
+  "zap",
+  "phone",
+  "mail",
+  "users",
+  "folder",
+  "coins",
+  "bug",
+] as const;
+
+export type LabelIcon = (typeof LABEL_ICONS)[number];
+
+/** Bảng màu gợi ý khi tạo nhãn — đủ tương phản trên nền kính của bảng */
+export const LABEL_COLORS = [
+  "#e63946",
+  "#f4a261",
+  "#2a9d8f",
+  "#0ea5e9",
+  "#7c3aed",
+  "#d946ef",
+  "#64748b",
+  "#0a436d",
+] as const;
+
+export type SaveLabelInput = {
+  name?: string;
+  color?: string;
+  /** null = gỡ icon. undefined = không đụng tới */
+  icon?: string | null;
 };
 
 // ==========================================
@@ -63,10 +117,6 @@ export type BoardLabel = {
 // ==========================================
 export type CardSource = "MANUAL" | "EMAIL" | "ZALO";
 
-export type RepeatRule = {
-  unit: "DAY" | "WEEK" | "MONTH";
-  interval: number;
-};
 
 /** Thẻ rút gọn — dùng ở /full, /agenda, /search, /lists/:id/cards và mọi response ghi */
 export type CardSummary = {
@@ -263,6 +313,15 @@ export type UpdateCardInput = Partial<
     "title" | "description" | "priority" | "category" | "deadline" | "cover" | "estimateMinutes"
   >
 > & {
+  /**
+   * Đổi trạng thái việc. Đi cùng endpoint `PATCH /tasks/:id` như mọi field
+   * khác ở đây.
+   *
+   * KHÔNG dùng để đánh dấu HOÀN THÀNH: `PATCH` có đặt `completedAt` nhưng
+   * **không** sinh lượt lặp kế tiếp — chỉ `/tasks/:id/complete` làm việc đó.
+   * Hoàn thành phải đi qua `toggleComplete`.
+   */
+  status?: TaskStatus;
   repeat?: RepeatRule | null;
   labelIds?: string[];
 };
@@ -306,10 +365,110 @@ export const REPEAT_LABEL: Record<RepeatRule["unit"], string> = {
   MONTH: "tháng",
 };
 
-export const repeatText = (rule: RepeatRule): string =>
-  rule.interval === 1
-    ? `Mỗi ${REPEAT_LABEL[rule.unit]}`
-    : `Mỗi ${rule.interval} ${REPEAT_LABEL[rule.unit]}`;
+/** Nhãn thứ trong tuần, index = 0 (CN) .. 6 (T7) — khớp quy ước của backend */
+export const WEEKDAY_LABELS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+
+/**
+ * Câu mô tả luật lặp bằng tiếng Việt, gồm cả phần nâng cao.
+ * Ví dụ: "Mỗi 2 tuần vào T2, T5 · còn 3 lượt"
+ */
+/**
+ * Câu mô tả luật lặp bằng tiếng Việt.
+ *
+ * `anchor` là hạn chót của việc — cần cho đúng một trường hợp, nhưng là trường
+ * hợp phổ biến nhất: lặp theo TUẦN mà không chọn thứ nào. Khi đó luật bám theo
+ * thứ của hạn chót, và nếu không nói ra thì người dùng chỉ thấy "Mỗi tuần" rồi
+ * phải tự suy từ ngày tháng xem là thứ mấy.
+ *
+ * Tương tự với THÁNG không chọn ngày: "Mỗi tháng" -> "Mỗi tháng vào ngày 28".
+ */
+export const repeatText = (
+  rule: RepeatRule,
+  anchor?: string | null,
+): string => {
+  const every =
+    rule.interval === 1
+      ? `Mỗi ${REPEAT_LABEL[rule.unit]}`
+      : `Mỗi ${rule.interval} ${REPEAT_LABEL[rule.unit]}`;
+
+  const parts = [every];
+  const anchorDate = anchor ? new Date(anchor) : null;
+
+  if (rule.unit === "WEEK") {
+    const days = rule.weekdays?.length
+      ? [...rule.weekdays].sort((a, b) => a - b)
+      : anchorDate
+        ? [anchorDate.getDay()]
+        : [];
+    const labels = days.map((d) => WEEKDAY_LABELS[d]).filter(Boolean);
+    if (labels.length) parts.push(`vào ${labels.join(", ")}`);
+  }
+
+  if (rule.unit === "MONTH") {
+    const day = rule.dayOfMonth ?? anchorDate?.getDate();
+    if (day) parts.push(`vào ngày ${day}`);
+  }
+
+  const head = parts.join(" ");
+
+  if (rule.remaining !== null && rule.remaining !== undefined) {
+    /*
+     * `remaining` đếm số lượt CÒN LẠI SAU lượt hiện tại — quy ước của backend.
+     * Chữ "nữa" là thứ duy nhất phân biệt được "còn 3 lượt (tính cả lượt này)"
+     * với "còn 3 lượt nữa", mà hai cách hiểu đó lệch nhau đúng một lần lặp.
+     */
+    return rule.remaining === 0
+      ? `${head} · lượt cuối`
+      : `${head} · còn ${rule.remaining} lượt nữa`;
+  }
+  if (rule.until) {
+    const until = new Date(rule.until);
+    return `${head} · tới ${until.getDate()}/${until.getMonth() + 1}/${until.getFullYear()}`;
+  }
+  return head;
+};
+
+/**
+ * Nhịp lặp viết cực ngắn, để in lên thẻ ngoài bảng.
+ *
+ * Khác `repeatText` ở mục đích: hàm kia viết đủ câu cho người ĐỌC KỸ (màn chi
+ * tiết, tooltip), hàm này viết cho người ĐỌC LƯỚT một cột hai chục thẻ. Nên nó
+ * bỏ hẳn phần kết thúc ("còn 2 lượt nữa") — thông tin đó không đổi cách bạn
+ * nhìn cột việc hôm nay.
+ *
+ * Chọn thứ quá nhiều thì gộp thành "4 ngày/tuần": liệt kê đủ bảy thứ sẽ dài
+ * hơn cả tiêu đề việc.
+ */
+export const repeatShort = (
+  rule: RepeatRule,
+  anchor?: string | null,
+): string => {
+  const anchorDate = anchor ? new Date(anchor) : null;
+
+  if (rule.unit === "DAY") {
+    return rule.interval === 1 ? "hằng ngày" : `mỗi ${rule.interval} ngày`;
+  }
+
+  if (rule.unit === "WEEK") {
+    const days = rule.weekdays?.length
+      ? [...rule.weekdays].sort((a, b) => a - b)
+      : anchorDate
+        ? [anchorDate.getDay()]
+        : [];
+    const labels = days.map((d) => WEEKDAY_LABELS[d]).filter(Boolean);
+    const when =
+      labels.length === 0
+        ? "hằng tuần"
+        : labels.length > 3
+          ? `${labels.length} ngày/tuần`
+          : labels.join(", ");
+    return rule.interval === 1 ? when : `${rule.interval} tuần · ${when}`;
+  }
+
+  const day = rule.dayOfMonth ?? anchorDate?.getDate();
+  if (rule.interval === 1) return day ? `ngày ${day}/tháng` : "hằng tháng";
+  return `mỗi ${rule.interval} tháng`;
+};
 
 export const checklistProgress = (card: CardDetail) => {
   const items = card.checklists.flatMap((c) => c.items);

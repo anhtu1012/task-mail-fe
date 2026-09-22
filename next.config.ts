@@ -6,10 +6,10 @@ const stylesDir = path.join(process.cwd(), "styles").replace(/\\/g, "/");
 const apiOrigin = (() => {
   try {
     return new URL(
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888",
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:9999",
     ).origin;
   } catch {
-    return "http://localhost:8888";
+    return "http://localhost:9999";
   }
 })();
 

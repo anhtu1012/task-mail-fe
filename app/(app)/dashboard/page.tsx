@@ -8,6 +8,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Gauge,
+  History,
   Mail,
   TrendingUp,
 } from "lucide-react";
@@ -75,13 +76,20 @@ export default function DashboardPage() {
   );
   const { data: upcoming, isLoading: upcomingLoading } = useTasks(upcomingParams);
 
-  // Task mới nhất
-  const { data: recent, isLoading: recentLoading } = useTasks({ limit: 6 });
-
-  // Mẫu task để tính phân bố trạng thái/ưu tiên (giới hạn 200 -> không phá rate-limit)
+  /*
+   * Mẫu task để tính phân bố trạng thái/ưu tiên (giới hạn 200 -> không phá
+   * rate-limit). Backend luôn sắp `createdAt desc`, nên "task mới nhất" chính
+   * là sáu phần tử đầu của mẫu này — trước đây trang gọi thêm một truy vấn
+   * `limit: 6` chỉ để lấy đúng chỗ dữ liệu đã nằm sẵn trong tay.
+   */
   const { data: distributionSample, isLoading: distributionLoading } = useTasks({
     limit: 200,
   });
+  const recentItems = useMemo(
+    () => (distributionSample?.items ?? []).slice(0, 6),
+    [distributionSample],
+  );
+  const recentLoading = distributionLoading;
 
   const upcomingOpen = (upcoming?.items ?? []).filter(
     (t) => t.status !== TaskStatus.DONE && t.status !== TaskStatus.CANCELLED,
@@ -197,7 +205,7 @@ export default function DashboardPage() {
             ) : (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="Không có công việc nào sắp đến hạn 🎉"
+                description="Không có công việc nào sắp đến hạn"
               />
             )}
           </Card>
@@ -205,14 +213,19 @@ export default function DashboardPage() {
         <Col xs={24} lg={12}>
           <Card
             variant="borderless"
-            title="🕓 Công việc gần đây"
+            title={
+              <span className="inline-flex items-center gap-2">
+                <History size={16} className="text-slate-400" />
+                Công việc gần đây
+              </span>
+            }
             extra={<Link href="/tasks">Xem tất cả</Link>}
           >
             {recentLoading ? (
               <Skeleton active paragraph={{ rows: 4 }} />
-            ) : recent?.items?.length ? (
+            ) : recentItems.length ? (
               <List
-                dataSource={recent.items}
+                dataSource={recentItems}
                 renderItem={(task) => (
                   <List.Item>
                     <div className="flex w-full items-center gap-3">

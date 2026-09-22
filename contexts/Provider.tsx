@@ -26,6 +26,24 @@ const Provider = ({ children }: { children: ReactNode }) => {
           queries: {
             refetchOnWindowFocus: false,
             refetchOnMount: true,
+            /*
+             * Mặc định của React Query là thử lại 3 lần với khoảng chờ tăng
+             * dần: một lỗi thật (401 đã hết cứu, 404, 429) phải mất khoảng 7
+             * giây mới hiện ra màn hình, trong lúc đó người dùng nhìn spinner
+             * mà không hiểu chuyện gì. Một lần thử lại là đủ cho trục trặc
+             * mạng thoáng qua.
+             */
+            retry: 1,
+            /*
+             * Backend giới hạn 20 yêu cầu/60 giây. Thử lại ngay lập tức chỉ
+             * làm trần đó cạn nhanh hơn.
+             */
+            retryDelay: 800,
+          },
+          mutations: {
+            // Ghi thì KHÔNG tự thử lại: gửi lại một lệnh tạo việc có thể sinh
+            // ra hai việc giống nhau.
+            retry: 0,
           },
         },
       }),

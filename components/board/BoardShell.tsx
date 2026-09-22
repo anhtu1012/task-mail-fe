@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Spin } from "antd";
 import { RotateCw, TriangleAlert } from "lucide-react";
 import { getApiErrorMessage } from "@/utils/client/apiError";
@@ -14,11 +15,23 @@ import styles from "./board.module.scss";
  *
  * Mặc định tràn hết vùng Content của layout hệ thống (bù padding 24px bằng
  * margin âm). Bật "Toàn màn hình" (nút trên thanh công cụ, hoặc phím F) thì
- * chuyển sang position:fixed phủ luôn sidebar và header — thoát bằng Esc.
- * Lựa chọn này được nhớ lại cho lần mở sau.
+ * phủ luôn thanh điều hướng — thoát bằng Esc. Lựa chọn được nhớ cho lần sau.
+ *
+ * TOÀN MÀN HÌNH PHẢI ĐI QUA PORTAL, không chỉ `position: fixed`:
+ *
+ * Khung `.main` của layout hệ thống có `backdrop-filter` và `z-index: 1`. Hai
+ * thứ đó biến nó thành **containing block** cho con `position: fixed` VÀ thành
+ * một **stacking context** riêng. Hệ quả là bảng nằm trong đó dù đặt
+ * `z-index: 1000` cũng không bao giờ vượt lên trên thanh điều hướng
+ * (`z-index: 40`, anh em với `.main`) — kết quả là thanh điều hướng đè lên Hộp
+ * thư đến, đúng lỗi "mở to ra bị lỗi".
+ *
+ * Đưa sang `document.body` là cách duy nhất thoát cả hai ràng buộc mà không
+ * phải sửa z-index của layout hệ thống theo trạng thái của một màn con.
  */
 export function BoardShell() {
   const { fullscreen, setFullscreen, paletteOpen, isLoading, error, refetch } = useBoard();
+
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -30,7 +43,7 @@ export function BoardShell() {
     return () => document.removeEventListener("keydown", onKey);
   }, [fullscreen, setFullscreen, paletteOpen]);
 
-  return (
+  const board = (
     <div className={`${styles.boardRoot} ${fullscreen ? styles.boardFullscreen : ""}`}>
       {/* Lớp phủ tối trên ảnh nền — thiếu nó thì chữ trắng trên kính không đọc được */}
       <div className={styles.backdrop} />
@@ -46,6 +59,16 @@ export function BoardShell() {
       </div>
     </div>
   );
+
+  /*
+   * Không cần cờ "đã mount": cây component của bảng KHÔNG bao giờ được dựng ở
+   * máy chủ — app/(app)/layout.tsx chỉ hiện <Spin/> cho tới khi kiểm xong
+   * cookie trong effect (cùng bất biến mà `useStickyState` dựa vào). Vẫn kiểm
+   * `document` một lần cho chắc, phòng khi chốt chặn đó bị bỏ sau này.
+   */
+  return fullscreen && typeof document !== "undefined"
+    ? createPortal(board, document.body)
+    : board;
 }
 
 function LoadingState() {

@@ -16,7 +16,6 @@ import {
   Tooltip,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useQueryClient } from "@tanstack/react-query";
 import dayjs, { Dayjs } from "dayjs";
 import {
   CheckCheck,
@@ -38,8 +37,10 @@ import { getApiErrorMessage } from "@/utils/client/apiError";
 import { exportTasksToCsv } from "@/utils/client/exportTasksToCsv";
 import { richTextToPlain } from "@/utils/client/richText";
 import {
+  useAssignableUsers,
   useCompleteTask,
   useDeleteTask,
+  useInvalidateTaskData,
   useMailAccounts,
   useMe,
   useTasks,
@@ -88,10 +89,10 @@ export type Filters = {
 
 export default function TasksPage() {
   const { message } = App.useApp();
-  const queryClient = useQueryClient();
   const { projectId } = useCurrentProject();
   const { data: me } = useMe();
   const admin = isAdminRole(me?.role);
+  const { users, isLoading: usersLoading, labelFor } = useAssignableUsers(admin);
 
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -146,10 +147,8 @@ export default function TasksPage() {
     );
   }, [data?.items, filters.search]);
 
-  const invalidateAfterBulk = () => {
-    queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    queryClient.invalidateQueries({ queryKey: ["task-stats"] });
-  };
+  // Dùng chung một danh sách khoá với mọi màn khác — xem useInvalidateTaskData
+  const invalidateAfterBulk = useInvalidateTaskData();
 
   const handleBulkStatus = async (status: TaskStatus) => {
     const ids = selectedRowKeys as string[];
@@ -331,6 +330,27 @@ export default function TasksPage() {
         <Tag color={STATUS_META[status].color}>{STATUS_META[status].label}</Tag>
       ),
     },
+    /*
+     * Cột người thực hiện — CHỈ admin.
+     *
+     * Người dùng thường chỉ thấy việc của chính mình nên cột này lặp lại cùng
+     * một cái tên ở mọi hàng. Admin thì ngược lại: lọc được theo người mà bảng
+     * không cho biết hàng nào của ai là vô nghĩa.
+     */
+    ...(admin
+      ? [
+          {
+            title: "Người thực hiện",
+            dataIndex: "assigneeId",
+            width: 190,
+            render: (_: unknown, task: Task) => (
+              <span className="text-[13px] text-slate-600">
+                {task.assignee?.email ?? labelFor(task.assigneeId)}
+              </span>
+            ),
+          } as ColumnsType<Task>[number],
+        ]
+      : []),
     {
       title: "",
       key: "actions",
@@ -349,6 +369,11 @@ export default function TasksPage() {
                   type="text"
                   style={{ color: "#2a9d8f" }}
                   icon={<CheckCheck size={15} />}
+                  // `variables` là id đang gửi đi -> chỉ nút được bấm quay,
+                  // không phải cả cột sáng lên cùng lúc
+                  loading={
+                    completeTask.isPending && completeTask.variables === task.id
+                  }
                   onClick={() => completeTask.mutate(task.id)}
                 />
               </Tooltip>
@@ -373,6 +398,7 @@ export default function TasksPage() {
               type="text"
               danger
               icon={<Trash2 size={14} />}
+              loading={deleteTask.isPending && deleteTask.variables === task.id}
             />
           </Popconfirm>
         </div>
@@ -485,18 +511,21 @@ export default function TasksPage() {
             onChange={(range) => setFilter("range", range)}
           />
           {admin && (
-            <Tooltip title="Chỉ admin — lọc theo UUID người thực hiện">
-              <Input
+            <Tooltip title="Chỉ admin — lọc theo người thực hiện">
+              {/*
+                Trước đây là ô gõ UUID, kèm cảnh báo vàng khi gõ sai định dạng.
+                Không ai nhớ được UUID; giờ chọn từ danh sách người dùng thật.
+              */}
+              <Select
                 allowClear
-                placeholder="Assignee UUID (admin)"
+                showSearch
+                loading={usersLoading}
+                placeholder="Người thực hiện"
                 style={{ width: 220 }}
+                optionFilterProp="label"
                 value={filters.assigneeId}
-                onChange={(e) => setFilter("assigneeId", e.target.value)}
-                status={
-                  filters.assigneeId && !UUID_RE.test(filters.assigneeId)
-                    ? "warning"
-                    : undefined
-                }
+                onChange={(value) => setFilter("assigneeId", value)}
+                options={users.map((u) => ({ label: u.email, value: u.id }))}
               />
             </Tooltip>
           )}

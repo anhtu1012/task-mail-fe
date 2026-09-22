@@ -287,3 +287,40 @@
     border-radius: 999px;
   }
 }
+
+/* Thẻ đang chờ server trả lời (components/board/PendingCardTile.tsx).
+   Mờ hơn thẻ thật một bậc và có vệt sáng chạy qua, để phân biệt ngay được
+   "đang gửi" với "đã xong" mà không cần đọc chữ. */
+.cardPending {
+  position: relative;
+  overflow: hidden;
+  opacity: 0.72;
+  border-style: dashed;
+  cursor: default;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.22),
+      transparent
+    );
+    transform: translateX(-100%);
+    animation: cardPendingSweep 1.15s ease-in-out infinite;
+  }
+}
+
+@keyframes cardPendingSweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardPending::after {
+    animation: none;
+  }
+}

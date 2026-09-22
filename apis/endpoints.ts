@@ -42,6 +42,10 @@ export const API_ENDPOINTS = {
     INBOX_REBALANCE: "/boards/me/inbox/rebalance",
     DETAIL: (id: string) => `/boards/${id}`,
     LISTS: (id: string) => `/boards/${id}/lists`,
+    CREATE_LABEL: (id: string) => `/boards/${id}/labels`,
+  },
+  LABELS: {
+    DETAIL: (id: string) => `/labels/${id}`,
   },
   LISTS: {
     DETAIL: (id: string) => `/lists/${id}`,
@@ -70,6 +74,10 @@ export const API_ENDPOINTS = {
   },
   NOTES: {
     DETAIL: (id: string) => `/notes/${id}`,
+  },
+  USERS: {
+    // Chỉ ADMIN gọi được — dùng cho ô chọn người thực hiện
+    ROOT: "/users",
   },
   TASK_TYPES: {
     ROOT: "/task-types",
