@@ -12,11 +12,11 @@ import {
   App,
   Button,
   Popconfirm,
-  Segmented,
   Table,
   Tag,
   Tooltip,
 } from "antd";
+import { CSegmented } from "@/components/ui";
 import type { ColumnsType } from "antd/es/table";
 import {
   Archive,
@@ -198,7 +198,7 @@ export default function ProjectsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Segmented
+          <CSegmented
             value={scope}
             onChange={(v) => setScope(v as "active" | "all")}
             options={[

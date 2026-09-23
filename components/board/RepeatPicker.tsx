@@ -14,7 +14,8 @@
  *     "còn N lượt nữa", không phải "lặp N lần".
  */
 import { useState } from "react";
-import { Button, DatePicker, InputNumber, Segmented, Select } from "antd";
+import { Button, DatePicker, InputNumber, Select } from "antd";
+import { CSegmented } from "@/components/ui";
 import dayjs, { Dayjs } from "dayjs";
 import { Repeat, X } from "lucide-react";
 import { RepeatRule, WEEKDAY_LABELS, repeatText } from "@/models/board";
@@ -164,7 +165,7 @@ export default function RepeatPicker({
         <div className="text-[11.5px] mb-1.5" style={{ color: C.neutral500 }}>
           Kết thúc
         </div>
-        <Segmented
+        <CSegmented
           size="small"
           block
           value={endMode}

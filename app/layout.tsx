@@ -12,6 +12,7 @@ import "../styles/globals.css";
 import "../styles/_index.scss";
 
 import { Be_Vietnam_Pro } from "next/font/google";
+import BugReportButton from "@/components/global/BugReportButton/BugReportButton";
 
 const beVietnamPro = Be_Vietnam_Pro({
   subsets: ["latin", "vietnamese"],
@@ -78,7 +79,10 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body suppressHydrationWarning={true} className={beVietnamPro.className}>
-        <AppProvider>{children}</AppProvider>
+        <AppProvider>
+          {children}
+          <BugReportButton />
+        </AppProvider>
       </body>
     </html>
   );

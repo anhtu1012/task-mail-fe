@@ -129,6 +129,23 @@ export function RichTextEditor({
     };
   }, [autoFocus, readOnly]);
 
+  // Ở chế độ đọc: bấm vào link mở tab mới và không nổi bọt ra ngoài
+  useEffect(() => {
+    if (!readOnly) return;
+    const el = wrapRef.current;
+    if (!el) return;
+    const handleLinkClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest("a");
+      if (target && target.href) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.open(target.href, "_blank", "noopener,noreferrer");
+      }
+    };
+    el.addEventListener("click", handleLinkClick);
+    return () => el.removeEventListener("click", handleLinkClick);
+  }, [readOnly]);
+
   return (
     <div
       ref={wrapRef}

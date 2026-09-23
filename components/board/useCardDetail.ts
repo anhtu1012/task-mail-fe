@@ -178,6 +178,18 @@ export function useCardDetail(cardId: string) {
     onError: onFail,
   });
 
+  const deleteAttachment = useMutation({
+    mutationFn: (attachmentId: string) => boardApi.deleteAttachment(attachmentId),
+    onMutate: (attachmentId) => {
+      patchDetail((card) => ({
+        ...card,
+        attachments: card.attachments.filter((a) => a.id !== attachmentId),
+      }));
+      patchSummary((c) => ({ ...c, attachmentCount: Math.max(0, c.attachmentCount - 1) }));
+    },
+    onError: onFail,
+  });
+
   // ==========================================
   // GHI CHÚ
   // ==========================================
@@ -239,6 +251,7 @@ export function useCardDetail(cardId: string) {
     toggleChecklistItem,
     deleteChecklistItem,
     addAttachment,
+    deleteAttachment,
     addNote,
     updateNote,
     deleteNote,

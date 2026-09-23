@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { App, Button, Divider, Form, Input, Segmented, Typography } from "antd";
+import { App, Button, Divider, Form, Input, Typography } from "antd";
+import { CSegmented } from "@/components/ui";
 import {
   CheckCircle2,
   ClipboardList,
@@ -105,7 +106,7 @@ export default function LoginPage() {
             </Typography.Text>
           </div>
 
-          <Segmented
+          <CSegmented
             block
             value={mode}
             onChange={(v) => setMode(v as Mode)}

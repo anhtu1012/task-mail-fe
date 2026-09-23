@@ -12,7 +12,8 @@
  * khi chèn thì không ai bị bất ngờ sau khi lưu.
  */
 import { useRef, useState } from "react";
-import { Button, Modal, Segmented, Upload } from "antd";
+import { Button, Modal, Upload } from "antd";
+import { CSegmented } from "@/components/ui";
 import type { UploadProps } from "antd";
 import { FileText, Upload as UploadIcon } from "lucide-react";
 import { markdownToHtml } from "@/utils/client/markdown";
@@ -104,7 +105,7 @@ export default function MarkdownImport({
             </span>
           )}
           {hasExisting && (
-            <Segmented
+            <CSegmented
               size="small"
               className="ml-auto"
               value={mode}
