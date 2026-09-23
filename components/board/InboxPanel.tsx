@@ -22,7 +22,8 @@ import {
   X,
 } from "lucide-react";
 import { INBOX_KEY } from "@/models/board";
-import { useStickyState } from "./useStickyState";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { setInboxWidth } from "@/store/slices/boardView";
 import { useBoard } from "./BoardStore";
 import { CardTile } from "./CardTile";
 import { PendingCardTile } from "./PendingCardTile";
@@ -42,6 +43,7 @@ export function InboxPanel({
   mobile?: boolean;
   onCloseMobile?: () => void;
 } = {}) {
+  const dispatch = useAppDispatch();
   const {
     inboxCards,
     inboxTotal,
@@ -50,17 +52,20 @@ export function InboxPanel({
     loadMoreCards,
     loadingMore,
     pendingAdds,
+    inboxCollapsed: collapsed,
+    setInboxCollapsed: setCollapsed,
   } = useBoard();
   const pending = pendingAdds.filter((p) => p.listId === null);
   /*
-   * Độ rộng và trạng thái thu gọn được NHỚ LẠI.
-   *
-   * Trước đây là state thường: người dùng thu gọn Hộp thư đến cho rộng bảng,
-   * chuyển sang trang khác rồi quay lại là nó bung ra y như cũ. Kéo giãn độ
-   * rộng cũng mất. Cùng một thao tác phải làm lại mỗi lần mở bảng.
+   * Độ rộng và trạng thái thu gọn/đóng mở được LƯU TRONG REDUX (có persist).
    */
-  const [width, setWidth] = useStickyState("board:inboxWidth", 292);
-  const [collapsed, setCollapsed] = useStickyState("board:inboxCollapsed", false);
+  const width = useAppSelector((state) => state.boardView?.inboxWidth ?? 292);
+  const setWidth = useCallback(
+    (w: number) => {
+      dispatch(setInboxWidth(w));
+    },
+    [dispatch],
+  );
   const [adding, setAdding] = useState(false);
   const draggingSplitter = useRef(false);
   const startX = useRef(0);

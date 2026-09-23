@@ -9,12 +9,12 @@ import {
   Dropdown,
   Input,
   Popconfirm,
-  Segmented,
   Select,
   Table,
   Tag,
   Tooltip,
 } from "antd";
+import { CSegmented } from "@/components/ui";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { Dayjs } from "dayjs";
 import {
@@ -410,7 +410,7 @@ export default function TasksPage() {
     <div className="flex flex-col gap-4 w-full">
       {/* ===== Toolbar ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented
+        <CSegmented
           value={filters.status ?? "ALL"}
           onChange={(value) =>
             setFilter(

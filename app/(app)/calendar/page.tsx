@@ -10,10 +10,10 @@ import {
   Grid,
   List,
   Radio,
-  Segmented,
   Tag,
   Tooltip,
 } from "antd";
+import { CSegmented } from "@/components/ui";
 import dayjs, { Dayjs } from "dayjs";
 import {
   CalendarClock,
@@ -461,7 +461,7 @@ export default function CalendarPage() {
           </Tooltip>
 
           <Tooltip title="Phím tắt: M tháng · W tuần · D ngày · A lịch trình · ←/→ đổi kỳ">
-            <Segmented
+            <CSegmented
               value={view}
               onChange={(v) => setView(v as CalendarView)}
               options={[
@@ -616,6 +616,7 @@ export default function CalendarPage() {
             const isToday = day.isSame(today, "day");
             const isWeekend = day.day() === 0 || day.day() === 6;
             const isOver = dragOverDay === key;
+            const isSelected = !!selectedDay && day.isSame(selectedDay, "day");
             const shown = items.slice(0, 3);
 
             return (
@@ -635,22 +636,26 @@ export default function CalendarPage() {
                 className={`group relative min-h-[112px] border-b border-r border-slate-100 p-1.5 cursor-pointer transition-colors ${
                   isOver
                     ? "bg-sky-50 ring-2 ring-inset ring-sky-400"
-                    : isToday
-                      ? "bg-sky-50 ring-1 ring-inset ring-sky-200"
-                      : isWeekend && inMonth
-                        ? "bg-slate-50 hover:bg-slate-100/70"
-                        : "hover:bg-slate-50"
-                } ${!inMonth ? "bg-slate-100/60 text-slate-300" : ""}`}
+                    : isSelected
+                      ? "bg-sky-100/90 ring-2 ring-inset ring-[#0a436d] shadow-sm z-[2]"
+                      : isToday
+                        ? "bg-sky-50 ring-1 ring-inset ring-sky-200"
+                        : isWeekend && inMonth
+                          ? "bg-slate-50 hover:bg-slate-100/70"
+                          : "hover:bg-slate-50"
+                } ${!inMonth && !isSelected ? "bg-slate-100/60 text-slate-300" : ""}`}
               >
                 {/* Day number + quick add */}
                 <div className="flex items-center justify-between mb-1">
                   <span
-                    className={`grid place-items-center size-6 rounded-full text-[12.5px] font-medium ${
-                      isToday
-                        ? "bg-[#0a436d] text-white"
-                        : inMonth
-                          ? "text-slate-600"
-                          : "text-slate-300"
+                    className={`grid place-items-center size-6 rounded-full text-[12.5px] font-medium transition-all ${
+                      isSelected
+                        ? "bg-[#0a436d] text-white font-bold shadow-sm"
+                        : isToday
+                          ? "bg-[#0a436d] text-white"
+                          : inMonth
+                            ? "text-slate-600"
+                            : "text-slate-300"
                     }`}
                   >
                     {day.date()}

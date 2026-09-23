@@ -45,6 +45,13 @@ import { TaskPriority } from "@/models/task";
 import { useCurrentProject } from "@/hooks/useProjects";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { quickParse } from "@/utils/client/quickParse";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  setAgendaOpen as setAgendaOpenRd,
+  toggleAgendaOpen as toggleAgendaOpenRd,
+  setInboxCollapsed as setInboxCollapsedRd,
+  toggleInboxCollapsed as toggleInboxCollapsedRd,
+} from "@/store/slices/boardView";
 import { useStickyState } from "./useStickyState";
 
 /**
@@ -217,6 +224,10 @@ type BoardContextValue = {
   setFullscreen: (v: boolean) => void;
   agendaOpen: boolean;
   setAgendaOpen: (v: boolean) => void;
+  toggleAgendaOpen: () => void;
+  inboxCollapsed: boolean;
+  setInboxCollapsed: (v: boolean) => void;
+  toggleInboxCollapsed: () => void;
   paletteOpen: boolean;
   setPaletteOpen: (v: boolean) => void;
 };
@@ -234,10 +245,37 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const { projectId } = useCurrentProject();
+  const dispatch = useAppDispatch();
 
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
   const [fullscreen, setFullscreen] = useStickyState("board:fullscreen", false);
-  const [agendaOpen, setAgendaOpen] = useStickyState("board:agenda", true);
+
+  // Trạng thái mở/đóng của Lịch hôm nay và Hộp thư đến lưu trên Redux (có persist)
+  const agendaOpen = useAppSelector((state) => state.boardView?.agendaOpen ?? true);
+  const inboxCollapsed = useAppSelector((state) => state.boardView?.inboxCollapsed ?? false);
+
+  const setAgendaOpen = useCallback(
+    (open: boolean) => {
+      dispatch(setAgendaOpenRd(open));
+    },
+    [dispatch],
+  );
+
+  const toggleAgendaOpen = useCallback(() => {
+    dispatch(toggleAgendaOpenRd());
+  }, [dispatch]);
+
+  const setInboxCollapsed = useCallback(
+    (collapsed: boolean) => {
+      dispatch(setInboxCollapsedRd(collapsed));
+    },
+    [dispatch],
+  );
+
+  const toggleInboxCollapsed = useCallback(() => {
+    dispatch(toggleInboxCollapsedRd());
+  }, [dispatch]);
+
   const [paletteOpen, setPaletteOpen] = useState(false);
   /** Khoá cột đang tải trang kế tiếp — để đúng một nút hiện trạng thái chờ */
   const [loadingMore, setLoadingMore] = useState<string | null>(null);
@@ -1064,6 +1102,10 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       setFullscreen,
       agendaOpen,
       setAgendaOpen,
+      toggleAgendaOpen,
+      inboxCollapsed,
+      setInboxCollapsed,
+      toggleInboxCollapsed,
       paletteOpen,
       setPaletteOpen,
     }),
@@ -1103,6 +1145,10 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       setFullscreen,
       agendaOpen,
       setAgendaOpen,
+      toggleAgendaOpen,
+      inboxCollapsed,
+      setInboxCollapsed,
+      toggleInboxCollapsed,
       paletteOpen,
     ],
   );

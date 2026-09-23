@@ -8,11 +8,11 @@ import {
   Input,
   Modal,
   Popover,
-  Segmented,
   Select,
   Space,
   Switch,
 } from "antd";
+import { CSegmented } from "@/components/ui";
 import dayjs, { Dayjs } from "dayjs";
 import {
   Briefcase,
@@ -238,7 +238,7 @@ export default function TaskFormModal({
             label={<span className="font-semibold text-[11.5px] text-slate-700">Loại mục</span>}
             style={{ marginBottom: 0 }}
           >
-            <Segmented
+            <CSegmented
               block
               size="small"
               disabled={isEdit}
@@ -523,7 +523,7 @@ export default function TaskFormModal({
                     label={<span className="text-[10.5px] font-medium text-slate-600">Việc của ai</span>}
                     style={{ marginBottom: 0 }}
                   >
-                    <Segmented
+                    <CSegmented
                       block
                       size="small"
                       className="bg-slate-100 border border-slate-200"

@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Clock,
   CircleDot,
+  ExternalLink,
   FileCode,
   FileText,
   LoaderCircle,
@@ -38,6 +39,13 @@ import {
   X,
   Zap,
 } from "lucide-react";
+
+const toExternalUrl = (url: string) => {
+  const trimmed = url.trim();
+  if (!trimmed) return "#";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+};
 import {
   COVER_PRESETS,
   CardDetail,
@@ -282,7 +290,7 @@ export function CardDetailView({
       {/* ===== Thân 2 cột ===== */}
       <div className={`${styles.cardDetailGrid} flex-1 min-h-0`}>
         <div className={`${styles.detailScroll} overflow-y-auto px-4 sm:px-8 py-6`}>
-          <div className="max-w-[720px] mx-auto flex flex-col gap-6">
+          <div className="w-full max-w-[1400px] mx-auto flex flex-col gap-6">
             <CardTitle card={card} done={done} detail={detail} />
 
             {/* Thuộc tính */}
@@ -454,33 +462,67 @@ export function CardDetailView({
             <Section icon={<Paperclip size={16} />} title="Tệp đính kèm">
                 <div className="flex flex-col gap-2">
                   {card.attachments.map((att) => (
-                    <div key={att.id} className="flex items-center gap-3">
-                      <span
-                        className="grid place-items-center w-[62px] h-[42px] rounded-lg shrink-0 text-white"
-                        style={{
-                          background:
-                            att.kind === "IMAGE"
-                              ? "linear-gradient(135deg,#2d79a8,#0a436d)"
-                              : C.neutral700,
-                        }}
+                    <div
+                      key={att.id}
+                      className="group/att flex items-center justify-between gap-3 p-2 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50/70 transition-all"
+                    >
+                      <a
+                        href={toExternalUrl(att.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 min-w-0 flex-1 no-underline text-inherit cursor-pointer group/link"
+                        title={`Mở liên kết: ${att.url}`}
                       >
-                        {att.kind === "IMAGE" ? (
-                          <ImageIcon size={17} />
-                        ) : att.kind === "LINK" ? (
-                          <Link2 size={17} />
-                        ) : (
-                          <FileText size={17} />
-                        )}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-[13.5px] font-medium truncate" style={{ color: C.foreground }}>
-                          {att.name}
+                        <span
+                          className="grid place-items-center w-[52px] h-[38px] rounded-lg shrink-0 text-white shadow-xs"
+                          style={{
+                            background:
+                              att.kind === "IMAGE"
+                                ? "linear-gradient(135deg,#2d79a8,#0a436d)"
+                                : C.neutral700,
+                          }}
+                        >
+                          {att.kind === "IMAGE" ? (
+                            <ImageIcon size={17} />
+                          ) : att.kind === "LINK" ? (
+                            <Link2 size={17} />
+                          ) : (
+                            <FileText size={17} />
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[13.5px] font-medium truncate text-slate-800 group-hover/link:text-[#0a436d] flex items-center gap-1.5">
+                            <span className="truncate">{att.name}</span>
+                            <ExternalLink size={12} className="shrink-0 text-slate-400 group-hover/link:text-[#0a436d]" />
+                          </div>
+                          <div className="text-[12px] text-slate-400 truncate flex items-center gap-1">
+                            <span className="text-slate-500 font-mono text-[11px] truncate max-w-[420px]">
+                              {att.url}
+                            </span>
+                            {att.sizeBytes !== null && ` · ${fmtBytes(att.sizeBytes)}`}
+                            {att.isCover && " · ảnh bìa"}
+                          </div>
                         </div>
-                        <div className="text-[12px]" style={{ color: C.mutedForeground }}>
-                          {fmtDateTime(att.createdAt)}
-                          {att.sizeBytes !== null && ` · ${fmtBytes(att.sizeBytes)}`}
-                          {att.isCover && " · ảnh bìa"}
-                        </div>
+                      </a>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <a
+                          href={toExternalUrl(att.url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="grid place-items-center size-7 rounded-md hover:bg-slate-200 text-slate-500 hover:text-[#0a436d] transition-colors"
+                          title="Mở tab mới"
+                        >
+                          <ExternalLink size={14} />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => detail.deleteAttachment.mutate(att.id)}
+                          className="grid place-items-center size-7 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500 border-0 bg-transparent cursor-pointer transition-colors"
+                          title="Xoá tệp đính kèm này"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -671,7 +713,8 @@ function DescriptionSection({ card, detail }: { card: CardDetail; detail: Detail
            Quill dựng lại theo đúng danh sách định dạng cho phép, không cắm thẳng
            HTML lạ vào DOM. */
         <div
-          onClick={open}
+          onDoubleClick={open}
+          title="Nháy đúp chuột để chỉnh sửa mô tả"
           className="rounded-lg px-3 py-2.5 cursor-text transition-colors hover:bg-[#f7f8fa]"
         >
           <RichTextEditor readOnly value={card.description ?? ""} />

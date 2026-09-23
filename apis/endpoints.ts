@@ -75,6 +75,9 @@ export const API_ENDPOINTS = {
   NOTES: {
     DETAIL: (id: string) => `/notes/${id}`,
   },
+  ATTACHMENTS: {
+    DETAIL: (id: string) => `/attachments/${id}`,
+  },
   USERS: {
     // Chỉ ADMIN gọi được — dùng cho ô chọn người thực hiện
     ROOT: "/users",

@@ -53,8 +53,8 @@ $gap: 14px;
   align-items: stretch;
   padding: 20px 0 18px;
   overflow: hidden;
-  /* cạnh phải cong: bo nhẹ trên, phình mạnh dưới */
-  border-radius: 0 32px 84px 0;
+  /* cạnh phải cong đều 2 đầu trên dưới */
+  border-radius: 0 32px 32px 0;
   background:
     radial-gradient(120% 60% at 0% 0%, rgba(255, 255, 255, 0.1), transparent 58%),
     linear-gradient(
@@ -138,7 +138,7 @@ $gap: 14px;
   justify-content: center; /* căn giữa dọc toàn bộ cụm icon */
   align-items: stretch;
   gap: 8px;
-  padding: 8px 0;
+  padding: 8px 10px;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
@@ -191,16 +191,17 @@ $gap: 14px;
 
 .navItemActive {
   color: var(--rail-1, #{$rail-1});
+  border-radius: 16px;
 
-  /* viên thuốc trắng chạy sau icon + nhãn */
+  /* viên thuốc trắng chạy sau icon + nhãn: bo góc 2 đầu bằng nhau */
   &::before {
     content: "";
     position: absolute;
     inset: 0;
-    border-radius: inherit;
+    border-radius: 16px;
     background: #fff;
     box-shadow:
-      0 10px 22px -12px rgba(0, 0, 0, 0.65),
+      0 8px 20px -8px rgba(0, 0, 0, 0.55),
       inset 0 1px 0 rgba(255, 255, 255, 0.9);
   }
 
@@ -217,18 +218,18 @@ $gap: 14px;
    -> icon luôn nằm giữa thanh, không xô lệch khi mở rộng */
 .navIcon {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   display: grid;
   place-items: center;
-  flex: 0 0 $rail-w;
-  width: $rail-w;
+  flex: 0 0 ($rail-w - 20px);
+  width: ($rail-w - 20px);
   height: 100%;
   transition: transform 0.18s ease;
 }
 
 .navLabel {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   overflow: hidden;
   max-width: 0;
   white-space: nowrap;

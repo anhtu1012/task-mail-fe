@@ -181,3 +181,14 @@
 .taskEditorReadOnly .ql-tooltip {
   display: none;
 }
+
+.taskEditorReadOnly .ql-editor a {
+  cursor: pointer !important;
+  color: var(--editor-primary, #0a436d);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.taskEditorReadOnly .ql-editor a:hover {
+  color: #0284c7;
+}

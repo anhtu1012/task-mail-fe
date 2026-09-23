@@ -346,6 +346,10 @@ class BoardApi extends AxiosService {
     );
   }
 
+  public deleteAttachment(attachmentId: string): Promise<void> {
+    return this.delete<void>(API_ENDPOINTS.ATTACHMENTS.DETAIL(attachmentId));
+  }
+
   // ==========================================
   // NHÃN CỦA BẢNG
   // ==========================================
