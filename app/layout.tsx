@@ -54,8 +54,8 @@ r.style.setProperty('--accent',t.accent);
 r.dataset.tone=bg.tone;
 }catch(e){}})();`;
 
-const title = "Task";
-const description = "Task";
+const title = "TaskBox — Quản lý Công việc & Tự động hoá";
+const description = "Nền tảng TaskBox: Biến email thành công việc, nhắc deadline tự động qua Zalo Bot.";
 const { metadata } = siteMetadata({ title, description });
 export { metadata };
 

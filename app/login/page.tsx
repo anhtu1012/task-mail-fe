@@ -6,7 +6,7 @@ import { App, Button, Divider, Form, Input, Typography } from "antd";
 import { CSegmented } from "@/components/ui";
 import {
   CheckCircle2,
-  ClipboardList,
+  Inbox,
   LockKeyhole,
   Mail,
   MailCheck,
@@ -60,9 +60,9 @@ export default function LoginPage() {
       <div className="hidden lg:flex flex-col justify-between w-[44%] p-12 text-white bg-[linear-gradient(160deg,#0a436d_0%,#0d5a8f_55%,#0ea5e9_130%)]">
         <div className="flex items-center gap-3">
           <span className="grid place-items-center size-11 rounded-xl bg-white/15 backdrop-blur">
-            <ClipboardList size={24} />
+            <Inbox size={24} />
           </span>
-          <span className="text-2xl font-bold tracking-tight">TaskFlow</span>
+          <span className="text-2xl font-bold tracking-tight">TaskBox</span>
         </div>
 
         <div>
@@ -88,7 +88,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-white/50 text-sm">
-          © {new Date().getFullYear()} TaskFlow — Task
+          © {new Date().getFullYear()} TaskBox — Quản lý công việc thông minh
         </p>
       </div>
 
