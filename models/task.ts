@@ -216,6 +216,8 @@ export type CreateTaskInput = {
   assignedAt?: string;
   deadline?: string;
   attachments?: string[];
+  repeat?: RepeatRule | null;
+  labelIds?: string[];
 };
 
 export type UpdateTaskInput = Partial<CreateTaskInput> & {

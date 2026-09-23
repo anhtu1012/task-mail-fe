@@ -11,10 +11,11 @@ import {
   Typography,
 } from "antd";
 import dayjs from "dayjs";
-import { CheckCheck, Mail, Pencil, Trash2 } from "lucide-react";
+import { CheckCheck, Mail, Pencil, Repeat, Trash2 } from "lucide-react";
 import { useCompleteTask, useDeleteTask, useTaskTypes } from "@/hooks/useTaskApp";
 import { RichTextEditor } from "@/components/board/RichTextEditor";
 import { isRichTextEmpty } from "@/utils/client/richText";
+import { repeatText } from "@/models/board";
 import {
   CATEGORY_META,
   DEADLINE_META,
@@ -138,15 +139,25 @@ export default function TaskDetailDrawer({ task, onClose, onEdit }: Props) {
               hẹn ra chỉ thấy đúng mốc bắt đầu mà không biết nó kéo dài bao lâu.
             */}
             {task.kind === ItemKind.EVENT ? (
-              <Descriptions.Item label="Khung giờ">
-                {task.allDay ? (
-                  "Cả ngày"
-                ) : (
-                  <span className="tabular-nums">
-                    {fmt(task.startAt)} → {fmt(task.endAt)}
-                  </span>
+              <>
+                <Descriptions.Item label="Khung giờ">
+                  {task.allDay ? (
+                    "Cả ngày"
+                  ) : (
+                    <span className="tabular-nums">
+                      {fmt(task.startAt)} → {fmt(task.endAt)}
+                    </span>
+                  )}
+                </Descriptions.Item>
+                {task.repeat && (
+                  <Descriptions.Item label="Lặp lại">
+                    <span className="inline-flex items-center gap-1.5 text-[#0a436d] font-semibold">
+                      <Repeat size={13} />
+                      {repeatText(task.repeat, task.startAt)}
+                    </span>
+                  </Descriptions.Item>
                 )}
-              </Descriptions.Item>
+              </>
             ) : (
               <Descriptions.Item label="Hạn hoàn thành">
                 {fmt(task.deadline)}

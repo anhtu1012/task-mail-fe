@@ -31,7 +31,6 @@ import {
   Paperclip,
   Pencil,
   Plus,
-  Repeat,
   StickyNote,
   Tag as TagIcon,
   Timer,
@@ -44,7 +43,6 @@ import {
   CardDetail,
   CardNote,
   Checklist,
-  repeatText,
 } from "@/models/board";
 import {
   PRIORITY_META,
@@ -71,10 +69,8 @@ import { useBoard } from "./BoardStore";
 import { useCardDetail } from "./useCardDetail";
 import { SNOOZE_OPTIONS } from "./snooze";
 import { RichTextEditor } from "./RichTextEditor";
-import { nextOccurrenceAfter } from "@/utils/client/recurrence";
 import LabelPicker from "./LabelPicker";
 import MarkdownImport from "./MarkdownImport";
-import RepeatPicker from "./RepeatPicker";
 import { C, LabelChip, fmtBytes, fmtDateTime, fmtShort } from "./ui";
 import styles from "./board.module.scss";
 
@@ -95,7 +91,6 @@ export function CardDetailView({
   const { lists, labelById, snoozeCard, toggleComplete, deleteCard } = useBoard();
   const detail = useCardDetail(cardId);
   const card = detail.card;
-  const [repeatOpen, setRepeatOpen] = useState(false);
   const [completing, setCompleting] = useState(false);
 
 
@@ -404,63 +399,6 @@ export function CardDetailView({
                   </span>
                 </Field>
               )}
-
-              {/*
-                Lặp lại luôn hiện dòng này, kể cả khi việc chưa lặp: trước đây
-                nó chỉ hiện khi ĐÃ có luật lặp, nên không có đường nào để đặt
-                lần đầu.
-              */}
-              <Field icon={<Repeat size={13} />} label="Lặp lại">
-                <Popover
-                  open={repeatOpen}
-                  onOpenChange={setRepeatOpen}
-                  trigger="click"
-                  placement="bottomLeft"
-                  content={
-                    <RepeatPicker
-                      value={card.repeat}
-                      anchor={card.deadline}
-                      onChange={(rule) => detail.updateCard.mutate({ repeat: rule })}
-                      onClose={() => setRepeatOpen(false)}
-                    />
-                  }
-                >
-                  <button
-                    className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg cursor-pointer text-[13px]"
-                    style={
-                      card.repeat
-                        ? { background: C.primary50, color: C.primary, border: "none" }
-                        : {
-                            background: "#fff",
-                            color: C.neutral500,
-                            border: `1px dashed ${C.border}`,
-                          }
-                    }
-                  >
-                    {card.repeat
-                      ? repeatText(card.repeat, card.deadline)
-                      : "Không lặp"}
-                  </button>
-                </Popover>
-
-                {/*
-                  Ngày của lượt kế tiếp.
-
-                  "Mỗi 2 tuần vào T2, T5" là luật, không phải câu trả lời —
-                  thứ người ta thật sự muốn biết là "vậy lần sau là hôm nào".
-                  Tính ở client bằng đúng hàm mà trang Lịch dùng; backend chỉ
-                  tạo thẻ kế tiếp lúc bấm hoàn thành nên không có sẵn để hỏi.
-                */}
-                {nextOccurrenceAfter(card.deadline, card.repeat) && (
-                  <span
-                    className="text-[12px] ml-2"
-                    style={{ color: C.mutedForeground }}
-                  >
-                    lượt sau:{" "}
-                    {fmtShort(nextOccurrenceAfter(card.deadline, card.repeat)!)}
-                  </span>
-                )}
-              </Field>
 
               <Field icon={<TagIcon size={13} />} label="Nhãn">
                 <span className="flex flex-wrap items-center gap-1.5">

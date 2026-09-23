@@ -202,6 +202,55 @@ export default function CalendarPage() {
     [tasks],
   );
 
+  /**
+   * Sự kiện gốc + các lượt lặp dự kiến (tính từ startAt và repeat).
+   * Lịch hẹn là loại mục DUY NHẤT có tính năng lặp lại.
+   */
+  const allEvents = useMemo(() => {
+    const list: (Task & { projected?: boolean; originalTask?: Task })[] = [];
+    const gridEnd = gridStart.add(41, "day").endOf("day");
+
+    events.forEach((event) => {
+      // 1. Lượt gốc
+      list.push(event);
+
+      // 2. Nếu có luật lặp, sinh các lượt dự kiến
+      if (!event.repeat || !event.startAt || !event.endAt) return;
+      const start = dayjs(event.startAt);
+      const end = dayjs(event.endAt);
+      const durationMs = Math.max(0, end.diff(start));
+
+      const occurrences = projectOccurrences(
+        event.startAt,
+        event.repeat,
+        gridStart.startOf("day"),
+        gridEnd,
+      );
+
+      occurrences.forEach((occ) => {
+        const occStart = dayjs(occ.deadline);
+        const occEnd = occStart.add(durationMs, "millisecond");
+        list.push({
+          ...event,
+          id: `${event.id}__projected__${occ.deadline}`,
+          startAt: occStart.toISOString(),
+          endAt: occEnd.toISOString(),
+          deadline: occStart.toISOString(),
+          projected: true,
+          originalTask: event,
+        });
+      });
+    });
+
+    return list;
+  }, [events, gridStart]);
+
+  /** Danh sách mục dùng cho các timeline Ngày / Tuần — gồm việc thật và mọi sự kiện */
+  const calendarItems = useMemo(
+    () => [...tasks.filter((t) => t.kind !== ItemKind.EVENT), ...allEvents],
+    [tasks, allEvents],
+  );
+
   const weeks = useMemo(
     () =>
       Array.from({ length: 6 }, (_, w) =>
@@ -212,20 +261,14 @@ export default function CalendarPage() {
 
   /**
    * Thanh sự kiện của từng tuần, đã xếp làn.
-   *
-   * Một sự kiện kéo dài nhiều ngày bị CẮT theo từng tuần: lưới lịch xuống dòng
-   * mỗi 7 ô nên không có cách nào vẽ một thanh liền mạch vắt qua hai hàng.
-   *
-   * Xếp làn tham lam: duyệt theo thứ tự bắt đầu (dài hơn trước khi cùng ngày),
-   * đặt vào làn đầu tiên còn trống. Đủ tốt cho lịch cá nhân, và quan trọng hơn
-   * là ổn định — cùng một tập sự kiện luôn ra cùng một cách xếp.
+   * Sử dụng allEvents gồm cả các lượt lặp dự kiến của lịch hẹn.
    */
   const barsByWeek = useMemo(() => {
     return weeks.map((week) => {
       const weekStart = week[0].startOf("day");
       const weekEnd = week[6].endOf("day");
 
-      const segments = events
+      const segments = allEvents
         .filter(
           (e) =>
             !dayjs(e.startAt!).isAfter(weekEnd) &&
@@ -263,7 +306,7 @@ export default function CalendarPage() {
         return { ...seg, lane };
       });
     });
-  }, [weeks, events]);
+  }, [weeks, allEvents]);
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
@@ -273,53 +316,34 @@ export default function CalendarPage() {
       map.get(key)!.push(entry);
     };
 
-    const gridEnd = gridStart.add(41, "day");
-
     tasks.forEach((task) => {
       // Sự kiện đi đường riêng (thanh ngang) — bỏ qua ở luồng chip theo ngày
       if (task.kind === ItemKind.EVENT) return;
       if (!task.deadline) return;
+      // Công việc KHÔNG lặp lại — chỉ hiển thị một lần đúng hạn chót
       push(task.deadline, { task, at: task.deadline, projected: false });
-
-      // Việc đã xong hoặc đã huỷ thì chuỗi lặp dừng ở đó — chiếu tiếp là hứa
-      // hão với người dùng
-      const closed =
-        task.status === TaskStatus.DONE || task.status === TaskStatus.CANCELLED;
-      if (closed || !task.repeat) return;
-
-      projectOccurrences(task.deadline, task.repeat, gridStart, gridEnd).forEach(
-        (occurrence) =>
-          push(occurrence.deadline, {
-            task,
-            at: occurrence.deadline,
-            projected: true,
-          }),
-      );
     });
 
     map.forEach((list) =>
       list.sort((a, b) => dayjs(a.at).valueOf() - dayjs(b.at).valueOf()),
     );
     return map;
-  }, [tasks, gridStart]);
+  }, [tasks]);
 
   /**
    * Nguồn cho chế độ Lịch trình.
-   *
-   * `tasksByDay` cố tình KHÔNG chứa sự kiện (chúng đi đường thanh ngang ở lưới
-   * tháng), nên phải ghép lại ở đây — nếu không, chế độ Lịch trình sẽ im lặng
-   * bỏ sót đúng loại mục mà người dùng quan tâm nhất: cái có giờ hẹn.
+   * Gồm công việc theo ngày và mọi lượt lịch hẹn (gốc + dự kiến).
    */
   const agendaEntries = useMemo(
     () => [
       ...[...tasksByDay.values()].flat(),
-      ...events.map((event) => ({
-        task: event,
+      ...allEvents.map((event) => ({
+        task: (event as any).originalTask ?? event,
         at: event.startAt!,
-        projected: false,
+        projected: Boolean((event as any).projected),
       })),
-    ],
-    [tasksByDay, events],
+    ].sort((a, b) => dayjs(a.at).valueOf() - dayjs(b.at).valueOf()),
+    [tasksByDay, allEvents],
   );
 
   const [selectedDay, setSelectedDay] = useState<Dayjs | null>(null);
@@ -340,21 +364,21 @@ export default function CalendarPage() {
     const end = selectedDay.endOf("day");
 
     const ofDay = tasksByDay.get(selectedDay.format("YYYY-MM-DD")) ?? [];
-    const eventsOfDay: CalendarEntry[] = events
+    const eventsOfDay: CalendarEntry[] = allEvents
       .filter(
         (e) =>
           !dayjs(e.startAt!).isAfter(end) && !dayjs(e.endAt!).isBefore(start),
       )
       .map((event) => ({
-        task: event,
+        task: (event as any).originalTask ?? event,
         at: event.startAt!,
-        projected: false,
+        projected: Boolean((event as any).projected),
       }));
 
     return [...eventsOfDay, ...ofDay].sort(
       (a, b) => dayjs(a.at).valueOf() - dayjs(b.at).valueOf(),
     );
-  }, [selectedDay, tasksByDay, events]);
+  }, [selectedDay, tasksByDay, allEvents]);
 
   const openCreate = (deadline?: Dayjs | null) => {
     setEditingTask(null);
@@ -403,10 +427,10 @@ export default function CalendarPage() {
     }
   };
 
-  /** Có việc lặp nào trong tháng đang xem không — quyết định hiện chú giải */
+  /** Có lịch hẹn lặp nào không — quyết định hiện chú giải */
   const hasRepeating = useMemo(
-    () => tasks.some((t) => !!t.repeat),
-    [tasks],
+    () => events.some((e) => !!e.repeat),
+    [events],
   );
 
   const today = dayjs();
@@ -513,6 +537,12 @@ export default function CalendarPage() {
           <span className="inline-block h-2.5 w-4 rounded-sm border border-slate-300 bg-white" />
           công việc
         </span>
+        {hasRepeating && (
+          <span className="inline-flex items-center gap-1.5 text-[#0a436d] font-semibold">
+            <Repeat size={11} />
+            lịch hẹn lặp lại (viền nét đứt là dự kiến)
+          </span>
+        )}
         <span className="text-slate-300">•</span>
         <span>Kéo thả công việc sang ngày khác để dời hạn</span>
       </div>
@@ -520,15 +550,15 @@ export default function CalendarPage() {
       {view === "day" ? (
         <DayTimeline
           day={focusDay}
-          items={tasks}
-          onSelect={setViewingTask}
+          items={calendarItems}
+          onSelect={(t) => setViewingTask((t as any).originalTask ?? t)}
           onCreateAt={(at) => openCreate(at)}
         />
       ) : view === "week" ? (
         <WeekTimeline
           weekStart={weekStart}
-          items={tasks}
-          onSelect={setViewingTask}
+          items={calendarItems}
+          onSelect={(t) => setViewingTask((t as any).originalTask ?? t)}
           onCreateAt={(at) => openCreate(at)}
           onPickDay={(day) => {
             setFocusDay(day);
@@ -683,8 +713,6 @@ export default function CalendarPage() {
                         title={[
                           `${task.code} — ${task.title}`,
                           dayjs(at).format("HH:mm"),
-                          projected ? "Lượt lặp dự kiến" : null,
-                          task.repeat ? repeatText(task.repeat, task.deadline) : null,
                           task.estimateMinutes
                             ? `${task.estimateMinutes} phút`
                             : null,
@@ -750,15 +778,6 @@ export default function CalendarPage() {
                           </span>
                         )}
 
-                        {/* Việc lặp: trước đây lịch không hề cho biết, nên một
-                            việc lặp hàng tuần nhìn y hệt việc chỉ có một lần */}
-                        {task.repeat && (
-                          <Repeat
-                            size={10}
-                            className="shrink-0 text-sky-500"
-                          />
-                        )}
-
                         <span
                           className={`shrink-0 tabular-nums ${
                             overdue ? "text-red-400" : "text-slate-400"
@@ -794,33 +813,35 @@ export default function CalendarPage() {
                 {bars.map((bar) => {
                   const { event } = bar;
                   const color = PRIORITY_META[event.priority].color;
+                  const isProjected = Boolean((event as any).projected);
+                  const original = (event as any).originalTask ?? event;
                   return (
                     <button
                       key={`${event.id}-${weekIndex}`}
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setViewingTask(event);
+                        setViewingTask(original);
                       }}
-                      title={`${event.code} — ${event.title}`}
-                      className="pointer-events-auto flex items-center gap-1 px-1.5 text-[11px]
-                        leading-none truncate border-0 cursor-pointer text-left"
-                      /*
-                       * Nền ĐẶC, chữ trắng — không phải nền nhạt 13% như trước.
-                       *
-                       * Trên ô trắng, một thanh nhạt gần như tan vào nền: phải
-                       * nhìn kỹ mới biết ngày đó có lịch hẹn. Đặc màu thì lướt
-                       * mắt qua cả tháng là thấy ngay ngày nào kín.
-                       */
+                      title={[
+                        `${event.code} — ${event.title}`,
+                        isProjected ? "Lượt lặp dự kiến" : null,
+                        event.repeat ? repeatText(event.repeat, event.startAt) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      className={`pointer-events-auto flex items-center gap-1 px-1.5 text-[11px]
+                        leading-none truncate border-0 cursor-pointer text-left ${
+                          isProjected ? "opacity-80" : ""
+                        }`}
                       style={{
                         height: LANE_HEIGHT - 2,
                         marginBottom: 2,
                         gridColumn: `${bar.colStart + 1} / span ${bar.span}`,
                         gridRow: bar.lane + 1,
-                        background: color,
+                        background: isProjected ? `${color}e6` : color,
                         color: "#fff",
-                        // Bị cắt ở mép tuần thì để phẳng góc đó — dấu hiệu
-                        // "còn tiếp sang tuần khác"
+                        border: isProjected ? "1px dashed rgba(255,255,255,0.85)" : undefined,
                         borderRadius: `${bar.clippedStart ? 0 : 4}px ${
                           bar.clippedEnd ? 0 : 4
                         }px ${bar.clippedEnd ? 0 : 4}px ${bar.clippedStart ? 0 : 4}px`,
@@ -832,6 +853,9 @@ export default function CalendarPage() {
                         <span className="font-semibold tabular-nums shrink-0">
                           {dayjs(event.startAt!).format("HH:mm")}
                         </span>
+                      )}
+                      {event.repeat && (
+                        <Repeat size={10} className="shrink-0 opacity-80" />
                       )}
                       <span className="truncate">{event.title}</span>
                     </button>
@@ -885,10 +909,8 @@ export default function CalendarPage() {
           <div className="mb-4">
             <DayTimeline
               day={selectedDay}
-              items={selectedDayTasks
-                .filter((e) => !e.projected)
-                .map((e) => e.task)}
-              onSelect={setViewingTask}
+              items={calendarItems}
+              onSelect={(t) => setViewingTask((t as any).originalTask ?? t)}
               onCreateAt={(at) => openCreate(at)}
             />
           </div>
@@ -920,7 +942,7 @@ export default function CalendarPage() {
                         {task.kind === ItemKind.EVENT && (
                           <Tag
                             bordered={false}
-                            color="purple"
+                            color="blue"
                             style={{ fontSize: 10, lineHeight: "16px", margin: 0 }}
                           >
                             lịch hẹn
@@ -976,13 +998,12 @@ export default function CalendarPage() {
                           </span>
                         )}
 
-                        {/* Lặp lại: ngăn kéo đủ rộng nên ghi hẳn thành chữ,
-                            "Mỗi 2 tuần vào T2, T5" rõ hơn một biểu tượng */}
-                        {task.repeat && (
-                          <Tooltip title="Việc lặp lại">
-                            <span className="inline-flex items-center gap-1 text-[11px] text-sky-600">
+                        {/* Lặp lại: hiển thị khi là Lịch hẹn có lặp */}
+                        {task.kind === ItemKind.EVENT && task.repeat && (
+                          <Tooltip title="Lịch hẹn lặp lại">
+                            <span className="inline-flex items-center gap-1 text-[11px] text-[#0a436d] font-semibold">
                               <Repeat size={11} />
-                              {repeatText(task.repeat, task.deadline)}
+                              {repeatText(task.repeat, task.startAt)}
                             </span>
                           </Tooltip>
                         )}

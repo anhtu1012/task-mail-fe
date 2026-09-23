@@ -19,13 +19,12 @@ import {
   MoreHorizontal,
   MoveRight,
   Paperclip,
-  Repeat,
   RotateCcw,
   StickyNote,
   Timer,
   Trash2,
 } from "lucide-react";
-import { CardSummary, repeatShort, repeatText } from "@/models/board";
+import { CardSummary } from "@/models/board";
 import {
   PRIORITY_META,
   STATUS_META,
@@ -115,7 +114,6 @@ function CardTileBase({ card, overlay = false }: Props) {
   const hasOtherMeta =
     !!card.deadline ||
     card.hasDescription ||
-    !!card.repeat ||
     card.estimateMinutes !== null ||
     card.attachmentCount > 0 ||
     card.noteCount > 0 ||
@@ -437,27 +435,6 @@ function CardTileBase({ card, overlay = false }: Props) {
               </Badge>
             )}
 
-            {/*
-              Việc đã xong/đã huỷ KHÔNG hiện dấu lặp nữa.
-
-              Backend giữ nguyên luật lặp trên thẻ đã hoàn thành (đã kiểm: ba
-              thẻ DONE vẫn còn `repeat`), nhưng chính thẻ đó sẽ không lặp thêm
-              lần nào — lượt kế tiếp đã là một thẻ KHÁC, sinh ra ngay lúc bấm
-              hoàn thành. Để dấu lặp lại trên đó thì cả cột "đã xong" đeo biểu
-              tượng lặp, nhìn như còn việc phải làm.
-            */}
-            {card.repeat && !done && card.status !== TaskStatus.CANCELLED && (
-              <Badge
-                onGlass
-                tone="primary"
-                // Tooltip giữ câu đầy đủ (gồm cả phần kết thúc chuỗi) — chip
-                // chỉ đủ chỗ cho nhịp lặp
-                title={repeatText(card.repeat, card.deadline)}
-              >
-                <Repeat size={11.5} />
-                {repeatShort(card.repeat, card.deadline)}
-              </Badge>
-            )}
 
             {checkTotal > 0 && (
               <Badge

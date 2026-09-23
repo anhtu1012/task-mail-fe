@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Button,
   DatePicker,
   Form,
   Input,
   Modal,
+  Popover,
   Segmented,
   Select,
   Space,
@@ -21,10 +22,14 @@ import {
   Link2,
   ListChecks,
   Plus,
+  Repeat,
+  Tag,
   Trash2,
   UserRound,
 } from "lucide-react";
 import {
+  useBoardLabels,
+  useCreateBoardLabel,
   useCreateTask,
   useMe,
   useTaskTypes,
@@ -45,6 +50,8 @@ import {
   TaskStatus,
   UpdateTaskInput,
 } from "@/models/task";
+import { BoardLabel, LABEL_COLORS, RepeatRule, repeatText } from "@/models/board";
+import RepeatPicker from "@/components/board/RepeatPicker";
 
 type FormValues = {
   kind: ItemKind;
@@ -55,6 +62,7 @@ type FormValues = {
   description?: string;
   note?: string;
   taskTypeId?: string;
+  labelIds?: string[];
   category: TaskCategory;
   priority: TaskPriority;
   status?: TaskStatus;
@@ -86,6 +94,7 @@ export default function TaskFormModal({
 }: Props) {
   const [form] = Form.useForm<FormValues>();
   const { data: taskTypes } = useTaskTypes();
+  const { labels } = useBoardLabels();
   // Chỉ admin mới gọi được `GET /users`, nên chỉ bật khi đúng vai
   const { data: me } = useMe();
   const createTask = useCreateTask();
@@ -94,10 +103,6 @@ export default function TaskFormModal({
   /*
    * Loại quyết định hiện ô nào: VIỆC có hạn chót (một mốc), LỊCH HẸN có khoảng
    * bắt đầu–kết thúc. Hai thứ loại trừ nhau, nên không bao giờ hiện cùng lúc.
-   *
-   * Khi SỬA thì khoá loại lại: backend không cho đổi TASK thành EVENT bằng
-   * PATCH (đổi loại kéo theo gỡ khỏi bảng, `completedAt` mất nghĩa...), nên để
-   * người dùng bấm được rồi báo lỗi là tệ hơn không cho bấm.
    */
   const kind = Form.useWatch("kind", form) ?? ItemKind.TASK;
   const category = Form.useWatch("category", form) ?? TaskCategory.WORK;
@@ -105,14 +110,26 @@ export default function TaskFormModal({
   const isEvent = kind === ItemKind.EVENT;
   const saving = createTask.isPending || updateTask.isPending;
 
+  const [repeatRule, setRepeatRule] = useState<RepeatRule | null>(null);
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const [createLabelOpen, setCreateLabelOpen] = useState(false);
+
+  useEffect(() => {
+    if (kind === ItemKind.TASK && repeatRule) {
+      setRepeatRule(null);
+    }
+  }, [kind, repeatRule]);
+
   useEffect(() => {
     if (!open) return;
     if (task) {
+      setRepeatRule(task.kind === ItemKind.EVENT ? (task.repeat ?? null) : null);
       form.setFieldsValue({
         title: task.title,
         description: task.description ?? "",
         note: task.note ?? undefined,
         taskTypeId: task.taskTypeId ?? undefined,
+        labelIds: task.labelIds ?? [],
         category: task.category,
         priority: task.priority,
         status: task.status,
@@ -125,6 +142,7 @@ export default function TaskFormModal({
         attachments: task.attachments ?? [],
       });
     } else {
+      setRepeatRule(null);
       form.resetFields();
       form.setFieldsValue({
         category: TaskCategory.WORK,
@@ -133,6 +151,7 @@ export default function TaskFormModal({
         description: "",
         kind: defaultKind,
         allDay: false,
+        labelIds: [],
         deadline: defaultDeadline ?? null,
         // Bấm tạo từ một ô ngày trên lịch: gợi ý luôn khung giờ 1 tiếng
         startAt: defaultDeadline ?? null,
@@ -152,13 +171,12 @@ export default function TaskFormModal({
         : values.description,
       note: values.note?.trim() || undefined,
       taskTypeId: values.taskTypeId || undefined,
+      labelIds: values.labelIds ?? [],
       category: values.category,
       priority: values.priority,
       attachments: (values.attachments ?? []).filter(Boolean),
       /*
-       * Gửi đúng bộ mốc của loại đang chọn. Gửi lẫn lộn thì backend bỏ qua
-       * phần thừa, nhưng để `deadline` đi kèm một sự kiện là nói dối chính
-       * mình: backend nhân bản `deadline` từ `startAt`, không lấy giá trị gửi lên.
+       * Gửi đúng bộ mốc của loại đang chọn.
        */
       ...(values.kind === ItemKind.EVENT
         ? {
@@ -166,17 +184,14 @@ export default function TaskFormModal({
             startAt: values.startAt?.toISOString(),
             endAt: values.endAt?.toISOString(),
             allDay: values.allDay ?? false,
+            repeat: repeatRule ?? null,
           }
         : {
             kind: ItemKind.TASK,
             deadline: values.deadline ? values.deadline.toISOString() : undefined,
+            repeat: null,
           }),
     };
-
-    /*
-     * KHÔNG gửi `assigneeId`: bỏ trống thì backend giao cho chính người gọi.
-     * Giao diện không còn cho chọn người khác — xem ghi chú ở ô "Người thực hiện".
-     */
 
     if (isEdit && task) {
       if (values.status) payload.status = values.status;
@@ -193,316 +208,533 @@ export default function TaskFormModal({
       onCancel={onClose}
       onOk={handleSubmit}
       confirmLoading={saving}
-      /*
-       * Toàn màn hình thay vì hộp 920px.
-       *
-       * Form này có 12 ô cộng một trình soạn thảo văn bản; nhét vào hộp nhỏ thì
-       * cột phải sinh thanh cuộn riêng và những ô cuối ("Task con") bị cắt mất
-       * — người dùng không biết là còn nội dung bên dưới.
-       */
-      width="100vw"
-      style={{ top: 0, maxWidth: "100vw", paddingBottom: 0 }}
-      okText={isEdit ? "Lưu thay đổi" : "Tạo công việc"}
+      width="min(1280px, 97vw)"
+      centered
+      style={{ top: 12, paddingBottom: 12 }}
+      okText={isEdit ? "Lưu thay đổi" : "Tạo mới"}
       cancelText="Huỷ"
       destroyOnHidden
       styles={{
-        // `container` là hộp trắng của modal ở antd v6 (không phải `content`)
-        container: { borderRadius: 0, minHeight: "100vh" },
-        body: { height: "calc(100vh - 118px)", overflowY: "auto", paddingRight: 8 },
+        container: { borderRadius: 14 },
+        body: { maxHeight: "calc(100vh - 100px)", overflowY: "auto", padding: "6px 14px" },
       }}
       title={
         isEdit ? (
-          <span>
-            Sửa công việc <span className="font-mono text-slate-400">{task?.code}</span>
+          <span className="text-[15px] font-bold text-slate-800">
+            Sửa {isEvent ? "lịch hẹn" : "công việc"} <span className="font-mono text-slate-400 font-normal text-[13px]">{task?.code}</span>
           </span>
         ) : (
-          "Tạo công việc mới"
+          <span className="text-[15px] font-bold text-slate-800">
+            {isEvent ? "Tạo lịch hẹn mới" : "Tạo công việc mới"}
+          </span>
         )
       }
     >
       <Form<FormValues> form={form} layout="vertical" requiredMark={false}>
-        {/*
-          Hai cột trên màn rộng, xếp dọc trên màn hẹp. Cột phụ rộng hơn trước
-          (340px) để nhãn "Hạn hoàn thành"/"Người thực hiện" không xuống dòng.
-        */}
-        <div className="mx-auto w-full max-w-[1400px] grid gap-x-8 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+        {/* Hàng 1: Loại mục & Tiêu đề - Đặt cạnh nhau tối đa diện tích hàng dọc */}
+        <div className="grid grid-cols-1 md:grid-cols-[250px_minmax(0,1fr)] gap-2.5 mb-2.5 items-start">
+          <Form.Item
+            name="kind"
+            label={<span className="font-semibold text-[11.5px] text-slate-700">Loại mục</span>}
+            style={{ marginBottom: 0 }}
+          >
+            <Segmented
+              block
+              size="small"
+              disabled={isEdit}
+              className="p-0.5 bg-slate-100 border border-slate-300"
+              options={[
+                {
+                  value: ItemKind.TASK,
+                  label: (
+                    <KindOption
+                      icon={<ListChecks size={13} />}
+                      color="#0284c7"
+                      title="Công việc"
+                      hint="có hạn chót"
+                      active={kind === ItemKind.TASK}
+                    />
+                  ),
+                },
+                {
+                  value: ItemKind.EVENT,
+                  label: (
+                    <KindOption
+                      icon={<CalendarClock size={13} />}
+                      color="#0a436d"
+                      title="Lịch hẹn"
+                      hint="có khung giờ"
+                      active={kind === ItemKind.EVENT}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="title"
+            label={
+              <span className="font-semibold text-[11.5px] text-slate-700">
+                Tiêu đề {isEvent ? "lịch hẹn" : "công việc"} <span className="text-red-500">*</span>
+              </span>
+            }
+            rules={[{ required: true, message: "Nhập tiêu đề" }]}
+            style={{ marginBottom: 0 }}
+          >
+            <Input
+              placeholder={isEvent ? "VD: Họp khách hàng, Phỏng vấn ứng viên, Gặp đối tác..." : "VD: Chuẩn bị báo cáo tài chính tuần..."}
+              maxLength={255}
+              className="h-[34px] text-[13px] font-medium border-slate-300 hover:border-[#0a436d] focus:border-[#0a436d]"
+            />
+          </Form.Item>
+        </div>
+
+        {/* Thân 2 cột: Cột trái (Nội dung) & Cột phải (Thuộc tính & Thời gian) */}
+        <div className="grid gap-2.5 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_390px] items-start">
           {/* ===== Cột chính ===== */}
-          <div>
-            {/*
-              Loại nằm TRÊN CÙNG vì nó quyết định các ô phía dưới. Khi sửa thì
-              khoá lại — backend không cho đổi loại bằng PATCH.
-            */}
-            <Form.Item name="kind" label="Loại">
-              {/*
-                Hai lựa chọn này trước đây là hai ô chữ giống hệt nhau, nằm
-                ngay trên một bộ chọn khác cũng y như vậy ("Phân loại") — nhìn
-                lướt không phân biệt được cái nào là cái nào.
+          <div className="flex flex-col gap-2 min-w-0">
+            {/* Mô tả chi tiết - Chiều cao tinh gọn */}
+            <div className="rounded-xl border border-slate-300 bg-white p-2.5 shadow-xs">
+              <Form.Item
+                name="description"
+                label={<span className="font-semibold text-[11.5px] text-slate-700">Mô tả chi tiết</span>}
+                style={{ marginBottom: 0 }}
+              >
+                <RichTextEditor minHeight={85} />
+              </Form.Item>
+            </div>
 
-                Giờ mỗi bên có icon và MÀU riêng, kèm một dòng nói rõ nó thay
-                đổi điều gì: chọn loại là chọn xem việc này có hạn chót hay có
-                khung giờ, đó là khác biệt duy nhất mà cũng là khác biệt lớn nhất.
-              */}
-              <Segmented
-                block
-                size="large"
-                disabled={isEdit}
-                options={[
-                  {
-                    value: ItemKind.TASK,
-                    label: (
-                      <KindOption
-                        icon={<ListChecks size={16} />}
-                        color="#0ea5e9"
-                        title="Công việc"
-                        hint="có hạn chót"
-                        active={kind === ItemKind.TASK}
-                      />
-                    ),
-                  },
-                  {
-                    value: ItemKind.EVENT,
-                    label: (
-                      <KindOption
-                        icon={<CalendarClock size={16} />}
-                        color="#7c3aed"
-                        title="Lịch hẹn"
-                        hint="có khung giờ"
-                        active={kind === ItemKind.EVENT}
-                      />
-                    ),
-                  },
-                ]}
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="title"
-              label="Tiêu đề"
-              rules={[{ required: true, message: "Nhập tiêu đề công việc" }]}
-            >
-              <Input placeholder="VD: Chuẩn bị báo cáo tuần" maxLength={255} />
-            </Form.Item>
-
-            <Form.Item name="description" label="Mô tả">
-              <RichTextEditor minHeight={180} />
-            </Form.Item>
-
-            <Form.Item name="note" label="Ghi chú">
-              <Input.TextArea rows={2} placeholder="Ghi chú nội bộ..." />
-            </Form.Item>
-
-            <Form.List name="attachments">
-              {(fields, { add, remove }) => (
+            {/* Ghi chú & Đính kèm 2 cột song song */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="rounded-xl border border-slate-300 bg-white p-2 shadow-xs flex flex-col">
                 <Form.Item
-                  label="Tệp đính kèm (URL)"
-                  tooltip="Backend chưa hỗ trợ upload file — chỉ lưu đường dẫn URL."
+                  name="note"
+                  label={<span className="font-semibold text-[11.5px] text-slate-700">Ghi chú nội bộ</span>}
                   style={{ marginBottom: 0 }}
                 >
-                  {fields.map((field) => (
-                    <Space.Compact key={field.key} block style={{ marginBottom: 8 }}>
-                      <Form.Item
-                        name={field.name}
-                        noStyle
-                        rules={[{ required: true, message: "Nhập URL hoặc xoá dòng" }]}
-                      >
-                        <Input
-                          prefix={<Link2 size={14} className="text-slate-400" />}
-                          placeholder="https://..."
-                        />
-                      </Form.Item>
-                      <Button
-                        icon={<Trash2 size={14} />}
-                        onClick={() => remove(field.name)}
-                      />
-                    </Space.Compact>
-                  ))}
-                  <Button
-                    type="dashed"
-                    block
-                    icon={<Plus size={14} />}
-                    onClick={() => add("")}
-                  >
-                    Thêm đường dẫn
-                  </Button>
+                  <Input.TextArea
+                    rows={2}
+                    placeholder="Ghi chú thêm nội bộ..."
+                    className="resize-none text-[12px] border-slate-300"
+                  />
                 </Form.Item>
-              )}
-            </Form.List>
+              </div>
+
+              <div className="rounded-xl border border-slate-300 bg-white p-2 shadow-xs flex flex-col">
+                <Form.List name="attachments">
+                  {(fields, { add, remove }) => (
+                    <Form.Item
+                      label={
+                        <div className="flex items-center justify-between w-full">
+                          <span className="font-semibold text-[11.5px] text-slate-700">
+                            Tệp đính kèm ({fields.length})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => add("")}
+                            className="inline-flex items-center gap-1 text-[11px] text-[#0a436d] font-semibold hover:underline cursor-pointer border-0 bg-transparent p-0"
+                          >
+                            <Plus size={11} /> Thêm URL
+                          </button>
+                        </div>
+                      }
+                      tooltip="Backend hỗ trợ lưu liên kết URL đính kèm."
+                      style={{ marginBottom: 0 }}
+                    >
+                      <div className="max-h-[58px] overflow-y-auto pr-1 flex flex-col gap-1">
+                        {fields.length === 0 ? (
+                          <div className="text-[11px] text-slate-400 py-1.5 text-center border border-dashed border-slate-300 rounded bg-slate-50/50">
+                            Chưa có URL đính kèm
+                          </div>
+                        ) : (
+                          fields.map((field) => (
+                            <Space.Compact key={field.key} block size="small">
+                              <Form.Item
+                                name={field.name}
+                                noStyle
+                                rules={[{ required: true, message: "Nhập URL hoặc xoá dòng" }]}
+                              >
+                                <Input
+                                  prefix={<Link2 size={11} className="text-slate-400" />}
+                                  placeholder="https://..."
+                                  className="text-[11.5px] border-slate-300"
+                                />
+                              </Form.Item>
+                              <Button
+                                size="small"
+                                icon={<Trash2 size={11} />}
+                                onClick={() => remove(field.name)}
+                              />
+                            </Space.Compact>
+                          ))
+                        )}
+                      </div>
+                    </Form.Item>
+                  )}
+                </Form.List>
+              </div>
+            </div>
           </div>
 
-          {/* ===== Cột phụ — chia khối có tiêu đề để quét mắt nhanh ===== */}
-          <div className="flex flex-col gap-4">
-            <SideBlock title="Phân loại">
-            {/* Phân loại là chuyện KHÁC hẳn với "Loại" ở trên: việc của công
-                ty hay việc riêng. Icon giúp không nhầm hai bộ chọn với nhau. */}
-            <Form.Item name="category" label="Việc của ai">
-              <Segmented
-                block
-                options={Object.values(TaskCategory).map((c) => {
-                  const on = category === c;
-                  return {
-                    value: c,
-                    label: (
-                      <span
-                        className="inline-flex items-center gap-1.5 font-medium"
-                        style={{ color: on ? "#0a436d" : "#94a3b8" }}
-                      >
-                        {c === TaskCategory.WORK ? (
-                          <Briefcase size={13} />
-                        ) : (
-                          <Home size={13} />
-                        )}
-                        {CATEGORY_META[c].label}
-                        {on && <Check size={13} />}
-                      </span>
-                    ),
-                  };
-                })}
-              />
-            </Form.Item>
-
-            <Form.Item name="priority" label="Độ ưu tiên">
-              <Select
-                options={Object.values(TaskPriority).map((p) => ({
-                  value: p,
-                  label: (
-                    <span className="inline-flex items-center gap-2">
-                      <span
-                        className="size-2 rounded-full inline-block"
-                        style={{ background: PRIORITY_META[p].color }}
+          {/* ===== Cột phụ — Viền rõ nét (border-2 border-slate-300), cực kỳ gọn gàng ===== */}
+          <div className="flex flex-col gap-2 rounded-xl border-2 border-slate-300 bg-slate-100/70 p-2 shadow-xs">
+            {/* Khối 1: Thời gian / Khung giờ */}
+            <SideBlock
+              title={isEvent ? "Khung giờ lịch hẹn" : "Thời hạn hoàn thành"}
+            >
+              {isEvent ? (
+                <div className="flex flex-col gap-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Form.Item
+                      name="startAt"
+                      label={<span className="text-[10.5px] font-medium text-slate-600">Bắt đầu</span>}
+                      rules={[{ required: true, message: "Chọn giờ bắt đầu" }]}
+                      style={{ marginBottom: 0 }}
+                    >
+                      <DatePicker
+                        showTime={allDay ? false : { format: "HH:mm" }}
+                        format={allDay ? "DD/MM/YYYY" : "DD/MM HH:mm"}
+                        style={{ width: "100%" }}
+                        placeholder="Bắt đầu"
+                        size="small"
+                        className="border-slate-300"
                       />
-                      {PRIORITY_META[p].label}
-                    </span>
-                  ),
-                }))}
-              />
-            </Form.Item>
+                    </Form.Item>
 
-            <Form.Item name="taskTypeId" label="Loại công việc">
-              <Select
-                allowClear
-                placeholder="Chọn loại"
-                options={(taskTypes ?? []).map((t) => ({
-                  value: t.id,
-                  label: (
-                    <span className="inline-flex items-center gap-2">
-                      <span
-                        className="size-2.5 rounded-sm inline-block"
-                        style={{ background: t.color }}
+                    <Form.Item
+                      name="endAt"
+                      label={<span className="text-[10.5px] font-medium text-slate-600">Kết thúc</span>}
+                      dependencies={["startAt"]}
+                      rules={[
+                        { required: true, message: "Chọn giờ kết thúc" },
+                        ({ getFieldValue }) => ({
+                          validator(_, value: Dayjs | null) {
+                            const start = getFieldValue("startAt") as Dayjs | null;
+                            if (!value || !start || !value.isBefore(start)) {
+                              return Promise.resolve();
+                            }
+                            return Promise.reject(new Error("Kết thúc phải sau bắt đầu"));
+                          },
+                        }),
+                      ]}
+                      style={{ marginBottom: 0 }}
+                    >
+                      <DatePicker
+                        showTime={allDay ? false : { format: "HH:mm" }}
+                        format={allDay ? "DD/MM/YYYY" : "DD/MM HH:mm"}
+                        style={{ width: "100%" }}
+                        placeholder="Kết thúc"
+                        size="small"
+                        className="border-slate-300"
                       />
-                      {t.name}
-                    </span>
-                  ),
-                }))}
-              />
-            </Form.Item>
-            </SideBlock>
+                    </Form.Item>
+                  </div>
 
-            <SideBlock title={isEvent ? "Khung giờ" : "Thời hạn"}>
-            {isEvent ? (
-              <>
-                <Form.Item
-                  name="allDay"
-                  label="Cả ngày"
-                  valuePropName="checked"
-                  tooltip="Bỏ phần giờ, lịch vẽ thành thanh ngang suốt ngày"
-                >
-                  <Switch size="small" />
-                </Form.Item>
+                  {/* Cả ngày & Lặp lại nằm chung 1 hàng tiết kiệm diện tích */}
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <Form.Item
+                      name="allDay"
+                      valuePropName="checked"
+                      noStyle
+                    >
+                      <div className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <Switch size="small" />
+                        <span className="text-[11px] font-medium text-slate-600">Cả ngày</span>
+                      </div>
+                    </Form.Item>
 
-                <Form.Item
-                  name="startAt"
-                  label="Bắt đầu"
-                  rules={[{ required: true, message: "Chọn thời gian bắt đầu" }]}
-                >
-                  <DatePicker
-                    showTime={allDay ? false : { format: "HH:mm" }}
-                    format={allDay ? "DD/MM/YYYY" : "DD/MM/YYYY HH:mm"}
-                    style={{ width: "100%" }}
-                    placeholder="Chọn thời gian bắt đầu"
-                  />
-                </Form.Item>
-
-                <Form.Item
-                  name="endAt"
-                  label="Kết thúc"
-                  dependencies={["startAt"]}
-                  rules={[
-                    { required: true, message: "Chọn thời gian kết thúc" },
-                    /*
-                     * Kiểm ngay ở form thay vì để backend trả 400: người dùng
-                     * thấy lỗi ngay dưới ô vừa nhập, không phải sau khi bấm Lưu.
-                     */
-                    ({ getFieldValue }) => ({
-                      validator(_, value: Dayjs | null) {
-                        const start = getFieldValue("startAt") as Dayjs | null;
-                        if (!value || !start || !value.isBefore(start)) {
-                          return Promise.resolve();
+                    <Popover
+                      open={repeatOpen}
+                      onOpenChange={setRepeatOpen}
+                      trigger="click"
+                      placement="bottomRight"
+                      content={
+                        <RepeatPicker
+                          value={repeatRule}
+                          anchor={
+                            form.getFieldValue("startAt")?.toISOString() ||
+                            defaultDeadline?.toISOString()
+                          }
+                          onChange={(rule) => setRepeatRule(rule)}
+                          onClose={() => setRepeatOpen(false)}
+                        />
+                      }
+                    >
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 h-[26px] px-2 rounded-md cursor-pointer text-[11px] border transition-all"
+                        style={
+                          repeatRule
+                            ? {
+                                background: "#f0f9ff",
+                                color: "#0a436d",
+                                borderColor: "#93c5fd",
+                                fontWeight: 600,
+                              }
+                            : {
+                                background: "#fff",
+                                color: "#64748b",
+                                borderColor: "#cbd5e1",
+                              }
                         }
-                        return Promise.reject(
-                          new Error("Kết thúc phải sau lúc bắt đầu"),
-                        );
-                      },
-                    }),
-                  ]}
+                      >
+                        <Repeat size={11} />
+                        <span className="truncate max-w-[130px]">
+                          {repeatRule
+                            ? repeatText(
+                                repeatRule,
+                                form.getFieldValue("startAt")?.toISOString() ||
+                                  defaultDeadline?.toISOString(),
+                              )
+                            : "Không lặp"}
+                        </span>
+                        <span className="text-[10px] text-slate-400 shrink-0 font-normal">
+                          {repeatRule ? "Đổi" : "Cài đặt"}
+                        </span>
+                      </button>
+                    </Popover>
+                  </div>
+                </div>
+              ) : (
+                <Form.Item
+                  name="deadline"
+                  label={<span className="text-[10.5px] font-medium text-slate-600">Hạn chót</span>}
+                  style={{ marginBottom: 0 }}
                 >
                   <DatePicker
-                    showTime={allDay ? false : { format: "HH:mm" }}
-                    format={allDay ? "DD/MM/YYYY" : "DD/MM/YYYY HH:mm"}
+                    showTime={{ format: "HH:mm" }}
+                    format="DD/MM/YYYY HH:mm"
                     style={{ width: "100%" }}
-                    placeholder="Chọn thời gian kết thúc"
+                    placeholder="Chọn hạn hoàn thành"
+                    size="small"
+                    className="border-slate-300"
                   />
                 </Form.Item>
-              </>
-            ) : (
-              <Form.Item name="deadline" label="Hạn hoàn thành">
-                <DatePicker
-                  showTime={{ format: "HH:mm" }}
-                  format="DD/MM/YYYY HH:mm"
-                  style={{ width: "100%" }}
-                  placeholder="Chọn deadline"
-                />
-              </Form.Item>
-            )}
-
+              )}
             </SideBlock>
 
-            <SideBlock title="Khác">
-            {isEdit && (
-              <Form.Item name="status" label="Trạng thái">
-                <Select
-                  options={Object.values(TaskStatus).map((s) => ({
-                    value: s,
-                    label: STATUS_META[s].label,
-                  }))}
-                />
-              </Form.Item>
-            )}
+            {/* Khối 2: Phân loại & Gán nhãn — Hỗ trợ cả Việc lẫn Lịch hẹn */}
+            <SideBlock title="Phân loại & Nhãn">
+              <div className="flex flex-col gap-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Form.Item
+                    name="category"
+                    label={<span className="text-[10.5px] font-medium text-slate-600">Việc của ai</span>}
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Segmented
+                      block
+                      size="small"
+                      className="bg-slate-100 border border-slate-200"
+                      options={Object.values(TaskCategory).map((c) => {
+                        const on = category === c;
+                        return {
+                          value: c,
+                          label: (
+                            <span
+                              className="inline-flex items-center justify-center gap-1 font-medium text-[11px]"
+                              style={{ color: on ? "#0a436d" : "#64748b" }}
+                            >
+                              {c === TaskCategory.WORK ? <Briefcase size={11} /> : <Home size={11} />}
+                              {CATEGORY_META[c].label}
+                            </span>
+                          ),
+                        };
+                      })}
+                    />
+                  </Form.Item>
 
-            {/*
-              NGƯỜI THỰC HIỆN — hiển thị, không phải ô chọn.
+                  <Form.Item
+                    name="priority"
+                    label={<span className="text-[10.5px] font-medium text-slate-600">Ưu tiên</span>}
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Select
+                      size="small"
+                      className="border-slate-300"
+                      options={Object.values(TaskPriority).map((p) => ({
+                        value: p,
+                        label: (
+                          <span className="inline-flex items-center gap-1.5 text-[11.5px]">
+                            <span
+                              className="size-1.5 rounded-full inline-block"
+                              style={{ background: PRIORITY_META[p].color }}
+                            />
+                            {PRIORITY_META[p].label}
+                          </span>
+                        ),
+                      }))}
+                    />
+                  </Form.Item>
+                </div>
 
-              Bỏ danh sách người dùng đi là có chủ đích: đây là công cụ CÁ NHÂN
-              (xem đầu `models/board.ts`), việc luôn thuộc về người tạo ra nó.
-              Một ô chọn người khác ở màn tạo việc chỉ tạo ảo giác rằng có thể
-              giao việc, trong khi cả bảng lẫn dự án đều không có khái niệm
-              thành viên.
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Form.Item
+                    name="taskTypeId"
+                    label={<span className="text-[10.5px] font-medium text-slate-600">Loại việc</span>}
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Select
+                      size="small"
+                      allowClear
+                      placeholder="Chọn loại"
+                      className="border-slate-300"
+                      options={(taskTypes ?? []).map((t) => ({
+                        value: t.id,
+                        label: (
+                          <span className="inline-flex items-center gap-1.5 text-[11.5px]">
+                            <span
+                              className="size-2 rounded-xs inline-block"
+                              style={{ background: t.color }}
+                            />
+                            <span className="truncate">{t.name}</span>
+                          </span>
+                        ),
+                      }))}
+                    />
+                  </Form.Item>
 
-              Backend vẫn nhận `assigneeId` (admin gán cho người khác qua API
-              được), nên không mất gì — chỉ là giao diện thôi không mời gọi.
-            */}
-            <Form.Item label="Người thực hiện">
-              <div
-                className="flex items-center gap-2 h-8 px-3 rounded-lg text-[13px]"
-                style={{ background: "#f8fafc", color: "#64748b" }}
-              >
-                <UserRound size={14} />
-                {me?.email ?? "Bạn"}
+                  <Form.Item
+                    name="labelIds"
+                    label={
+                      <div className="flex items-center justify-between w-full">
+                        <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-slate-600">
+                          <Tag size={10} /> Gán nhãn
+                        </span>
+                        <Popover
+                          open={createLabelOpen}
+                          onOpenChange={setCreateLabelOpen}
+                          trigger="click"
+                          placement="bottomRight"
+                          content={
+                            <QuickCreateLabel
+                              onCreated={(newLabel) => {
+                                const current = form.getFieldValue("labelIds") ?? [];
+                                form.setFieldsValue({ labelIds: [...current, newLabel.id] });
+                                setCreateLabelOpen(false);
+                              }}
+                              onCancel={() => setCreateLabelOpen(false)}
+                            />
+                          }
+                        >
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-0.5 text-[10px] text-[#0a436d] font-semibold hover:underline cursor-pointer border-0 bg-transparent p-0"
+                          >
+                            <Plus size={10} /> Thêm nhãn
+                          </button>
+                        </Popover>
+                      </div>
+                    }
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Select
+                      mode="multiple"
+                      size="small"
+                      allowClear
+                      placeholder="Chọn nhãn..."
+                      maxTagCount="responsive"
+                      className="w-full border-slate-300"
+                      dropdownRender={(menu) => (
+                        <>
+                          {menu}
+                          <div className="p-1 border-t border-slate-100">
+                            <button
+                              type="button"
+                              onClick={() => setCreateLabelOpen(true)}
+                              className="w-full flex items-center justify-center gap-1 py-1 text-[11px] text-[#0a436d] font-semibold hover:bg-slate-50 rounded border-0 cursor-pointer"
+                            >
+                              <Plus size={11} /> Tạo nhãn mới...
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      tagRender={(props) => {
+                        const { label, value, closable, onClose } = props;
+                        const item = labels.find((l) => l.id === value);
+                        const bg = item?.color ?? "#0a436d";
+                        return (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0 rounded text-[10.5px] font-medium text-white mr-1 my-0.5 select-none"
+                            style={{ backgroundColor: bg }}
+                          >
+                            <span className="truncate max-w-[75px]">{label}</span>
+                            {closable && (
+                              <span
+                                onClick={onClose}
+                                className="cursor-pointer opacity-75 hover:opacity-100 text-[10px] leading-none ml-0.5"
+                              >
+                                ×
+                              </span>
+                            )}
+                          </span>
+                        );
+                      }}
+                      options={labels.map((l) => ({
+                        value: l.id,
+                        label: l.name,
+                        color: l.color,
+                      }))}
+                      optionRender={(option) => (
+                        <div className="flex items-center gap-1.5 py-0.5">
+                          <span
+                            className="size-2 rounded-full shrink-0"
+                            style={{ backgroundColor: option.data.color }}
+                          />
+                          <span className="text-[11.5px] text-slate-700 truncate">
+                            {option.data.label}
+                          </span>
+                        </div>
+                      )}
+                    />
+                  </Form.Item>
+                </div>
               </div>
-            </Form.Item>
+            </SideBlock>
 
-            <Form.Item label="Task con" style={{ marginBottom: 0 }}>
-              <TaskSubtasks taskId={task?.id ?? null} />
-            </Form.Item>
+            {/* Khối 3: Phụ trách & Việc con */}
+            <SideBlock title={isEdit ? "Phụ trách & Việc con" : "Phụ trách"}>
+              <div className="flex flex-col gap-1.5">
+                <div className={`grid ${isEdit ? "grid-cols-2" : "grid-cols-1"} gap-1.5`}>
+                  {isEdit && (
+                    <Form.Item
+                      name="status"
+                      label={<span className="text-[10.5px] font-medium text-slate-600">Trạng thái</span>}
+                      style={{ marginBottom: 0 }}
+                    >
+                      <Select
+                        size="small"
+                        options={Object.values(TaskStatus).map((s) => ({
+                          value: s,
+                          label: STATUS_META[s].label,
+                        }))}
+                      />
+                    </Form.Item>
+                  )}
+
+                  <Form.Item
+                    label={<span className="text-[10.5px] font-medium text-slate-600">Người thực hiện</span>}
+                    style={{ marginBottom: 0 }}
+                  >
+                    <div
+                      className="flex items-center gap-1.5 h-[24px] px-2 rounded-md text-[11px] bg-slate-50 border border-slate-200 text-slate-600 truncate"
+                    >
+                      <UserRound size={11} className="shrink-0" />
+                      <span className="truncate">{me?.email ?? "Bạn"}</span>
+                    </div>
+                  </Form.Item>
+                </div>
+
+                {isEdit && task?.id && (
+                  <Form.Item
+                    label={<span className="text-[10.5px] font-medium text-slate-600">Task con</span>}
+                    style={{ marginBottom: 0 }}
+                  >
+                    <TaskSubtasks taskId={task.id} />
+                  </Form.Item>
+                )}
+              </div>
             </SideBlock>
           </div>
         </div>
@@ -512,23 +744,24 @@ export default function TaskFormModal({
 }
 
 /**
- * Một khối trong cột phụ.
- *
- * Trước đây mười ô nằm liền một mạch không có ngăn cách nào; mắt phải đọc từng
- * nhãn mới biết đang ở phần nào. Gom thành ba khối có tiêu đề ("Phân loại",
- * "Khung giờ"/"Thời hạn", "Khác") để quét nhanh.
+ * Một khối trong cột phụ với viền rõ nét (border-slate-300).
  */
 function SideBlock({
   title,
+  extra,
   children,
 }: {
   title: string;
+  extra?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 pt-3">
-      <div className="mb-2 text-[11.5px] font-semibold uppercase tracking-wide text-slate-400">
-        {title}
+    <div className="rounded-lg border border-slate-300 bg-white p-2 shadow-xs">
+      <div className="mb-1.5 flex items-center justify-between border-b border-slate-100 pb-1">
+        <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-700">
+          {title}
+        </span>
+        {extra}
       </div>
       {children}
     </div>
@@ -537,11 +770,7 @@ function SideBlock({
 
 /**
  * Một lựa chọn trong bộ chọn Loại.
- *
- * Tự vẽ trạng thái đang chọn thay vì trông vào `Segmented`: nền trắng trên
- * xám nhạt của antd quá mờ, đặt cạnh một Segmented khác ngay bên phải thì
- * nhìn lướt không biết cái nào đang bật. Ở đây ô được chọn ăn nguyên màu của
- * nó, ô không chọn bị làm xám hẳn — khác biệt thấy từ xa.
+ * KHÔNG sử dụng màu tím — dùng màu xanh Sky cho Công việc và Navy cho Lịch hẹn.
  */
 function KindOption({
   icon,
@@ -558,15 +787,14 @@ function KindOption({
 }) {
   return (
     <span
-      className="inline-flex items-center gap-2 py-1 px-1 rounded-lg transition-colors"
+      className="inline-flex items-center gap-1.5 py-0.5 px-0.5 rounded transition-all"
       style={{
-        color: active ? color : "#94a3b8",
-        filter: active ? undefined : "grayscale(1)",
+        color: active ? color : "#64748b",
         opacity: active ? 1 : 0.75,
       }}
     >
       <span
-        className="grid place-items-center size-7 rounded-lg shrink-0"
+        className="grid place-items-center size-5 rounded shrink-0 transition-transform"
         style={{
           background: active ? color : "#e2e8f0",
           color: active ? "#fff" : "#94a3b8",
@@ -575,12 +803,105 @@ function KindOption({
         {icon}
       </span>
       <span className="flex flex-col items-start leading-tight">
-        <span className="text-[13px] font-semibold">{title}</span>
-        <span className="text-[11px]" style={{ color: active ? color : "#94a3b8" }}>
+        <span className="text-[11.5px] font-bold">{title}</span>
+        <span
+          className="text-[9.5px] font-normal"
+          style={{ color: active ? color : "#94a3b8" }}
+        >
           {hint}
         </span>
       </span>
-      {active && <Check size={15} className="ml-0.5 shrink-0" />}
+      {active && <Check size={12} className="ml-auto shrink-0" />}
     </span>
+  );
+}
+
+/**
+ * Khung tạo nhanh nhãn mới ngay trong modal mà không cần chuyển màn hình.
+ */
+function QuickCreateLabel({
+  onCreated,
+  onCancel,
+}: {
+  onCreated: (newLabel: BoardLabel) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState<string>(LABEL_COLORS[0]);
+  const createLabel = useCreateBoardLabel();
+
+  const handleCreate = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    try {
+      const res = await createLabel.mutateAsync({ name: trimmed, color });
+      if (res) {
+        onCreated(res);
+      }
+    } catch {
+      // Error handled in hook
+    }
+  };
+
+  return (
+    <div className="w-[220px] p-1 flex flex-col gap-2">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-1">
+        <span className="text-[11.5px] font-bold text-slate-700">Tạo nhãn mới</span>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer p-0 text-[13px] leading-none"
+        >
+          ×
+        </button>
+      </div>
+
+      <Input
+        size="small"
+        placeholder="Nhập tên nhãn..."
+        value={name}
+        autoFocus
+        maxLength={60}
+        onChange={(e) => setName(e.target.value)}
+        onPressEnter={handleCreate}
+        className="text-[11.5px] border-slate-300"
+      />
+
+      <div>
+        <div className="text-[10px] text-slate-500 mb-1 font-medium">Chọn màu</div>
+        <div className="flex flex-wrap gap-1.5">
+          {LABEL_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setColor(c)}
+              className="size-5 rounded-md border-0 cursor-pointer transition-transform"
+              style={{
+                background: c,
+                outline: color === c ? "2px solid #0f172a" : "none",
+                outlineOffset: 1,
+                transform: color === c ? "scale(1.15)" : "scale(1)",
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-100">
+        <Button size="small" onClick={onCancel} className="text-[11px] h-[24px]">
+          Huỷ
+        </Button>
+        <Button
+          type="primary"
+          size="small"
+          loading={createLabel.isPending}
+          disabled={!name.trim()}
+          onClick={handleCreate}
+          className="bg-[#0a436d] text-[11px] h-[24px]"
+        >
+          Tạo
+        </Button>
+      </div>
+    </div>
   );
 }

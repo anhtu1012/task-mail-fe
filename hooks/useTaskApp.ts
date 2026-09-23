@@ -26,6 +26,7 @@ import {
   UpdateTaskInput,
   isAdminRole,
 } from "@/models/task";
+import { BoardLabel, BoardSnapshot } from "@/models/board";
 import { useAppSelector } from "@/store/hooks";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { getCookie } from "@/utils/client/getCookie";
@@ -358,6 +359,44 @@ export function useBoardLabels() {
   );
 
   return { labels: query.data ?? [], labelById };
+}
+
+export function useCreateBoardLabel() {
+  const queryClient = useQueryClient();
+  const projectId = useProjectScope();
+  const { message } = App.useApp();
+
+  return useMutation({
+    mutationFn: async (input: { name: string; color: string; icon?: string | null }) => {
+      const cachedLabels = queryClient.getQueryData<BoardLabel[]>(["board", "labels", projectId]);
+      let boardId = cachedLabels?.[0]?.boardId;
+      if (!boardId) {
+        const snap = queryClient.getQueryData<BoardSnapshot>(["board", "snapshot"]);
+        boardId = snap?.board?.id;
+      }
+      if (!boardId) {
+        const snap = await boardApi.snapshot(projectId ?? undefined);
+        boardId = snap.board.id;
+      }
+      return boardApi.createLabel(boardId, input);
+    },
+    onSuccess: (newLabel) => {
+      message.success(`Đã tạo nhãn "${newLabel.name}"`);
+      queryClient.setQueryData<BoardLabel[]>(
+        ["board", "labels", projectId],
+        (old) => (old ? [...old, newLabel] : [newLabel]),
+      );
+      queryClient.setQueryData<BoardSnapshot>(["board", "snapshot"], (snap) => {
+        if (!snap) return snap;
+        return {
+          ...snap,
+          labels: [...snap.labels, newLabel],
+        };
+      });
+      queryClient.invalidateQueries({ queryKey: ["board", "labels"] });
+    },
+    onError: (error) => message.error(getApiErrorMessage(error)),
+  });
 }
 
 // ==========================================
