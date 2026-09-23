@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
+import { AlertOctagon, Home, RotateCcw } from "lucide-react";
+import "@/styles/pages/global-error.scss";
+
 export default function GlobalError({
   error,
   reset,
@@ -7,31 +11,44 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    console.error("Global Error:", error);
+  }, [error]);
+
   return (
-    <html>
-      <body>
-        <div className="w-full min-h-screen flex justify-center items-center">
-          <div className="flex flex-col items-center justify-center w-full h-full py-10">
-            <div className="w-full max-w-xl gap-8 px-10 py-10 rounded-xl bg-base-100/30 shadow">
-              <div className={`pt-5 text-center`}>
-                <h3 className="font-bold text-xl md:text-2xl sm:leading-8 font-sans text-error">
-                  Something went wrong!
-                </h3>
-                <p className="mt-2 text-base-content/90">
-                  Please try again later.
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-4 mt-6 sm:flex-nowrap sm:justify-start">
-                  <button
-                    className="mx-auto px-6 py-2.5 bg-primary text-primary-content hover:bg-secondary hover:text-secondary-content transition hover:duration-700 font-medium  rounded-md ease-in-out"
-                    onClick={
-                      // Attempt to recover by trying to re-render the segment
-                      () => reset()
-                    }
-                  >
-                    Try again
-                  </button>
-                </div>
+    <html lang="vi" className="global-error__html">
+      <body className="global-error__body">
+        <div className="global-error__container">
+          <div className="global-error__card">
+            <div className="global-error__badge">
+              <AlertOctagon size={36} />
+            </div>
+            <h1 className="global-error__title">Đã xảy ra sự cố nghiêm trọng</h1>
+            <p className="global-error__message">
+              Hệ thống gặp sự cố ngoài dự kiến trong ứng dụng. Bạn có thể thử tải lại hoặc quay về trang chủ.
+            </p>
+            {error.digest && (
+              <div className="global-error__digest">
+                Mã lỗi: {error.digest}
               </div>
+            )}
+            <div className="global-error__actions">
+              <button
+                type="button"
+                className="global-error__btn-primary"
+                onClick={() => reset()}
+              >
+                <RotateCcw size={15} /> Thử lại
+              </button>
+              <button
+                type="button"
+                className="global-error__btn-secondary"
+                onClick={() => {
+                  window.location.href = "/";
+                }}
+              >
+                <Home size={15} /> Về trang chủ
+              </button>
             </div>
           </div>
         </div>

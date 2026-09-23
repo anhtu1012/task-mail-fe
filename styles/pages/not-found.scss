@@ -4,45 +4,96 @@
 
 .not-found__page {
   width: 100%;
-  height: 100vh;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  background-color: $color-white;
+  background: linear-gradient(180deg, $color-white 0%, $color-background 100%);
+  padding: $spacing-6;
+
+  .not-found__content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    max-width: 520px;
+    width: 100%;
+  }
+
+  .not-found__image {
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+    margin-bottom: $spacing-3;
+    filter: drop-shadow(0 10px 20px rgba(10, 67, 109, 0.08));
+    animation: float 4s ease-in-out infinite;
+  }
+
   .title {
-    font-size: 80px;
-    font-weight: 600;
-    // color: #0e499a;
-    line-height: 85px;
+    font-size: 72px !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+    margin: 0 !important;
     background: linear-gradient(
-      346deg,
-      rgba(2, 0, 36, 1) 11%,
-      rgba(9, 9, 121, 1) 38%,
-      rgba(0, 212, 255, 1) 94%
+      135deg,
+      $color-primary 0%,
+      $color-info-600 50%,
+      #00d4ff 100%
     );
     background-clip: text;
+    -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
+
   .title-des {
     font-size: 20px;
-    font-weight: 500;
-    color: #0e499a;
+    font-weight: 600;
+    color: $color-primary;
+    margin-top: $spacing-2;
+    display: block;
   }
+
   .des {
-    margin-top: 10px;
-    color: #0e499a;
+    margin-top: $spacing-2 !important;
+    margin-bottom: $spacing-6 !important;
+    color: $color-neutral-700;
+    font-size: 15px;
+    line-height: 1.6;
+    max-width: 440px;
   }
+
   .btn-back {
-    margin-top: 12px;
-    background-color: #0e499a;
-    color: #fff;
-    border-radius: 20px !important;
-    padding: 22px 30px !important;
-    font-size: 16px !important;
-    transition: all 0.2s ease;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    background-color: $color-primary !important;
+    color: $color-white !important;
+    border-radius: $radius-full !important;
+    height: 44px !important;
+    padding: 0 32px !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 14px rgba(10, 67, 109, 0.25) !important;
+    transition: all 0.25s ease !important;
+    border: none !important;
 
     &:hover {
-      background-color: #0e489ae3 !important;
-      color: #fff !important;
-      border-color: unset !important;
+      background-color: $color-primary-600 !important;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(10, 67, 109, 0.35) !important;
     }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
   }
 }

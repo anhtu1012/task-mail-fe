@@ -1,35 +1,43 @@
 "use client";
-import { Button, Flex, Space, Typography } from "antd";
+
+import { Button, Typography } from "antd";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Fragment } from "react";
-import "@/styles/pages/not-found.scss"
+import { Home } from "lucide-react";
+import "@/styles/pages/not-found.scss";
 
-// export default function NotFound() {
-const NotFound = () => {
+export default function NotFound() {
   const router = useRouter();
-  return (
-    <Fragment>
-      <Space className="not-found__page">
-        <Flex
-          vertical
-          justify="center"
-          align="center"
-          style={{ width: "100%" }}
-        >
-          <Image src="/images/404.png" alt="404" width={400} height={300}  loading="eager"/>
-          <Typography className="title">404</Typography>
-          <Typography className="title-des">Không tìm thấy trang.</Typography>
-          <Typography className="des">
-            Chúng tôi không tìm thấy trang mà bạn đang tìm kiếm.
-          </Typography>
-          <Button className="btn-back" onClick={() => router.push("/")}>
-            Về trang chủ
-          </Button>
-        </Flex>
-      </Space>
-    </Fragment>
-  );
-};
 
-export default NotFound;
+  return (
+    <div className="not-found__page">
+      <div className="not-found__content">
+        <Image
+          src="/images/404.png"
+          alt="404"
+          width={380}
+          height={260}
+          priority
+          className="not-found__image"
+        />
+        <Typography.Title level={1} className="title">
+          404
+        </Typography.Title>
+        <Typography.Text className="title-des">
+          Không tìm thấy trang
+        </Typography.Text>
+        <Typography.Paragraph className="des">
+          Trang bạn đang tìm kiếm không tồn tại hoặc đã được di chuyển sang địa chỉ khác.
+        </Typography.Paragraph>
+        <Button
+          type="primary"
+          icon={<Home size={16} />}
+          className="btn-back"
+          onClick={() => router.push("/")}
+        >
+          Về trang chủ
+        </Button>
+      </div>
+    </div>
+  );
+}
