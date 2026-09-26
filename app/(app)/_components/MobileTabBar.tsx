@@ -3,19 +3,19 @@
 /**
  * Thanh tab dưới cùng của giao diện mobile.
  *
- * Bốn tab chính (Hôm nay · Công việc · + · Ghi chú) và "Menu" mở ngăn kéo
- * điều hướng đầy đủ — thiếu nó thì Dự án, Lịch, Tích hợp... không còn đường
- * vào trên điện thoại. Các tab là <Link> để nhấn giữ vẫn mở được tab mới.
+ * Bốn tab chính (Hôm nay · Công việc · + · Lịch) và "Menu" mở ngăn kéo
+ * điều hướng đầy đủ — thiếu nó thì Dự án, Ghi chú, Tích hợp... không còn
+ * đường vào trên điện thoại. Các tab là <Link> để nhấn giữ vẫn mở được tab mới.
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarCheck, Columns3, Menu, Plus, StickyNote } from "lucide-react";
+import { CalendarCheck, CalendarDays, Columns3, Menu, Plus } from "lucide-react";
 import styles from "../layout.module.scss";
 
 const TABS = [
   { href: "/today", label: "Hôm nay", icon: CalendarCheck },
   { href: "/boards", label: "Công việc", icon: Columns3 },
-  { href: "/notes", label: "Ghi chú", icon: StickyNote },
+  { href: "/calendar", label: "Lịch", icon: CalendarDays },
 ] as const;
 
 export default function MobileTabBar({

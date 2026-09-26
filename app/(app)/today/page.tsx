@@ -17,12 +17,14 @@ import { cardHref } from "@/components/mobile/links";
 import { MobileCardRow } from "@/components/mobile/MobileCardRow";
 import { useToggleComplete } from "@/components/mobile/useToggleComplete";
 import { useCurrentProject } from "@/hooks/useProjects";
-import { CardSummary } from "@/models/board";
+import { useBoardLabels } from "@/hooks/useTaskApp";
+import { BoardLabel, CardSummary } from "@/models/board";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 
 export default function TodayPage() {
   const { projectId, project } = useCurrentProject();
   const toggleComplete = useToggleComplete();
+  const { labelById } = useBoardLabels();
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: AGENDA_QUERY_KEY,
     queryFn: () => boardApi.agenda(undefined, projectId ?? undefined),
@@ -92,8 +94,19 @@ export default function TodayPage() {
         </div>
       ) : (
         <>
-          <Section title="Quá hạn" cards={overdue} tone={C.danger} onToggle={toggleComplete} />
-          <Section title="Đến hạn hôm nay" cards={dueToday} onToggle={toggleComplete} />
+          <Section
+            title="Quá hạn"
+            cards={overdue}
+            tone={C.danger}
+            onToggle={toggleComplete}
+            labelById={labelById}
+          />
+          <Section
+            title="Đến hạn hôm nay"
+            cards={dueToday}
+            onToggle={toggleComplete}
+            labelById={labelById}
+          />
         </>
       )}
     </div>
@@ -118,11 +131,13 @@ function Section({
   cards,
   tone,
   onToggle,
+  labelById,
 }: {
   title: string;
   cards: CardSummary[];
   tone?: string;
   onToggle: (card: CardSummary) => Promise<unknown>;
+  labelById: Map<string, BoardLabel>;
 }) {
   if (cards.length === 0) return null;
   return (
@@ -136,6 +151,7 @@ function Section({
           card={card}
           href={cardHref(card.boardId, card.id, "/today")}
           onToggleComplete={onToggle}
+          labels={card.labelIds.flatMap((id) => labelById.get(id) ?? [])}
         />
       ))}
     </section>

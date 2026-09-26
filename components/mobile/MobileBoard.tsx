@@ -17,13 +17,16 @@ import {
   MoreVertical,
   MoveRight,
   Plus,
+  Tag,
   Trash2,
+  X,
 } from "lucide-react";
 import { useBoard } from "@/components/board/BoardStore";
 import { Composer } from "@/components/board/Composer";
 import { C } from "@/components/board/ui";
 import { cardHref } from "./links";
 import { MobileCardRow } from "./MobileCardRow";
+import { MobileLabelSheet } from "./MobileLabelSheet";
 
 /** null = Hộp thư đến */
 type ColumnKey = string | null;
@@ -43,7 +46,21 @@ export function MobileBoard() {
     loadMoreCards,
     loadingMore,
     filterActive,
+    filter,
+    setFilter,
+    labels,
+    labelById,
   } = useBoard();
+  /** Thẻ đang mở khung gắn nhãn; null = đóng */
+  const [labelCardId, setLabelCardId] = useState<string | null>(null);
+
+  const toggleLabelFilter = (labelId: string) =>
+    setFilter({
+      ...filter,
+      labelIds: filter.labelIds.includes(labelId)
+        ? filter.labelIds.filter((id) => id !== labelId)
+        : [...filter.labelIds, labelId],
+    });
 
   // Mặc định mở Hộp thư đến nếu có việc chờ phân loại, không thì cột đầu tiên.
   // `undefined` = chưa chọn; cột đã chọn bị lưu trữ/xoá thì cũng lùi về mặc định.
@@ -100,6 +117,47 @@ export function MobileBoard() {
         })}
       </div>
 
+      {/*
+        Lọc nhanh: quá hạn, hôm nay, theo nhãn. Dùng chung bộ lọc với bảng
+        desktop, nên số trên chip cột phía trên vẫn là tổng thật của cột.
+      */}
+      <div className="-mx-1 px-1 -mt-1 flex gap-1.5 overflow-x-auto pb-1 shrink-0 [scrollbar-width:none]">
+        <FilterChip
+          active={filter.overdueOnly}
+          onClick={() => setFilter({ ...filter, overdueOnly: !filter.overdueOnly })}
+        >
+          Quá hạn
+        </FilterChip>
+        <FilterChip
+          active={filter.todayOnly}
+          onClick={() => setFilter({ ...filter, todayOnly: !filter.todayOnly })}
+        >
+          Hôm nay
+        </FilterChip>
+        {labels.map((l) => (
+          <FilterChip
+            key={l.id}
+            active={filter.labelIds.includes(l.id)}
+            dot={l.color}
+            onClick={() => toggleLabelFilter(l.id)}
+          >
+            {l.name}
+          </FilterChip>
+        ))}
+        {filterActive && (
+          <button
+            type="button"
+            onClick={() =>
+              setFilter({ keyword: "", labelIds: [], overdueOnly: false, todayOnly: false })
+            }
+            className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-full border-0 cursor-pointer text-[12px] font-medium"
+            style={{ background: "rgba(0,0,0,.25)", color: "#fff" }}
+          >
+            <X size={12} /> Bỏ lọc
+          </button>
+        )}
+      </div>
+
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 pb-4">
         {cards.map((card) => (
           <MobileCardRow
@@ -107,6 +165,8 @@ export function MobileBoard() {
             card={card}
             href={board ? cardHref(board.id, card.id) : "#"}
             onToggleComplete={(c) => toggleComplete(c.id)}
+            labels={card.labelIds.flatMap((id) => labelById.get(id) ?? [])}
+            onEditLabels={() => setLabelCardId(card.id)}
             actions={
               <Dropdown
                 trigger={["click"]}
@@ -124,6 +184,12 @@ export function MobileBoard() {
                           label: col.title,
                           onClick: () => moveCardToList(card.id, col.key),
                         })),
+                    },
+                    {
+                      key: "labels",
+                      icon: <Tag size={14} />,
+                      label: "Gắn nhãn",
+                      onClick: () => setLabelCardId(card.id),
                     },
                     { type: "divider" as const },
                     {
@@ -197,6 +263,37 @@ export function MobileBoard() {
           </button>
         )}
       </div>
+
+      <MobileLabelSheet cardId={labelCardId} onClose={() => setLabelCardId(null)} />
     </div>
+  );
+}
+
+function FilterChip({
+  active,
+  dot,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  dot?: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full cursor-pointer text-[12px] font-medium whitespace-nowrap"
+      style={{
+        background: active ? "#ffffff" : "transparent",
+        color: active ? C.foreground : "rgba(255,255,255,.88)",
+        border: `1px solid ${active ? "#ffffff" : "rgba(255,255,255,.35)"}`,
+      }}
+    >
+      {dot && <span className="size-2 rounded-full" style={{ background: dot }} />}
+      <span className="max-w-[140px] truncate">{children}</span>
+    </button>
   );
 }

@@ -39,6 +39,7 @@ import { projectOccurrences } from "@/utils/client/recurrence";
 import DayTimeline, { rangeText } from "./_components/DayTimeline";
 import WeekTimeline from "./_components/WeekTimeline";
 import AgendaList from "./_components/AgendaList";
+import MobileCalendar from "./_components/MobileCalendar";
 import { useStickyState } from "@/components/board/useStickyState";
 
 type CalendarView = "month" | "week" | "day" | "agenda";
@@ -434,9 +435,30 @@ export default function CalendarPage() {
   );
 
   const today = dayjs();
+  // Điện thoại có giao diện lịch riêng — xem _components/MobileCalendar
+  const isMobile = screens.md === false;
 
   return (
     <div className="flex flex-col gap-3 w-full">
+      {isMobile ? (
+        <MobileCalendar
+          month={month}
+          onMonthChange={(m) => {
+            setMonth(m);
+            setFocusDay(m);
+          }}
+          weeks={weeks}
+          tasksByDay={tasksByDay}
+          events={allEvents}
+          status={status}
+          onStatusChange={setStatus}
+          isFetching={isFetching}
+          labelById={labelById}
+          onSelectTask={setViewingTask}
+          onCreate={(day) => openCreate(day)}
+        />
+      ) : (
+      <>
       {/* ===== Header ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -1070,6 +1092,8 @@ export default function CalendarPage() {
           </Empty>
         )}
       </Drawer>
+      </>
+      )}
 
       <TaskFormModal
         open={formOpen}
