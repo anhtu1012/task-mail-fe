@@ -21,6 +21,7 @@ import {
   Paperclip,
   RotateCcw,
   StickyNote,
+  Tag,
   Timer,
   Trash2,
 } from "lucide-react";
@@ -43,6 +44,7 @@ const STATUS_TONE: Record<
   [TaskStatus.CANCELLED]: "danger",
 };
 import { useBoard } from "./BoardStore";
+import LabelPicker from "./LabelPicker";
 import { SNOOZE_OPTIONS } from "./snooze";
 import { Badge, G, LabelChip, SourceIcon, fmtShort } from "./ui";
 import styles from "./board.module.scss";
@@ -119,6 +121,44 @@ function CardTileBase({ card, overlay = false }: Props) {
     card.noteCount > 0 ||
     checkTotal > 0 ||
     card.source !== "MANUAL";
+
+  // Hàng nhãn: tối đa ba chip, phần dư gom thành "+N" (xem ghi chú bên dưới)
+  const labelRow = (
+    <div className="flex flex-wrap items-center gap-1">
+      {labels.slice(0, MAX_VISIBLE_LABELS).map((l) => (
+        <LabelChip key={l.id} label={l} size="sm" onGlass />
+      ))}
+
+      {labels.length > MAX_VISIBLE_LABELS && (
+        <Tooltip
+          title={
+            <span className="flex flex-col gap-0.5">
+              {labels.slice(MAX_VISIBLE_LABELS).map((l) => (
+                <span key={l.id} className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block size-2 rounded-full shrink-0"
+                    style={{ background: l.color }}
+                  />
+                  {l.name}
+                </span>
+              ))}
+            </span>
+          }
+        >
+          <span
+            className="inline-flex items-center h-[18px] px-1.5 rounded-md text-[10.5px] font-semibold cursor-default"
+            style={{
+              background: "rgba(255,255,255,.22)",
+              border: `1px solid ${G.line}`,
+              color: G.text,
+            }}
+          >
+            +{labels.length - MAX_VISIBLE_LABELS}
+          </span>
+        </Tooltip>
+      )}
+    </div>
+  );
 
   return (
     <div
@@ -338,42 +378,19 @@ function CardTileBase({ card, overlay = false }: Props) {
           đầu vẫn đủ để nhận diện, phần dư vẫn xem được: rê chuột vào "+N" ra
           danh sách đầy đủ, mà bấm vào thẻ thì màn chi tiết hiện trọn.
         */}
-        {labels.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1">
-            {labels.slice(0, MAX_VISIBLE_LABELS).map((l) => (
-              <LabelChip key={l.id} label={l} size="sm" onGlass />
-            ))}
-
-            {labels.length > MAX_VISIBLE_LABELS && (
-              <Tooltip
-                title={
-                  <span className="flex flex-col gap-0.5">
-                    {labels.slice(MAX_VISIBLE_LABELS).map((l) => (
-                      <span key={l.id} className="flex items-center gap-1.5">
-                        <span
-                          className="inline-block size-2 rounded-full shrink-0"
-                          style={{ background: l.color }}
-                        />
-                        {l.name}
-                      </span>
-                    ))}
-                  </span>
-                }
-              >
-                <span
-                  className="inline-flex items-center h-[18px] px-1.5 rounded-md text-[10.5px] font-semibold cursor-default"
-                  style={{
-                    background: "rgba(255,255,255,.22)",
-                    border: `1px solid ${G.line}`,
-                    color: G.text,
-                  }}
-                >
-                  +{labels.length - MAX_VISIBLE_LABELS}
-                </span>
-              </Tooltip>
-            )}
-          </div>
-        )}
+        {labels.length > 0 &&
+          (overlay ? (
+            labelRow
+          ) : (
+            // Bấm vào hàng nhãn là mở bảng gắn nhãn ngay trên thẻ
+            <StopBubble>
+              <LabelPicker cardId={card.id} selectedIds={card.labelIds}>
+                <div className="cursor-pointer" title="Bấm để đổi nhãn">
+                  {labelRow}
+                </div>
+              </LabelPicker>
+            </StopBubble>
+          ))}
 
         {/* Tiêu đề là thứ đậm nhất trên thẻ */}
         {/*
@@ -492,8 +509,52 @@ function CardTileBase({ card, overlay = false }: Props) {
                 {card.noteCount}
               </Badge>
             )}
+
+            {/*
+              Gắn nhãn nhanh ngay trên bảng, không phải mở chi tiết thẻ. Hiện
+              khi rê vào thẻ; đặt ở hàng dưới cùng để không chen vào chỗ của
+              tiêu đề như ba nút ở góc trên.
+            */}
+            {!overlay && (
+              <StopBubble className="ml-auto">
+                <LabelPicker cardId={card.id} selectedIds={card.labelIds}>
+                  <button
+                    type="button"
+                    aria-label="Gắn nhãn"
+                    title="Gắn nhãn"
+                    className="grid place-items-center size-6 rounded-md border-0 cursor-pointer
+                      opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 transition-opacity"
+                    style={{
+                      background: "rgba(255,255,255,.22)",
+                      border: "1px solid rgba(255,255,255,.3)",
+                      color: G.text,
+                    }}
+                  >
+                    <Tag size={12.5} />
+                  </button>
+                </LabelPicker>
+              </StopBubble>
+            )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Chặn click / pointerdown nổi lên thẻ. Popover của antd render qua portal
+ * nhưng sự kiện React vẫn nổi theo cây component: không chặn thì bấm chọn một
+ * nhãn là mở luôn trang chi tiết, còn pointerdown thì thành ra kéo thẻ.
+ */
+function StopBubble({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={className ?? "contents"}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {children}
     </div>
   );
 }

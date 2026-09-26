@@ -17,6 +17,7 @@ import { projectApi } from "@/apis/project.api";
 import {
   CreateProjectInput,
   Project,
+  ProjectListResponse,
   UpdateProjectInput,
 } from "@/models/project";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -135,11 +136,27 @@ function useInvalidateProjects() {
 
 export function useCreateProject() {
   const { message } = App.useApp();
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateProjects();
   return useMutation({
     mutationFn: (input: CreateProjectInput) => projectApi.create(input),
     onSuccess: (project) => {
       message.success(`Đã tạo dự án ${project.name}`);
+      /*
+       * Chèn ngay dự án mới vào danh sách đang cache, TRƯỚC khi tải lại.
+       *
+       * Thiếu bước này thì chuyển sang dự án vừa tạo sẽ hỏng: danh sách cũ
+       * chưa có nó, `useCurrentProject` tưởng dự án đã bị xoá nên dọn lựa
+       * chọn, rồi trang chọn dự án tự vào dự án mặc định — đúng lỗi "tạo dự
+       * án mới lại nhảy về dự án mặc định".
+       */
+      queryClient.setQueriesData<ProjectListResponse>(
+        { queryKey: PROJECT_QK.all },
+        (prev) =>
+          prev && !prev.items.some((p) => p.id === project.id)
+            ? { ...prev, items: [...prev.items, project], total: prev.total + 1 }
+            : prev,
+      );
       invalidate();
     },
     onError: (error) => message.error(getApiErrorMessage(error)),
