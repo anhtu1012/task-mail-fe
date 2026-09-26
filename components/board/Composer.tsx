@@ -13,7 +13,7 @@ import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Clock, LoaderCircle, Tag, Timer, X, Zap } from "lucide-react";
 import { PRIORITY_META } from "@/models/task";
 import { QUICK_ADD_HINTS, quickParse } from "@/utils/client/quickParse";
-import { useBoard } from "./BoardStore";
+import { useBoardMeta } from "./BoardStore";
 import { G, fmtShort } from "./ui";
 import styles from "./board.module.scss";
 
@@ -41,7 +41,7 @@ export function Composer({
 }: Props) {
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
-  const { labels } = useBoard();
+  const { labels } = useBoardMeta();
   const ref = useRef<HTMLTextAreaElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 

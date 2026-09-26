@@ -9,7 +9,8 @@
  *   - "list-drop-<listId>" -> thả vào thân danh sách (kể cả danh sách rỗng)
  *   - "inbox-drop"         -> trả thẻ về Hộp thư đến
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   DndContext,
   DragEndEvent,
@@ -28,14 +29,44 @@ import { BoardToolbar } from "./BoardToolbar";
 import { CardTile } from "./CardTile";
 import { InboxPanel } from "./InboxPanel";
 import { AgendaPanel } from "./AgendaPanel";
-import { CommandPalette } from "./CommandPalette";
+
+/*
+ * Bảng lệnh (Ctrl+K) là chunk riêng: đa số lượt mở bảng không dùng tới nó.
+ * Nạp sẵn lúc trình duyệt rảnh (xem effect bên dưới) để lần bấm đầu tiên
+ * không phải chờ tải.
+ */
+const loadPalette = () => import("./CommandPalette");
+const CommandPalette = dynamic(() => loadPalette().then((m) => m.CommandPalette), {
+  ssr: false,
+});
 
 const LIST_DROP_PREFIX = "list-drop-";
 export const INBOX_DROP_ID = "inbox-drop";
 
 export function BoardWorkspace() {
-  const { lists, cardsByList, inboxCards, cardById, previewMove, commitMove, moveList } =
-    useBoard();
+  const {
+    lists,
+    cardsByList,
+    inboxCards,
+    cardById,
+    previewMove,
+    commitMove,
+    moveList,
+    paletteOpen,
+  } = useBoard();
+
+  useEffect(() => {
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(() => void loadPalette());
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(() => void loadPalette(), 2000);
+    return () => clearTimeout(t);
+  }, []);
   const [activeCard, setActiveCard] = useState<CardSummary | null>(null);
   const [activeListId, setActiveListId] = useState<string | null>(null);
   // Dưới 768px panel Hộp thư đến bị ẩn -> mở dạng phủ màn hình
@@ -187,7 +218,7 @@ export function BoardWorkspace() {
         </>
       )}
 
-      <CommandPalette />
+      {paletteOpen && <CommandPalette />}
 
       {/* Bản sao bay theo con trỏ — thẻ gốc để nguyên chỗ trống làm placeholder */}
       <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(.2,.8,.4,1)" }}>

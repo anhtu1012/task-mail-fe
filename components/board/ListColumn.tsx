@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -13,32 +13,45 @@ import {
   Plus,
 } from "lucide-react";
 import { BoardList, CardSummary } from "@/models/board";
-import { useBoard } from "./BoardStore";
+import { PendingAdd, useBoardActions } from "./BoardStore";
 import { CardTile } from "./CardTile";
 import { PendingCardTile } from "./PendingCardTile";
 import { Composer } from "./Composer";
 import { G } from "./ui";
 import styles from "./board.module.scss";
 
+/*
+ * Mọi thứ cột cần từ store đều đi qua PROPS, không đọc `useBoard()`: context
+ * đầy đủ đổi trên mỗi lần vá thẻ, đọc nó ở đây là cột nào cũng vẽ lại. Nhờ
+ * vậy `memo` (với phép so ở cuối file) mới thật sự chặn được — kéo thẻ giữa
+ * cột A và B thì các cột còn lại đứng im.
+ */
 type Props = {
   list: BoardList;
   cards: CardSummary[];
+  /** Tổng thật của cột từ `cardCounts` của server, không phải số thẻ đã tải */
+  total: number;
+  /** Thẻ đang chờ server tạo, của riêng cột này */
+  pending: PendingAdd[];
+  /** Cột này đang tải trang kế tiếp */
+  loadingMore: boolean;
+  filterActive: boolean;
   /** Phím tắt N yêu cầu mở ô thêm việc ở danh sách này */
   autoAdd?: boolean;
   onAutoAddDone?: () => void;
 };
 
-function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) {
-  const {
-    addCard,
-    renameList,
-    archiveList,
-    totalByList,
-    filterActive,
-    loadMoreCards,
-    loadingMore,
-    pendingAdds,
-  } = useBoard();
+function ListColumnBase({
+  list,
+  cards,
+  total,
+  pending,
+  loadingMore,
+  filterActive,
+  autoAdd = false,
+  onAutoAddDone,
+}: Props) {
+  const { addCard, renameList, archiveList, loadMoreCards } = useBoardActions();
   /**
    * Ô thêm việc mở ở đâu: cuối cột (mặc định) hay đầu cột.
    *
@@ -69,8 +82,34 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
   // Dẫn xuất chứ không setState trong effect — tránh render lồng
   const composerAt = adding ?? (autoAdd ? "bottom" : null);
 
-  const pending = pendingAdds.filter((p) => p.listId === list.id);
-  const total = totalByList.get(list.id) ?? cards.length;
+  const cardIds = useMemo(() => cards.map((c) => c.id), [cards]);
+  const canLoadMore = !filterActive && cards.length < total;
+
+  /*
+   * Cuộn gần tới đáy cột là tự tải trang kế tiếp — không bắt người dùng đi
+   * tìm nút "Tải thêm". Nút vẫn giữ lại cho bàn phím và khi observer không
+   * chạy được. `loadMoreCards` tự chặn gọi trùng.
+   */
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    const root = el?.parentElement;
+    if (!el || !root || !canLoadMore || loadingMore) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        // Chỉ khi người dùng THẬT SỰ cuộn: cột thấp hơn khung thì cái mốc
+        // luôn nằm trong tầm nhìn, không chặn là mọi cột tự tải lần lượt
+        // hết sạch ngay khi mở bảng — cháy trần 20 req/60s.
+        if (root.scrollTop > 0 && entries.some((e) => e.isIntersecting)) {
+          void loadMoreCards(list.id);
+        }
+      },
+      { root, rootMargin: "0px 0px 160px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [canLoadMore, loadingMore, loadMoreCards, list.id]);
+
   const overWip = list.wipLimit !== null && cards.length > list.wipLimit;
 
   return (
@@ -228,7 +267,7 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
             <PendingCardTile key={p.key} title={p.title} />
           ))}
 
-        <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
             <CardTile key={card.id} card={card} />
           ))}
@@ -248,11 +287,12 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
           Ẩn khi đang lọc: lúc đó `cards` là tập đã lọc còn `total` là tổng thô,
           nên so hai số sẽ luôn lệch và nút hiện vĩnh viễn.
         */}
-        {!filterActive && cards.length < total && (
+        {canLoadMore && <div ref={sentinelRef} aria-hidden className="h-px shrink-0" />}
+        {canLoadMore && (
           <button
             type="button"
             onClick={() => loadMoreCards(list.id)}
-            disabled={loadingMore === list.id}
+            disabled={loadingMore}
             className="flex items-center justify-center gap-1.5 h-8 rounded-lg cursor-pointer
               text-[12.5px] font-medium disabled:opacity-60"
             style={{
@@ -261,7 +301,7 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
               color: G.text,
             }}
           >
-            {loadingMore === list.id ? (
+            {loadingMore ? (
               <LoaderCircle size={13} className="animate-spin" />
             ) : (
               <ChevronDown size={13} />
@@ -329,4 +369,24 @@ function ListColumnBase({ list, cards, autoAdd = false, onAutoAddDone }: Props) 
   );
 }
 
-export const ListColumn = memo(ListColumnBase);
+/** Hai mảng có cùng từng phần tử (so tham chiếu) — cache giữ nguyên thẻ không đổi */
+const sameItems = <T,>(a: T[], b: T[]) =>
+  a === b || (a.length === b.length && a.every((x, i) => x === b[i]));
+
+/*
+ * `cards` / `pending` là mảng dựng mới mỗi lần store tính lại, dù nội dung y
+ * hệt — so mặc định của memo sẽ luôn thấy "khác". So từng phần tử thì cột chỉ
+ * vẽ lại khi thẻ của CHÍNH nó thay đổi.
+ */
+export const ListColumn = memo(
+  ListColumnBase,
+  (prev, next) =>
+    prev.list === next.list &&
+    prev.total === next.total &&
+    prev.loadingMore === next.loadingMore &&
+    prev.filterActive === next.filterActive &&
+    prev.autoAdd === next.autoAdd &&
+    prev.onAutoAddDone === next.onAutoAddDone &&
+    sameItems(prev.cards, next.cards) &&
+    sameItems(prev.pending, next.pending),
+);
