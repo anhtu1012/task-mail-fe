@@ -64,6 +64,8 @@ const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 /** Chiều cao một làn thanh sự kiện. Dùng ở CẢ hai nơi: lớp thanh và phần chừa
  *  chỗ bên dưới — tách ra hằng số để hai bên không bao giờ lệch nhau. */
 const LANE_HEIGHT = 21;
+/** Khoảng trống giữa làn thanh lịch hẹn cuối cùng và danh sách việc bên dưới */
+const LANE_GAP = 4;
 
 export default function CalendarPage() {
   const { message } = App.useApp();
@@ -705,7 +707,9 @@ export default function CalendarPage() {
                 */}
                 <div
                   className="flex flex-col gap-1"
-                  style={{ marginTop: laneCount * LANE_HEIGHT }}
+                  // + LANE_GAP: không có nó thì việc đầu tiên dính sát ngay
+                  // dưới thanh lịch hẹn, nhìn như hai thứ chồng lên nhau
+                  style={{ marginTop: laneCount ? laneCount * LANE_HEIGHT + LANE_GAP : 0 }}
                 >
                   {shown.map((entry) => {
                     const { task, at, projected } = entry;
@@ -760,13 +764,17 @@ export default function CalendarPage() {
                           projected ? "border-dashed opacity-70" : ""
                         }`}
                         style={{
-                          borderLeftWidth: 4,
-                          borderLeftColor: type?.color
-                            ? type.color
-                            : PRIORITY_META[task.priority].color,
-                          // Lượt dự kiến: viền đứt + nhạt hơn, để phân biệt
-                          // ngay với việc có thật mà không cần đọc chữ
-                          borderLeftStyle: projected ? "dashed" : "solid",
+                          /*
+                           * Vạch màu bên trái vẽ bằng bóng đổ trong, không bằng
+                           * `border-left: 4px`: viền dày cộng bo góc bị uốn
+                           * cong thành hình ngoặc "(" trông méo. Lượt dự kiến
+                           * thì vạch mảnh hơn (cùng viền đứt ở class) để phân
+                           * biệt ngay với việc có thật mà không cần đọc chữ.
+                           */
+                          paddingLeft: 9,
+                          boxShadow: `inset ${projected ? 2 : 3}px 0 0 ${
+                            type?.color ?? PRIORITY_META[task.priority].color
+                          }`,
                         }}
                       >
                         <span
@@ -828,7 +836,7 @@ export default function CalendarPage() {
 
               {/* Lớp thanh sự kiện — phủ lên phần đầu các ô của tuần này */}
               <div
-                className="pointer-events-none absolute left-0 right-0 grid grid-cols-7 px-1"
+                className="pointer-events-none absolute left-0 right-0 grid grid-cols-7"
                 /*
                  * `gridAutoRows` khoá chiều cao một làn = LANE_HEIGHT. Nhờ vậy
                  * phần chừa chỗ bên dưới (marginTop của cụm việc) khớp chính
@@ -862,8 +870,16 @@ export default function CalendarPage() {
                           isProjected ? "opacity-80" : ""
                         }`}
                       style={{
-                        height: LANE_HEIGHT - 2,
-                        marginBottom: 2,
+                        height: LANE_HEIGHT - 3,
+                        marginBottom: 3,
+                        /*
+                         * Thụt vào đúng bằng padding của ô ngày (p-1.5) để thanh
+                         * nằm TRONG ô, không dính đường kẻ và ô bên cạnh. Đầu
+                         * bị cắt (sự kiện vắt sang tuần khác) thì để sát mép —
+                         * nhìn là biết thanh còn tiếp.
+                         */
+                        marginLeft: bar.clippedStart ? 0 : 6,
+                        marginRight: bar.clippedEnd ? 0 : 6,
                         gridColumn: `${bar.colStart + 1} / span ${bar.span}`,
                         gridRow: bar.lane + 1,
                         background: isProjected ? `${color}e6` : color,
