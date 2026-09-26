@@ -161,6 +161,60 @@ export function useCardDetail(cardId: string) {
     onError: onFail,
   });
 
+  const updateChecklistItemContent = useMutation({
+    mutationFn: ({ itemId, content }: { itemId: string; content: string }) =>
+      boardApi.updateChecklistItem(itemId, { content }),
+    onMutate: ({ itemId, content }) => {
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.map((cl) => ({
+          ...cl,
+          items: cl.items.map((it) => (it.id === itemId ? { ...it, content } : it)),
+        })),
+      }));
+    },
+    onError: onFail,
+  });
+
+  /**
+   * Kéo mục tới vị trí `toIndex` trong cùng danh sách. Position tính kiểu
+   * "chen giữa hai hàng xóm" như thẻ trên bảng, nên chỉ phải ghi đúng một mục.
+   */
+  const moveChecklistItem = useMutation({
+    mutationFn: ({ itemId, position }: { itemId: string; position: number }) =>
+      boardApi.updateChecklistItem(itemId, { position }),
+    onError: onFail,
+  });
+
+  const reorderChecklistItem = useCallback(
+    (checklistId: string, itemId: string, toIndex: number) => {
+      const list = query.data?.checklists.find((c) => c.id === checklistId);
+      if (!list) return;
+      const others = [...list.items]
+        .sort((a, b) => a.position - b.position)
+        .filter((it) => it.id !== itemId);
+      const position = computePosition(
+        others[toIndex - 1]?.position,
+        others[toIndex]?.position,
+      );
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.map((cl) =>
+          cl.id === checklistId
+            ? {
+                ...cl,
+                items: cl.items
+                  .map((it) => (it.id === itemId ? { ...it, position } : it))
+                  .sort((a, b) => a.position - b.position),
+              }
+            : cl,
+        ),
+      }));
+      moveChecklistItem.mutate({ itemId, position });
+    },
+    [query.data, patchDetail, moveChecklistItem],
+  );
+
   const deleteChecklistItem = useMutation({
     mutationFn: (itemId: string) => boardApi.deleteChecklistItem(itemId),
     onMutate: (itemId) => {
@@ -295,6 +349,8 @@ export function useCardDetail(cardId: string) {
     deleteChecklist,
     addChecklistItem,
     toggleChecklistItem,
+    updateChecklistItemContent,
+    reorderChecklistItem,
     deleteChecklistItem,
     addAttachment,
     renameAttachment,

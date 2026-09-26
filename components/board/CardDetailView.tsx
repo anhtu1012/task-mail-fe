@@ -11,6 +11,21 @@
  * cụ cá nhân, thứ có giá trị là những gì mình tự nhắc mình.
  */
 import { useRef, useState } from "react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Dropdown, Popconfirm, Popover, Progress, Spin } from "antd";
 import {
   AlignLeft,
@@ -38,6 +53,7 @@ import {
   Trash2,
   X,
   Zap,
+  GripVertical,
 } from "lucide-react";
 
 const toExternalUrl = (url: string) => {
@@ -52,6 +68,7 @@ import {
   CardNote,
   CardAttachment,
   Checklist,
+  ChecklistItem,
 } from "@/models/board";
 import {
   PRIORITY_META,
@@ -747,7 +764,13 @@ function ChecklistBlock({ checklist, detail }: { checklist: Checklist; detail: D
   const total = checklist.items.length;
   const doneCount = checklist.items.filter((i) => i.checked).length;
   const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
-  const visible = hideChecked ? checklist.items.filter((i) => !i.checked) : checklist.items;
+  const sortedItems = [...checklist.items].sort((a, b) => a.position - b.position);
+  const visible = hideChecked ? sortedItems.filter((i) => !i.checked) : sortedItems;
+  // Kéo phải đi quá 4px mới tính — bấm tay nắm thôi thì không thành kéo
+  const itemSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const addItem = () => {
     const content = draft.trim();
@@ -839,40 +862,26 @@ function ChecklistBlock({ checklist, detail }: { checklist: Checklist; detail: D
           />
         </div>
 
-        {visible.map((item) => (
-          <div
-            key={item.id}
-            className="group/item flex items-start gap-2 rounded-lg px-1.5 py-1 hover:bg-[#f7f8fa]"
+        {/* Kéo bằng tay nắm bên trái để đổi thứ tự; bấm vào chữ để sửa */}
+        <DndContext
+          sensors={itemSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={({ active, over }) => {
+            if (!over || active.id === over.id) return;
+            const toIndex = sortedItems.findIndex((it) => it.id === over.id);
+            if (toIndex < 0) return;
+            detail.reorderChecklistItem(checklist.id, String(active.id), toIndex);
+          }}
+        >
+          <SortableContext
+            items={visible.map((it) => it.id)}
+            strategy={verticalListSortingStrategy}
           >
-            <input
-              type="checkbox"
-              checked={item.checked}
-              onChange={() =>
-                detail.toggleChecklistItem.mutate({ itemId: item.id, checked: !item.checked })
-              }
-              className="mt-0.5 size-4 shrink-0 cursor-pointer"
-              style={{ accentColor: C.primary }}
-            />
-            <span
-              className="flex-1 text-[14px] leading-snug"
-              style={{
-                color: item.checked ? C.mutedForeground : C.foreground,
-                textDecoration: item.checked ? "line-through" : undefined,
-              }}
-            >
-              {item.content}
-            </span>
-            <button
-              aria-label="Xoá mục"
-              onClick={() => detail.deleteChecklistItem.mutate(item.id)}
-              className="opacity-0 group-hover/item:opacity-100 grid place-items-center size-6
-                rounded border-0 bg-transparent cursor-pointer"
-              style={{ color: C.neutral500 }}
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
-        ))}
+            {visible.map((item) => (
+              <ChecklistItemRow key={item.id} item={item} detail={detail} />
+            ))}
+          </SortableContext>
+        </DndContext>
 
         {adding ? (
           <div className="flex flex-col gap-2 mt-1">
@@ -1144,6 +1153,116 @@ function NoteRow({ note, detail }: { note: CardNote; detail: DetailApi }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Một mục trong danh sách việc cần làm: tay nắm kéo thả, ô tick, nội dung bấm
+ * để sửa (Enter / bấm ra ngoài để lưu, Esc để huỷ), nút xoá.
+ */
+function ChecklistItemRow({ item, detail }: { item: ChecklistItem; detail: DetailApi }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(item.content);
+  const cancelRef = useRef(false);
+
+  const save = () => {
+    const content = draft.trim();
+    const cancelled = cancelRef.current;
+    cancelRef.current = false;
+    setEditing(false);
+    if (cancelled || !content || content === item.content) return;
+    detail.updateChecklistItemContent.mutate({ itemId: item.id, content });
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : undefined,
+        position: "relative",
+        zIndex: isDragging ? 1 : undefined,
+      }}
+      className="group/item flex items-start gap-1.5 rounded-lg px-1 py-1 hover:bg-[#f7f8fa]"
+    >
+      <button
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        aria-label="Kéo để đổi thứ tự"
+        title="Kéo để đổi thứ tự"
+        className="mt-0.5 grid place-items-center size-4 shrink-0 rounded border-0 bg-transparent
+          cursor-grab active:cursor-grabbing opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
+        style={{ color: C.neutral500, touchAction: "none" }}
+      >
+        <GripVertical size={13} />
+      </button>
+      <input
+        type="checkbox"
+        checked={item.checked}
+        onChange={() =>
+          detail.toggleChecklistItem.mutate({ itemId: item.id, checked: !item.checked })
+        }
+        className="mt-0.5 size-4 shrink-0 cursor-pointer"
+        style={{ accentColor: C.primary }}
+      />
+      {editing ? (
+        <textarea
+          autoFocus
+          rows={1}
+          value={draft}
+          maxLength={500}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={save}
+          onKeyDown={(e) => {
+            // Enter chỉ blur — để onBlur lưu, tránh gọi API hai lần
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+            if (e.key === "Escape") {
+              cancelRef.current = true;
+              e.currentTarget.blur();
+            }
+          }}
+          className="flex-1 min-w-0 resize-none rounded-md px-1.5 py-0.5 text-[14px] leading-snug outline-none"
+          style={{
+            border: `1px solid ${C.primary300}`,
+            boxShadow: "0 0 0 3px rgba(10,67,109,.1)",
+            color: C.foreground,
+          }}
+        />
+      ) : (
+        <span
+          role="button"
+          title="Bấm để sửa"
+          onClick={() => {
+            setDraft(item.content);
+            setEditing(true);
+          }}
+          className="flex-1 min-w-0 text-[14px] leading-snug cursor-text [overflow-wrap:anywhere]"
+          style={{
+            color: item.checked ? C.mutedForeground : C.foreground,
+            textDecoration: item.checked ? "line-through" : undefined,
+          }}
+        >
+          {item.content}
+        </span>
+      )}
+      <button
+        aria-label="Xoá mục"
+        onClick={() => detail.deleteChecklistItem.mutate(item.id)}
+        className="opacity-0 group-hover/item:opacity-100 grid place-items-center size-6
+          rounded border-0 bg-transparent cursor-pointer"
+        style={{ color: C.neutral500 }}
+      >
+        <Trash2 size={13} />
+      </button>
     </div>
   );
 }

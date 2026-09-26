@@ -2,7 +2,8 @@
 
 import { useCallback, useState } from "react";
 import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus } from "lucide-react";
+import { Dropdown } from "antd";
+import { Archive, ArchiveRestore, Plus } from "lucide-react";
 import { useBoard } from "./BoardStore";
 import { Composer } from "./Composer";
 import { ListColumn } from "./ListColumn";
@@ -10,8 +11,18 @@ import { useBoardShortcuts } from "./useBoardShortcuts";
 import styles from "./board.module.scss";
 
 export function BoardCanvas() {
-  const { lists, cardsByList, addList, undo, redo, setPaletteOpen, fullscreen, setFullscreen } =
-    useBoard();
+  const {
+    lists,
+    archivedLists,
+    cardsByList,
+    addList,
+    restoreList,
+    undo,
+    redo,
+    setPaletteOpen,
+    fullscreen,
+    setFullscreen,
+  } = useBoard();
   const [addingList, setAddingList] = useState(false);
   // Danh sách đang được phím tắt N yêu cầu mở ô nhập
   const [quickAddListId, setQuickAddListId] = useState<string | null>(null);
@@ -62,6 +73,40 @@ export function BoardCanvas() {
             >
               <Plus size={16} /> Thêm danh sách
             </button>
+          )}
+
+          {/*
+            Danh sách đã lưu trữ. Trước đây lưu trữ là mất hút: không có chỗ nào
+            xem lại, chỉ Ctrl+Z ngay lúc đó mới cứu được.
+          */}
+          {archivedLists.length > 0 && (
+            <Dropdown
+              trigger={["click"]}
+              placement="bottomLeft"
+              menu={{
+                items: archivedLists.map((l) => ({
+                  key: l.id,
+                  icon: <ArchiveRestore size={14} />,
+                  label: (
+                    <span className="flex items-center justify-between gap-6">
+                      <span className="truncate max-w-[180px]">{l.title}</span>
+                      <span className="text-[11.5px]" style={{ color: "#808080" }}>
+                        Khôi phục
+                      </span>
+                    </span>
+                  ),
+                  onClick: () => restoreList(l.id),
+                })),
+              }}
+            >
+              <button
+                title="Khôi phục một danh sách về bảng. Các việc cũ của nó đang nằm ở Hộp thư đến."
+                className={`${styles.glassBtn} w-full flex items-center gap-2 h-9 px-3 mt-2
+                  text-[12.5px] font-medium text-left opacity-80 hover:opacity-100`}
+              >
+                <Archive size={14} /> Đã lưu trữ ({archivedLists.length})
+              </button>
+            </Dropdown>
           )}
         </div>
       </div>

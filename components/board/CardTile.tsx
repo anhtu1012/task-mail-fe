@@ -188,130 +188,145 @@ function CardTileBase({ card, overlay = false }: Props) {
         thấy. Menu này làm cùng việc đó bằng hai cú bấm.
       */}
       {!overlay && (
-        <Dropdown
-          trigger={["click"]}
-          placement="bottomRight"
-          menu={{
-            items: [
-              {
-                key: "move",
-                icon: <MoveRight size={14} />,
-                label: "Chuyển tới",
-                children: [
-                  ...lists
-                    .filter((l) => l.id !== card.listId)
-                    .map((l) => ({
-                      key: `move-${l.id}`,
-                      label: l.title,
-                      onClick: () => moveCardToList(card.id, l.id),
-                    })),
-                  ...(card.listId !== null
-                    ? [
-                        {
-                          key: "move-inbox",
-                          label: "Hộp thư đến",
-                          onClick: () => moveCardToList(card.id, null),
-                        },
-                      ]
-                    : []),
-                ],
-              },
-              {
-                key: "priority",
-                icon: <Flag size={14} />,
-                label: "Mức ưu tiên",
-                children: Object.values(TaskPriority).map((p) => ({
-                  key: `priority-${p}`,
-                  label: (
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="inline-block size-2 rounded-full"
-                        style={{ background: PRIORITY_META[p].color }}
-                      />
-                      {PRIORITY_META[p].label}
-                    </span>
-                  ),
-                  disabled: p === card.priority,
-                  onClick: () => updateCard(card.id, { priority: p }),
-                })),
-              },
-              { type: "divider" as const },
-              {
-                key: "delete",
-                danger: true,
-                icon: <Trash2 size={14} />,
-                label: "Xoá việc",
-                onClick: () => deleteCard(card.id),
-              },
-            ],
-          }}
+        <div
+          className="contents"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
-          <button
-            aria-label="Thao tác khác"
-            title="Thao tác khác"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="absolute top-1.5 right-1.5 z-10 grid place-items-center size-6 rounded-md
-              border-0 cursor-pointer opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100
-              transition-opacity"
-            style={{
-              background: "rgba(255,255,255,.22)",
-              border: "1px solid rgba(255,255,255,.3)",
-              color: G.text,
+          {/* Menu của antd render qua portal nhưng sự kiện React vẫn nổi theo cây
+              component lên thẻ: không chặn thì bấm "Xoá việc" xong lại mở trang
+              chi tiết, và pointerdown trong menu thành ra kéo thẻ. */}
+          <Dropdown
+            trigger={["click"]}
+            placement="bottomRight"
+            menu={{
+              items: [
+                {
+                  key: "move",
+                  icon: <MoveRight size={14} />,
+                  label: "Chuyển tới",
+                  children: [
+                    ...lists
+                      .filter((l) => l.id !== card.listId)
+                      .map((l) => ({
+                        key: `move-${l.id}`,
+                        label: l.title,
+                        onClick: () => moveCardToList(card.id, l.id),
+                      })),
+                    ...(card.listId !== null
+                      ? [
+                          {
+                            key: "move-inbox",
+                            label: "Hộp thư đến",
+                            onClick: () => moveCardToList(card.id, null),
+                          },
+                        ]
+                      : []),
+                  ],
+                },
+                {
+                  key: "priority",
+                  icon: <Flag size={14} />,
+                  label: "Mức ưu tiên",
+                  children: Object.values(TaskPriority).map((p) => ({
+                    key: `priority-${p}`,
+                    label: (
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block size-2 rounded-full"
+                          style={{ background: PRIORITY_META[p].color }}
+                        />
+                        {PRIORITY_META[p].label}
+                      </span>
+                    ),
+                    disabled: p === card.priority,
+                    onClick: () => updateCard(card.id, { priority: p }),
+                  })),
+                },
+                { type: "divider" as const },
+                {
+                  key: "delete",
+                  danger: true,
+                  icon: <Trash2 size={14} />,
+                  label: "Xoá việc",
+                  onClick: () => deleteCard(card.id),
+                },
+              ],
             }}
           >
-            <MoreHorizontal size={13} />
-          </button>
-        </Dropdown>
+            <button
+              aria-label="Thao tác khác"
+              title="Thao tác khác"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="absolute top-1.5 right-1.5 z-10 grid place-items-center size-6 rounded-md
+                border-0 cursor-pointer opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100
+                transition-opacity"
+              style={{
+                background: "rgba(255,255,255,.22)",
+                border: "1px solid rgba(255,255,255,.3)",
+                color: G.text,
+              }}
+            >
+              <MoreHorizontal size={13} />
+            </button>
+          </Dropdown>
+        </div>
       )}
 
       {/* Hoãn nhanh — chỉ hiện khi rê vào thẻ, để không làm rối lúc đọc lướt */}
       {!overlay && !done && (
-        <Dropdown
-          trigger={["click"]}
-          placement="bottomRight"
-          menu={{
-            items: SNOOZE_OPTIONS.map((opt) => ({
-              key: opt.key,
-              danger: opt.key === "clear",
-              label: (
-                <span className="flex items-center justify-between gap-6">
-                  {opt.label}
-                  {opt.hint && (
-                    <span className="text-[11.5px]" style={{ color: "#808080" }}>
-                      {opt.hint(new Date())}
-                    </span>
-                  )}
-                </span>
-              ),
-              onClick: () => {
-                const target = opt.resolve(new Date());
-                snoozeCard(
-                  card.id,
-                  target ? target.toISOString() : null,
-                  opt.label.toLowerCase(),
-                );
-              },
-            })),
-          }}
+        <div
+          className="contents"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
-          <button
-            aria-label="Dời hạn"
-            title="Dời hạn"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="absolute top-1.5 right-[34px] z-10 grid place-items-center size-6 rounded-md
-              border-0 cursor-pointer opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100
-              transition-opacity"
-            style={{
-              background: "rgba(255,255,255,.22)",
-              border: "1px solid rgba(255,255,255,.3)",
-              color: G.text,
+          <Dropdown
+            trigger={["click"]}
+            placement="bottomRight"
+            menu={{
+              items: SNOOZE_OPTIONS.map((opt) => ({
+                key: opt.key,
+                danger: opt.key === "clear",
+                label: (
+                  <span className="flex items-center justify-between gap-6">
+                    {opt.label}
+                    {opt.hint && (
+                      <span className="text-[11.5px]" style={{ color: "#808080" }}>
+                        {opt.hint(new Date())}
+                      </span>
+                    )}
+                  </span>
+                ),
+                onClick: () => {
+                  const target = opt.resolve(new Date());
+                  snoozeCard(
+                    card.id,
+                    target ? target.toISOString() : null,
+                    opt.label.toLowerCase(),
+                  );
+                },
+              })),
             }}
           >
-            <Hourglass size={13} />
-          </button>
-        </Dropdown>
+            <button
+              aria-label="Dời hạn"
+              title="Dời hạn"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="absolute top-1.5 right-[34px] z-10 grid place-items-center size-6 rounded-md
+                border-0 cursor-pointer opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100
+                transition-opacity"
+              style={{
+                background: "rgba(255,255,255,.22)",
+                border: "1px solid rgba(255,255,255,.3)",
+                color: G.text,
+              }}
+            >
+              <Hourglass size={13} />
+            </button>
+          </Dropdown>
+        </div>
       )}
 
       <div className="px-2.5 py-2 flex flex-col gap-1.5">
@@ -361,7 +376,18 @@ function CardTileBase({ card, overlay = false }: Props) {
         )}
 
         {/* Tiêu đề là thứ đậm nhất trên thẻ */}
-        <div className="flex items-start gap-1.5 pr-5">
+        {/*
+          Chừa chỗ cho các nút nổi ở góc phải: thẻ đã xong luôn hiện 2 nút,
+          thẻ chưa xong hiện 3 nút khi rê chuột — không chừa thì tiêu đề dài
+          bị nút đè lên.
+        */}
+        <div
+          className={`flex items-start gap-1.5 ${
+            done
+              ? "pr-[58px]"
+              : "pr-5 group-hover/card:pr-[86px] group-focus-within/card:pr-[86px]"
+          }`}
+        >
           {showPriority && (
             <span
               title={`Ưu tiên: ${PRIORITY_META[card.priority].label}`}
@@ -375,7 +401,7 @@ function CardTileBase({ card, overlay = false }: Props) {
             />
           )}
           <span
-            className="text-[13.5px] font-medium leading-[1.45]"
+            className="min-w-0 text-[13.5px] font-medium leading-[1.45] [overflow-wrap:anywhere]"
             style={{
               color: done ? G.textMuted : G.text,
               textDecoration: done ? "line-through" : undefined,
