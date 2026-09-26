@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { App, Button, Divider, Form, Input, Spin, Typography } from "antd";
 import { CSegmented } from "@/components/ui";
@@ -236,6 +237,18 @@ export default function LoginPage() {
           >
             Đăng nhập với Google
           </Button>
+
+          <p className="mt-5 text-center text-xs text-slate-500">
+            Tiếp tục nghĩa là bạn đồng ý với{" "}
+            <Link href="/terms" className="underline hover:text-[#0a436d]">
+              Điều khoản dịch vụ
+            </Link>{" "}
+            và{" "}
+            <Link href="/privacy" className="underline hover:text-[#0a436d]">
+              Chính sách quyền riêng tư
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </div>

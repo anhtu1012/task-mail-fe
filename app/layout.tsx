@@ -63,6 +63,11 @@ const { metadata: baseMetadata } = siteMetadata({ title, description });
 export const metadata = {
   ...baseMetadata,
   applicationName: "TaskBox",
+  // Google Search Console xác minh quyền sở hữu domain (bắt buộc cho OAuth
+  // consent screen): dán mã từ thẻ <meta name="google-site-verification"> vào env
+  ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION && {
+    verification: { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION },
+  }),
   // iPhone: "Thêm vào MH chính" mở toàn màn hình như app, dùng icon riêng
   appleWebApp: {
     capable: true,

@@ -12,6 +12,7 @@ import {
   FolderKanban,
   Inbox,
   Mail,
+  ShieldCheck,
   MailCheck,
   Repeat,
   Sparkles,
@@ -72,6 +73,9 @@ export default function HomePage() {
             <a href="#views" className="hover:text-[#0a436d] transition-colors">
               Giao diện làm việc
             </a>
+            <Link href="/privacy" className="hover:text-[#0a436d] transition-colors">
+              Quyền riêng tư
+            </Link>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -898,6 +902,34 @@ export default function HomePage() {
               </div>
             )}
           </div>
+
+          {/*
+            Google OAuth verification: trang chủ phải nói rõ app dùng dữ liệu
+            Google để làm gì và dẫn tới chính sách quyền riêng tư.
+          */}
+          <div className="mt-10 max-w-3xl mx-auto flex gap-4 items-start rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+            <span className="grid place-items-center size-10 shrink-0 rounded-xl bg-emerald-50 text-[#2a9d8f]">
+              <ShieldCheck size={20} />
+            </span>
+            <div className="text-sm text-slate-600 leading-relaxed">
+              <div className="font-bold text-slate-900 mb-1">
+                Dữ liệu Gmail của bạn được bảo vệ
+              </div>
+              TaskBox chỉ đọc những email có tiêu đề chứa tiền tố bạn cấu hình
+              (vd. <code className="text-[#0a436d]">[TASK]</code>) để tạo công
+              việc, rồi đánh dấu chúng là đã đọc. Không lưu nội dung email,
+              không chia sẻ, không dùng cho quảng cáo hay huấn luyện AI. Token
+              Google được mã hoá và bạn có thể ngắt kết nối bất cứ lúc nào.
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-semibold">
+                <Link href="/privacy" className="text-[#0a436d] hover:underline">
+                  Chính sách quyền riêng tư →
+                </Link>
+                <Link href="/terms" className="text-[#0a436d] hover:underline">
+                  Điều khoản dịch vụ →
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1035,7 +1067,13 @@ export default function HomePage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <Link href="/privacy" className="hover:text-white transition-colors">
+              Chính sách quyền riêng tư
+            </Link>
+            <Link href="/terms" className="hover:text-white transition-colors">
+              Điều khoản dịch vụ
+            </Link>
             <Link href="/login" className="hover:text-white transition-colors">
               Đăng nhập
             </Link>
