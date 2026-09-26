@@ -930,15 +930,31 @@ export default function CalendarPage() {
             </span>
           )
         }
+        // Điện thoại: nút tạo xuống đáy, full ngang — header chỉ còn tiêu đề + đóng
         extra={
-          <Button
-            type="primary"
-            size="small"
-            icon={<Plus size={14} />}
-            onClick={() => openCreate(selectedDay)}
-          >
-            Tạo task ngày này
-          </Button>
+          screens.sm !== false && (
+            <Button
+              type="primary"
+              size="small"
+              icon={<Plus size={14} />}
+              onClick={() => openCreate(selectedDay)}
+            >
+              Tạo task ngày này
+            </Button>
+          )
+        }
+        footer={
+          screens.sm === false && (
+            <Button
+              type="primary"
+              size="large"
+              block
+              icon={<Plus size={16} />}
+              onClick={() => openCreate(selectedDay)}
+            >
+              Tạo task ngày này
+            </Button>
+          )
         }
       >
         {/*
