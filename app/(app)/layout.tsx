@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  Megaphone,
   Menu as MenuIcon,
   Palette,
   PlugZap,
@@ -171,6 +172,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         key: "/task-types",
         icon: <Tags size={19} />,
         label: "Loại công việc",
+      });
+      items.push({
+        key: "/announcements",
+        icon: <Megaphone size={19} />,
+        label: "Gửi thông báo",
       });
     }
     return items;

@@ -322,6 +322,10 @@ export default function IntegrationsPage() {
               }
             />
             <Statistic title="Tên bot" value={botStatus?.botName ?? "—"} />
+            <Statistic
+              title="Người dùng đã liên kết"
+              value={botStatus?.linkedUsers ?? 0}
+            />
           </div>
         </Card>
       )}
