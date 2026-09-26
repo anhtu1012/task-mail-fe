@@ -92,6 +92,38 @@ export function useCardDetail(cardId: string) {
     onError: onFail,
   });
 
+  const renameChecklist = useMutation({
+    mutationFn: ({ checklistId, title }: { checklistId: string; title: string }) =>
+      boardApi.updateChecklist(checklistId, title),
+    onMutate: ({ checklistId, title }) => {
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.map((cl) => (cl.id === checklistId ? { ...cl, title } : cl)),
+      }));
+    },
+    onError: onFail,
+  });
+
+  const deleteChecklist = useMutation({
+    mutationFn: (checklistId: string) => boardApi.deleteChecklist(checklistId),
+    onMutate: (checklistId) => {
+      const removed = query.data?.checklists.find((cl) => cl.id === checklistId);
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.filter((cl) => cl.id !== checklistId),
+      }));
+      if (removed) {
+        const doneCount = removed.items.filter((it) => it.checked).length;
+        patchSummary((c) => ({
+          ...c,
+          checklistTotal: Math.max(0, c.checklistTotal - removed.items.length),
+          checklistDone: Math.max(0, c.checklistDone - doneCount),
+        }));
+      }
+    },
+    onError: onFail,
+  });
+
   const addChecklistItem = useMutation({
     mutationFn: ({ checklistId, content }: { checklistId: string; content: string }) => {
       const list = query.data?.checklists.find((c) => c.id === checklistId);
@@ -247,6 +279,8 @@ export function useCardDetail(cardId: string) {
     error: query.error,
     updateCard,
     addChecklist,
+    renameChecklist,
+    deleteChecklist,
     addChecklistItem,
     toggleChecklistItem,
     deleteChecklistItem,

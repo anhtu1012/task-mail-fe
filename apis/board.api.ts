@@ -279,6 +279,13 @@ class BoardApi extends AxiosService {
     );
   }
 
+  public updateChecklist(checklistId: string, title: string): Promise<Checklist> {
+    return this.patch<Checklist, { title: string }>(
+      API_ENDPOINTS.CHECKLISTS.DETAIL(checklistId),
+      { title },
+    );
+  }
+
   public deleteChecklist(checklistId: string): Promise<void> {
     return this.delete<void>(API_ENDPOINTS.CHECKLISTS.DETAIL(checklistId));
   }

@@ -10,8 +10,8 @@
  * Cột phải là GHI CHÚ CỦA TÔI, không phải bình luận của người khác: đây là công
  * cụ cá nhân, thứ có giá trị là những gì mình tự nhắc mình.
  */
-import { useState } from "react";
-import { Dropdown, Popover, Progress, Spin } from "antd";
+import { useRef, useState } from "react";
+import { Dropdown, Popconfirm, Popover, Progress, Spin } from "antd";
 import {
   AlignLeft,
   ArrowLeft,
@@ -788,6 +788,22 @@ function ChecklistBlock({ checklist, detail }: { checklist: Checklist; detail: D
   const [hideChecked, setHideChecked] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(checklist.title);
+
+  const cancelTitleRef = useRef(false);
+
+  const saveTitle = () => {
+    const title = titleDraft.trim();
+    const cancelled = cancelTitleRef.current;
+    cancelTitleRef.current = false;
+    setEditingTitle(false);
+    if (cancelled || !title || title === checklist.title) {
+      setTitleDraft(checklist.title);
+      return;
+    }
+    detail.renameChecklist.mutate({ checklistId: checklist.id, title });
+  };
 
   const total = checklist.items.length;
   const doneCount = checklist.items.filter((i) => i.checked).length;
@@ -805,9 +821,46 @@ function ChecklistBlock({ checklist, detail }: { checklist: Checklist; detail: D
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2">
         <CheckSquare size={16} className="shrink-0" style={{ color: C.foreground }} />
-        <span className="font-semibold text-[15px] flex-1" style={{ color: C.foreground }}>
-          {checklist.title}
-        </span>
+        {editingTitle ? (
+          <input
+            autoFocus
+            value={titleDraft}
+            maxLength={200}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
+            onBlur={saveTitle}
+            onKeyDown={(e) => {
+              // Enter chỉ blur — để onBlur lưu, tránh gọi API hai lần
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+              if (e.key === "Escape") {
+                cancelTitleRef.current = true;
+                e.currentTarget.blur();
+              }
+            }}
+            className="flex-1 min-w-0 h-8 rounded-lg px-2 font-semibold text-[15px] outline-none"
+            style={{
+              border: `1px solid ${C.primary300}`,
+              boxShadow: "0 0 0 3px rgba(10,67,109,.1)",
+              color: C.foreground,
+            }}
+          />
+        ) : (
+          <span
+            role="button"
+            title="Bấm để đổi tên"
+            onClick={() => {
+              setTitleDraft(checklist.title);
+              setEditingTitle(true);
+            }}
+            className="font-semibold text-[15px] flex-1 cursor-text rounded px-1 -mx-1 hover:bg-[#f7f8fa]"
+            style={{ color: C.foreground }}
+          >
+            {checklist.title}
+          </span>
+        )}
         {doneCount > 0 && (
           <button
             onClick={() => setHideChecked((v) => !v)}
@@ -817,6 +870,21 @@ function ChecklistBlock({ checklist, detail }: { checklist: Checklist; detail: D
             {hideChecked ? `Hiện ${doneCount} mục đã xong` : "Ẩn mục đã xong"}
           </button>
         )}
+        <Popconfirm
+          title="Xoá danh sách này?"
+          description={total > 0 ? `${total} mục bên trong cũng sẽ bị xoá.` : undefined}
+          okText="Xoá"
+          cancelText="Huỷ"
+          okButtonProps={{ danger: true }}
+          onConfirm={() => detail.deleteChecklist.mutate(checklist.id)}
+        >
+          <button
+            className="h-7 px-2.5 rounded-lg border-0 text-[12.5px] cursor-pointer"
+            style={{ background: C.muted, color: C.neutral700 }}
+          >
+            Xoá
+          </button>
+        </Popconfirm>
       </div>
 
       <div className="flex flex-col gap-1.5">
