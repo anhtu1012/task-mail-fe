@@ -50,6 +50,7 @@ import {
   COVER_PRESETS,
   CardDetail,
   CardNote,
+  CardAttachment,
   Checklist,
 } from "@/models/board";
 import {
@@ -462,69 +463,7 @@ export function CardDetailView({
             <Section icon={<Paperclip size={16} />} title="Tệp đính kèm">
                 <div className="flex flex-col gap-2">
                   {card.attachments.map((att) => (
-                    <div
-                      key={att.id}
-                      className="group/att flex items-center justify-between gap-3 p-2 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50/70 transition-all"
-                    >
-                      <a
-                        href={toExternalUrl(att.url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 min-w-0 flex-1 no-underline text-inherit cursor-pointer group/link"
-                        title={`Mở liên kết: ${att.url}`}
-                      >
-                        <span
-                          className="grid place-items-center w-[52px] h-[38px] rounded-lg shrink-0 text-white shadow-xs"
-                          style={{
-                            background:
-                              att.kind === "IMAGE"
-                                ? "linear-gradient(135deg,#2d79a8,#0a436d)"
-                                : C.neutral700,
-                          }}
-                        >
-                          {att.kind === "IMAGE" ? (
-                            <ImageIcon size={17} />
-                          ) : att.kind === "LINK" ? (
-                            <Link2 size={17} />
-                          ) : (
-                            <FileText size={17} />
-                          )}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[13.5px] font-medium truncate text-slate-800 group-hover/link:text-[#0a436d] flex items-center gap-1.5">
-                            <span className="truncate">{att.name}</span>
-                            <ExternalLink size={12} className="shrink-0 text-slate-400 group-hover/link:text-[#0a436d]" />
-                          </div>
-                          <div className="text-[12px] text-slate-400 truncate flex items-center gap-1">
-                            <span className="text-slate-500 font-mono text-[11px] truncate max-w-[420px]">
-                              {att.url}
-                            </span>
-                            {att.sizeBytes !== null && ` · ${fmtBytes(att.sizeBytes)}`}
-                            {att.isCover && " · ảnh bìa"}
-                          </div>
-                        </div>
-                      </a>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <a
-                          href={toExternalUrl(att.url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="grid place-items-center size-7 rounded-md hover:bg-slate-200 text-slate-500 hover:text-[#0a436d] transition-colors"
-                          title="Mở tab mới"
-                        >
-                          <ExternalLink size={14} />
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => detail.deleteAttachment.mutate(att.id)}
-                          className="grid place-items-center size-7 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500 border-0 bg-transparent cursor-pointer transition-colors"
-                          title="Xoá tệp đính kèm này"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
+                    <AttachmentRow key={att.id} att={att} detail={detail} />
                   ))}
                   <AttachmentComposer detail={detail} />
                 </div>
@@ -1205,6 +1144,143 @@ function NoteRow({ note, detail }: { note: CardNote; detail: DetailApi }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Một dòng tệp đính kèm. Bấm bút chì để đổi tên — tên tự điền lúc thêm thường
+ * chỉ là đuôi URL (một chuỗi id), không đọc được.
+ */
+function AttachmentRow({ att, detail }: { att: CardAttachment; detail: DetailApi }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(att.name);
+  const cancelRef = useRef(false);
+
+  const startEdit = () => {
+    setDraft(att.name);
+    setEditing(true);
+  };
+
+  const save = () => {
+    const name = draft.trim();
+    const cancelled = cancelRef.current;
+    cancelRef.current = false;
+    setEditing(false);
+    if (cancelled || !name || name === att.name) return;
+    detail.renameAttachment.mutate({ attachmentId: att.id, name });
+  };
+
+  const icon = (
+    <span
+      className="grid place-items-center w-[52px] h-[38px] rounded-lg shrink-0 text-white shadow-xs"
+      style={{
+        background:
+          att.kind === "IMAGE" ? "linear-gradient(135deg,#2d79a8,#0a436d)" : C.neutral700,
+      }}
+    >
+      {att.kind === "IMAGE" ? (
+        <ImageIcon size={17} />
+      ) : att.kind === "LINK" ? (
+        <Link2 size={17} />
+      ) : (
+        <FileText size={17} />
+      )}
+    </span>
+  );
+
+  const meta = (
+    <div className="text-[12px] text-slate-400 truncate flex items-center gap-1">
+      <span className="text-slate-500 font-mono text-[11px] truncate max-w-[420px]">{att.url}</span>
+      {att.sizeBytes !== null && ` · ${fmtBytes(att.sizeBytes)}`}
+      {att.isCover && " · ảnh bìa"}
+    </div>
+  );
+
+  return (
+    <div className="group/att flex items-center justify-between gap-3 p-2 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50/70 transition-all">
+      {editing ? (
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {icon}
+          <div className="min-w-0 flex-1 flex flex-col gap-1">
+            <input
+              autoFocus
+              value={draft}
+              maxLength={255}
+              onChange={(e) => setDraft(e.target.value)}
+              onFocus={(e) => e.currentTarget.select()}
+              onBlur={save}
+              onKeyDown={(e) => {
+                // Enter chỉ blur — để onBlur lưu, tránh gọi API hai lần
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+                if (e.key === "Escape") {
+                  cancelRef.current = true;
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="Tên tệp đính kèm"
+              className="w-full h-7 rounded-md px-2 text-[13.5px] font-medium outline-none"
+              style={{
+                border: `1px solid ${C.primary300}`,
+                boxShadow: "0 0 0 3px rgba(10,67,109,.1)",
+                color: C.foreground,
+              }}
+            />
+            {meta}
+          </div>
+        </div>
+      ) : (
+        <a
+          href={toExternalUrl(att.url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 min-w-0 flex-1 no-underline text-inherit cursor-pointer group/link"
+          title={`Mở liên kết: ${att.url}`}
+        >
+          {icon}
+          <div className="min-w-0 flex-1">
+            <div className="text-[13.5px] font-medium truncate text-slate-800 group-hover/link:text-[#0a436d] flex items-center gap-1.5">
+              <span className="truncate">{att.name}</span>
+              <ExternalLink
+                size={12}
+                className="shrink-0 text-slate-400 group-hover/link:text-[#0a436d]"
+              />
+            </div>
+            {meta}
+          </div>
+        </a>
+      )}
+
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={startEdit}
+          className="grid place-items-center size-7 rounded-md hover:bg-slate-200 text-slate-500 hover:text-[#0a436d] border-0 bg-transparent cursor-pointer transition-colors"
+          title="Đổi tên"
+        >
+          <Pencil size={14} />
+        </button>
+        <a
+          href={toExternalUrl(att.url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="grid place-items-center size-7 rounded-md hover:bg-slate-200 text-slate-500 hover:text-[#0a436d] transition-colors"
+          title="Mở tab mới"
+        >
+          <ExternalLink size={14} />
+        </a>
+        <button
+          type="button"
+          onClick={() => detail.deleteAttachment.mutate(att.id)}
+          className="grid place-items-center size-7 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500 border-0 bg-transparent cursor-pointer transition-colors"
+          title="Xoá tệp đính kèm này"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
     </div>
   );
 }

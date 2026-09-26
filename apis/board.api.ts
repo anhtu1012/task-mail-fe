@@ -353,6 +353,16 @@ class BoardApi extends AxiosService {
     );
   }
 
+  public updateAttachment(
+    attachmentId: string,
+    input: { name?: string; isCover?: boolean },
+  ): Promise<CardAttachment> {
+    return this.patch<CardAttachment, typeof input>(
+      API_ENDPOINTS.ATTACHMENTS.DETAIL(attachmentId),
+      clean(input) as typeof input,
+    );
+  }
+
   public deleteAttachment(attachmentId: string): Promise<void> {
     return this.delete<void>(API_ENDPOINTS.ATTACHMENTS.DETAIL(attachmentId));
   }

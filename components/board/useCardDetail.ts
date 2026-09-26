@@ -210,6 +210,18 @@ export function useCardDetail(cardId: string) {
     onError: onFail,
   });
 
+  const renameAttachment = useMutation({
+    mutationFn: ({ attachmentId, name }: { attachmentId: string; name: string }) =>
+      boardApi.updateAttachment(attachmentId, { name }),
+    onMutate: ({ attachmentId, name }) => {
+      patchDetail((card) => ({
+        ...card,
+        attachments: card.attachments.map((a) => (a.id === attachmentId ? { ...a, name } : a)),
+      }));
+    },
+    onError: onFail,
+  });
+
   const deleteAttachment = useMutation({
     mutationFn: (attachmentId: string) => boardApi.deleteAttachment(attachmentId),
     onMutate: (attachmentId) => {
@@ -285,6 +297,7 @@ export function useCardDetail(cardId: string) {
     toggleChecklistItem,
     deleteChecklistItem,
     addAttachment,
+    renameAttachment,
     deleteAttachment,
     addNote,
     updateNote,
