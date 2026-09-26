@@ -64,6 +64,10 @@ import { useStickyState } from "./useStickyState";
  * nhất là quay lại dự án cũ thì phải tải lại bảng.
  */
 export const BOARD_QUERY_KEY = ["board", "snapshot"] as const;
+/** Dòng ghi chú của tab "Ghi chú" (mobile). Đầu khoá "board" để đổi dự án là bị dọn cùng */
+export const NOTES_FEED_KEY = ["board", "notes-feed"] as const;
+/** Việc quá hạn + đến hạn hôm nay — dùng chung cho Lịch hôm nay và tab Hôm nay */
+export const AGENDA_QUERY_KEY = ["board", "agenda"] as const;
 
 /**
  * Khoá cache của MỘT thẻ đang mở chi tiết.

@@ -7,6 +7,27 @@
   bottom: 20px;
   right: 20px;
   z-index: 999;
+
+  /*
+   * Điện thoại: đứng ngay TRÊN thanh tab (64px + vùng an toàn của iPhone) và
+   * chỉ còn biểu tượng — nguyên nút "Báo lỗi" nằm đè lên tab "Menu", bấm
+   * menu lại thành mở báo lỗi.
+   */
+  @media (max-width: 767.98px) {
+    bottom: calc(64px + 12px + env(safe-area-inset-bottom));
+    right: 12px;
+
+    .triggerLabel {
+      display: none;
+    }
+
+    .triggerBtn {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      justify-content: center;
+    }
+  }
 }
 
 .triggerBtn {

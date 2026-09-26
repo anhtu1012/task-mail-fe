@@ -86,7 +86,9 @@ const Provider = ({ children }: { children: ReactNode }) => {
     <ProviderStore store={store}>
       <PersistGate loading={null} persistor={persistor}>
         <QueryClientProvider client={queryClient}>
-          <ReactQueryDevtools initialIsOpen={true} />
+          {/* Không tự mở, nút lên góc trên: bảng devtools mở sẵn chiếm nửa dưới
+              màn hình điện thoại, che mất thanh tab. Chỉ có ở bản dev. */}
+          <ReactQueryDevtools initialIsOpen={false} buttonPosition="top-left" />
           <ThemeProvider>
             <GlobalConsumer>
               {({ direction, lang }) => {

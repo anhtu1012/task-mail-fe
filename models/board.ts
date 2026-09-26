@@ -263,6 +263,24 @@ export type AgendaResponse = {
   doneToday: number;
 };
 
+/** GET /boards/me/notes — một ghi chú kèm thẻ chứa nó */
+export type NoteFeedItem = CardNote & {
+  card: {
+    id: string;
+    code: string;
+    title: string;
+    status: TaskStatus;
+    /** null = đang ở Hộp thư đến */
+    listTitle: string | null;
+  };
+};
+
+export type NotesFeed = {
+  items: NoteFeedItem[];
+  /** Truyền vào `before` để lấy trang kế; null = hết */
+  nextCursor: string | null;
+};
+
 export type SearchResponse = {
   items: CardSummary[];
   total: number;

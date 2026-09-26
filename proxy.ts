@@ -30,5 +30,13 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  /*
+   * Bỏ qua cả các file của PWA. Trình duyệt tải manifest KHÔNG kèm cookie, nên
+   * nếu để proxy chuyển nó sang /login thì trình duyệt nhận về một trang HTML
+   * thay vì manifest — nút "Cài ứng dụng" không bao giờ hiện. Service worker và
+   * trang offline cũng phải tải được lúc chưa đăng nhập.
+   */
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline.html|icons/).*)",
+  ],
 };

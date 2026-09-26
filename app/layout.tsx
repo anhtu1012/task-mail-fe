@@ -13,6 +13,8 @@ import "../styles/_index.scss";
 
 import { Be_Vietnam_Pro } from "next/font/google";
 import BugReportButton from "@/components/global/BugReportButton/BugReportButton";
+import PwaSetup from "@/components/global/InstallApp/PwaSetup";
+import type { Viewport } from "next";
 
 const beVietnamPro = Be_Vietnam_Pro({
   subsets: ["latin", "vietnamese"],
@@ -56,8 +58,31 @@ r.dataset.tone=bg.tone;
 
 const title = "TaskBox — Quản lý Công việc & Tự động hoá";
 const description = "Nền tảng TaskBox: Biến email thành công việc, nhắc deadline tự động qua Zalo Bot.";
-const { metadata } = siteMetadata({ title, description });
-export { metadata };
+const { metadata: baseMetadata } = siteMetadata({ title, description });
+
+export const metadata = {
+  ...baseMetadata,
+  applicationName: "TaskBox",
+  // iPhone: "Thêm vào MH chính" mở toàn màn hình như app, dùng icon riêng
+  appleWebApp: {
+    capable: true,
+    title: "TaskBox",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  // Màu thanh trạng thái / thanh địa chỉ trên điện thoại — cùng màu thanh điều hướng
+  themeColor: "#0a2c47",
+  width: "device-width",
+  initialScale: 1,
+  // Cho nội dung tràn dưới tai thỏ / thanh home của iPhone; thanh tab tự chừa
+  // chỗ bằng env(safe-area-inset-bottom)
+  viewportFit: "cover",
+};
 
 export default function RootLayout({
   children,
@@ -82,6 +107,7 @@ export default function RootLayout({
         <AppProvider>
           {children}
           <BugReportButton />
+          <PwaSetup />
         </AppProvider>
       </body>
     </html>

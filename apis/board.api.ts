@@ -11,6 +11,7 @@
  */
 import {
   AgendaResponse,
+  NotesFeed,
   Board,
   BoardLabel,
   BoardList,
@@ -78,6 +79,14 @@ class BoardApi extends AxiosService {
     return this.getWithParams<BoardSnapshot>(
       API_ENDPOINTS.BOARD.ME_FULL,
       params({ projectId, cardsPerList, tz: browserTimezone() }),
+    );
+  }
+
+  /** Dòng ghi chú của mọi thẻ trên bảng, mới nhất trước (tab Ghi chú mobile) */
+  public notesFeed(before?: string, projectId?: string, limit = 20): Promise<NotesFeed> {
+    return this.getWithParams<NotesFeed>(
+      API_ENDPOINTS.BOARD.ME_NOTES,
+      params({ before, projectId, limit }),
     );
   }
 
