@@ -70,10 +70,13 @@ export default function HomePage() {
             >
               Quy trình vận hành
             </a>
-            <a href="#views" className="hover:text-[#0a436d] transition-colors">
+            {/* <a href="#views" className="hover:text-[#0a436d] transition-colors">
               Giao diện làm việc
-            </a>
-            <Link href="/privacy" className="hover:text-[#0a436d] transition-colors">
+            </a> */}
+            <Link
+              href="/privacy"
+              className="hover:text-[#0a436d] transition-colors"
+            >
               Quyền riêng tư
             </Link>
           </nav>
@@ -921,7 +924,10 @@ export default function HomePage() {
               không chia sẻ, không dùng cho quảng cáo hay huấn luyện AI. Token
               Google được mã hoá và bạn có thể ngắt kết nối bất cứ lúc nào.
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-semibold">
-                <Link href="/privacy" className="text-[#0a436d] hover:underline">
+                <Link
+                  href="/privacy"
+                  className="text-[#0a436d] hover:underline"
+                >
                   Chính sách quyền riêng tư →
                 </Link>
                 <Link href="/terms" className="text-[#0a436d] hover:underline">
@@ -1068,7 +1074,10 @@ export default function HomePage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
-            <Link href="/privacy" className="hover:text-white transition-colors">
+            <Link
+              href="/privacy"
+              className="hover:text-white transition-colors"
+            >
               Chính sách quyền riêng tư
             </Link>
             <Link href="/terms" className="hover:text-white transition-colors">
