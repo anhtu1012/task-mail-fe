@@ -160,6 +160,10 @@ $gap: 14px;
   background: transparent;
   color: rgba(255, 255, 255, 0.58);
   font-family: inherit;
+  /* Là thẻ <a> (để Ctrl/Cmd + click mở tab mới) — giữ đúng hộp như <button> cũ */
+  box-sizing: border-box;
+  padding: 1px 6px;
+  text-decoration: none;
   cursor: pointer;
   transition:
     background 0.2s ease,

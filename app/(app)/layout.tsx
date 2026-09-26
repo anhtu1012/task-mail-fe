@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Avatar, Drawer, Dropdown, Grid, Spin, Tooltip } from "antd";
 import {
@@ -168,10 +169,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       <nav className={styles.nav}>
         {menuItems.map((item) => (
-          <button
+          // <Link> chứ không phải <button> + router.push: là thẻ <a> thật thì
+          // Ctrl/Cmd + click, chuột giữa, "Mở trong tab mới" đều dùng được
+          <Link
             key={item.key}
-            type="button"
-            onClick={() => router.push(item.key)}
+            href={item.key}
             className={`${styles.navItem} ${
               selectedKey === item.key ? styles.navItemActive : ""
             }`}
@@ -180,7 +182,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           >
             <span className={styles.navIcon}>{item.icon}</span>
             <span className={styles.navLabel}>{item.label}</span>
-          </button>
+          </Link>
         ))}
       </nav>
 
