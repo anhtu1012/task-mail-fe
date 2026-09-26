@@ -7,7 +7,14 @@ import { PersistGate } from "redux-persist/integration/react";
 import { GlobalConsumer } from "./store";
 
 import { useState } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  MutationCache,
+  QueryCache,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
+import { clearCurrentProject } from "@/store/slices/project";
+import { getApiErrorCode } from "@/utils/client/apiError";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { persistor, store } from "@/store/store";
 import { ThemeProvider, useAppTheme } from "./ThemeContext";
@@ -18,36 +25,62 @@ import dayjs from "dayjs";
 import "dayjs/locale/vi";
 import "dayjs/locale/en";
 
-const Provider = ({ children }: { children: ReactNode }) => {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            refetchOnWindowFocus: false,
-            refetchOnMount: true,
-            /*
-             * Mặc định của React Query là thử lại 3 lần với khoảng chờ tăng
-             * dần: một lỗi thật (401 đã hết cứu, 404, 429) phải mất khoảng 7
-             * giây mới hiện ra màn hình, trong lúc đó người dùng nhìn spinner
-             * mà không hiểu chuyện gì. Một lần thử lại là đủ cho trục trặc
-             * mạng thoáng qua.
-             */
-            retry: 1,
-            /*
-             * Backend giới hạn 20 yêu cầu/60 giây. Thử lại ngay lập tức chỉ
-             * làm trần đó cạn nhanh hơn.
-             */
-            retryDelay: 800,
-          },
-          mutations: {
-            // Ghi thì KHÔNG tự thử lại: gửi lại một lệnh tạo việc có thể sinh
-            // ra hai việc giống nhau.
-            retry: 0,
-          },
-        },
-      }),
+/**
+ * Dự án đang mở không còn tồn tại ở backend (id lấy từ kho mock, database đã
+ * reset, dự án bị xoá ở tab khác...). Bỏ lựa chọn đó và tải lại danh sách dự án
+ * thật: `/projects` luôn tự tạo dự án mặc định, trang chọn dự án tự vào nó, và
+ * `/boards/me/full` tự dựng bảng cho dự án đó — người dùng không kẹt ở lỗi 404.
+ */
+function recoverFromMissingProject(queryClient: QueryClient, error: unknown) {
+  if (getApiErrorCode(error) !== "PROJECT_NOT_FOUND") return;
+  if (!store.getState().project.currentProjectId) return;
+  store.dispatch(clearCurrentProject());
+  ["tasks", "task", "task-stats", "board", "agenda"].forEach((key) =>
+    queryClient.removeQueries({ queryKey: [key] }),
   );
+  // reset chứ không invalidate: bỏ luôn danh sách cũ (có thể là mock) để trang
+  // chọn dự án không kịp tự vào lại đúng cái id ma vừa bị dọn
+  queryClient.resetQueries({ queryKey: ["projects"] });
+}
+
+function createQueryClient(): QueryClient {
+  const client: QueryClient = new QueryClient({
+    queryCache: new QueryCache({
+      onError: (error) => recoverFromMissingProject(client, error),
+    }),
+    mutationCache: new MutationCache({
+      onError: (error) => recoverFromMissingProject(client, error),
+    }),
+    defaultOptions: {
+      queries: {
+        refetchOnWindowFocus: false,
+        refetchOnMount: true,
+        /*
+         * Mặc định của React Query là thử lại 3 lần với khoảng chờ tăng
+         * dần: một lỗi thật (401 đã hết cứu, 404, 429) phải mất khoảng 7
+         * giây mới hiện ra màn hình, trong lúc đó người dùng nhìn spinner
+         * mà không hiểu chuyện gì. Một lần thử lại là đủ cho trục trặc
+         * mạng thoáng qua.
+         */
+        retry: 1,
+        /*
+         * Backend giới hạn 20 yêu cầu/60 giây. Thử lại ngay lập tức chỉ
+         * làm trần đó cạn nhanh hơn.
+         */
+        retryDelay: 800,
+      },
+      mutations: {
+        // Ghi thì KHÔNG tự thử lại: gửi lại một lệnh tạo việc có thể sinh
+        // ra hai việc giống nhau.
+        retry: 0,
+      },
+    },
+  });
+  return client;
+}
+
+const Provider = ({ children }: { children: ReactNode }) => {
+  const [queryClient] = useState(createQueryClient);
 
   return (
     <ProviderStore store={store}>

@@ -8,14 +8,7 @@
  *     `PROJECT_NOT_EMPTY`), và không bao giờ xoá được dự án cuối cùng.
  */
 import { useState } from "react";
-import {
-  App,
-  Button,
-  Popconfirm,
-  Table,
-  Tag,
-  Tooltip,
-} from "antd";
+import { App, Button, Popconfirm, Table, Tag, Tooltip } from "antd";
 import { CSegmented } from "@/components/ui";
 import type { ColumnsType } from "antd/es/table";
 import {
@@ -28,7 +21,6 @@ import {
 } from "lucide-react";
 import ProjectIcon from "../_components/ProjectIcon";
 import ProjectFormModal from "@/components/projects/ProjectFormModal";
-import { projectApi } from "@/apis/project.api";
 import {
   useArchiveProject,
   useCurrentProject,
@@ -41,6 +33,7 @@ import {
   Project,
   PROJECT_LIMIT,
   PROJECT_LIMIT_WARN_AT,
+  isSystemProject,
 } from "@/models/project";
 
 export default function ProjectsPage() {
@@ -97,6 +90,11 @@ export default function ProjectsPage() {
                 </Tag>
               )}
               {p.archived && <Tag bordered={false}>Đã lưu trữ</Tag>}
+              {isSystemProject(p) && (
+                <Tooltip title="Dự án hệ thống — không xoá, không lưu trữ được">
+                  <Tag bordered={false}>Hệ thống</Tag>
+                </Tooltip>
+              )}
             </div>
             <div className="text-[12.5px] text-[#94a3b8] truncate">
               {p.code}
@@ -159,30 +157,45 @@ export default function ProjectsPage() {
               onClick={() => openEdit(p)}
             />
           </Tooltip>
-          <Tooltip title={p.archived ? "Mở lại" : "Lưu trữ"}>
-            <Button
-              size="small"
-              type="text"
-              icon={
-                p.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />
-              }
-              onClick={() =>
-                archive.mutate({ id: p.id, archived: !p.archived })
-              }
-            />
-          </Tooltip>
-          <Popconfirm
-            title="Xoá dự án này?"
-            description="Chỉ xoá được khi dự án không còn công việc."
-            okText="Xoá"
-            cancelText="Huỷ"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => remove.mutate(p.id)}
-          >
-            <Tooltip title="Xoá">
-              <Button size="small" type="text" danger icon={<Trash2 size={15} />} />
+          {/* Dự án hệ thống không lưu trữ được — nhưng nếu lỡ đã bị lưu trữ từ
+              trước khi có chốt chặn thì vẫn phải mở lại được */}
+          {(!isSystemProject(p) || p.archived) && (
+            <Tooltip title={p.archived ? "Mở lại" : "Lưu trữ"}>
+              <Button
+                size="small"
+                type="text"
+                icon={
+                  p.archived ? (
+                    <ArchiveRestore size={15} />
+                  ) : (
+                    <Archive size={15} />
+                  )
+                }
+                onClick={() =>
+                  archive.mutate({ id: p.id, archived: !p.archived })
+                }
+              />
             </Tooltip>
-          </Popconfirm>
+          )}
+          {!isSystemProject(p) && (
+            <Popconfirm
+              title="Xoá dự án này?"
+              description="Chỉ xoá được khi dự án không còn công việc."
+              okText="Xoá"
+              cancelText="Huỷ"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => remove.mutate(p.id)}
+            >
+              <Tooltip title="Xoá">
+                <Button
+                  size="small"
+                  type="text"
+                  danger
+                  icon={<Trash2 size={15} />}
+                />
+              </Tooltip>
+            </Popconfirm>
+          )}
         </div>
       ),
     },
@@ -227,18 +240,12 @@ export default function ProjectsPage() {
 
       {activeCount >= PROJECT_LIMIT_WARN_AT && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
-          Bạn đang dùng <b>{activeCount}/{PROJECT_LIMIT}</b> dự án hoạt động.
-          Lưu trữ những dự án đã xong để dành chỗ — dự án lưu trữ không tính vào
-          trần này.
-        </div>
-      )}
-
-      {projectApi.isMock && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
-          Backend chưa có API dự án — đang chạy <b>dữ liệu mẫu lưu trên máy
-          bạn</b>. Thao tác ở đây không đồng bộ sang thiết bị khác, và công việc
-          vẫn chưa thật sự được tách theo dự án. Hợp đồng API cần thiết nằm ở{" "}
-          <code>docs/backend/project-api-spec.md</code>.
+          Bạn đang dùng{" "}
+          <b>
+            {activeCount}/{PROJECT_LIMIT}
+          </b>{" "}
+          dự án hoạt động. Lưu trữ những dự án đã xong để dành chỗ — dự án lưu
+          trữ không tính vào trần này.
         </div>
       )}
 

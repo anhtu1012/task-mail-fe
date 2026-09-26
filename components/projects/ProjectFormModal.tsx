@@ -14,6 +14,7 @@ import {
   Project,
   PROJECT_COLORS,
   PROJECT_ICONS,
+  isSystemProject,
   suggestProjectCode,
 } from "@/models/project";
 import {
@@ -130,7 +131,11 @@ function ProjectForm({ project, onClose, onCreated }: Props) {
         <Form.Item
           name="code"
           label="Mã ngắn"
-          tooltip="Hiện ở bộ chọn dự án và trong mã công việc. Bỏ trống thì hệ thống tự sinh."
+          tooltip={
+            project && isSystemProject(project)
+              ? "Mã của dự án hệ thống cố định, không đổi được."
+              : "Hiện ở bộ chọn dự án và trong mã công việc. Bỏ trống thì hệ thống tự sinh."
+          }
           rules={[
             {
               pattern: /^[A-Za-z0-9]{2,8}$/,
@@ -141,6 +146,7 @@ function ProjectForm({ project, onClose, onCreated }: Props) {
           <Input
             placeholder="KHA"
             maxLength={8}
+            disabled={!!project && isSystemProject(project)}
             onChange={() => setCodeTouched(true)}
             style={{ maxWidth: 160, textTransform: "uppercase" }}
           />
