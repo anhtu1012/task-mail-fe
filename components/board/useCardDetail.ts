@@ -92,6 +92,38 @@ export function useCardDetail(cardId: string) {
     onError: onFail,
   });
 
+  const renameChecklist = useMutation({
+    mutationFn: ({ checklistId, title }: { checklistId: string; title: string }) =>
+      boardApi.updateChecklist(checklistId, title),
+    onMutate: ({ checklistId, title }) => {
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.map((cl) => (cl.id === checklistId ? { ...cl, title } : cl)),
+      }));
+    },
+    onError: onFail,
+  });
+
+  const deleteChecklist = useMutation({
+    mutationFn: (checklistId: string) => boardApi.deleteChecklist(checklistId),
+    onMutate: (checklistId) => {
+      const removed = query.data?.checklists.find((cl) => cl.id === checklistId);
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.filter((cl) => cl.id !== checklistId),
+      }));
+      if (removed) {
+        const doneCount = removed.items.filter((it) => it.checked).length;
+        patchSummary((c) => ({
+          ...c,
+          checklistTotal: Math.max(0, c.checklistTotal - removed.items.length),
+          checklistDone: Math.max(0, c.checklistDone - doneCount),
+        }));
+      }
+    },
+    onError: onFail,
+  });
+
   const addChecklistItem = useMutation({
     mutationFn: ({ checklistId, content }: { checklistId: string; content: string }) => {
       const list = query.data?.checklists.find((c) => c.id === checklistId);
@@ -128,6 +160,60 @@ export function useCardDetail(cardId: string) {
     },
     onError: onFail,
   });
+
+  const updateChecklistItemContent = useMutation({
+    mutationFn: ({ itemId, content }: { itemId: string; content: string }) =>
+      boardApi.updateChecklistItem(itemId, { content }),
+    onMutate: ({ itemId, content }) => {
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.map((cl) => ({
+          ...cl,
+          items: cl.items.map((it) => (it.id === itemId ? { ...it, content } : it)),
+        })),
+      }));
+    },
+    onError: onFail,
+  });
+
+  /**
+   * Kéo mục tới vị trí `toIndex` trong cùng danh sách. Position tính kiểu
+   * "chen giữa hai hàng xóm" như thẻ trên bảng, nên chỉ phải ghi đúng một mục.
+   */
+  const moveChecklistItem = useMutation({
+    mutationFn: ({ itemId, position }: { itemId: string; position: number }) =>
+      boardApi.updateChecklistItem(itemId, { position }),
+    onError: onFail,
+  });
+
+  const reorderChecklistItem = useCallback(
+    (checklistId: string, itemId: string, toIndex: number) => {
+      const list = query.data?.checklists.find((c) => c.id === checklistId);
+      if (!list) return;
+      const others = [...list.items]
+        .sort((a, b) => a.position - b.position)
+        .filter((it) => it.id !== itemId);
+      const position = computePosition(
+        others[toIndex - 1]?.position,
+        others[toIndex]?.position,
+      );
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.map((cl) =>
+          cl.id === checklistId
+            ? {
+                ...cl,
+                items: cl.items
+                  .map((it) => (it.id === itemId ? { ...it, position } : it))
+                  .sort((a, b) => a.position - b.position),
+              }
+            : cl,
+        ),
+      }));
+      moveChecklistItem.mutate({ itemId, position });
+    },
+    [query.data, patchDetail, moveChecklistItem],
+  );
 
   const deleteChecklistItem = useMutation({
     mutationFn: (itemId: string) => boardApi.deleteChecklistItem(itemId),
@@ -174,6 +260,18 @@ export function useCardDetail(cardId: string) {
         attachments: [...card.attachments, attachment],
       }));
       patchSummary((c) => ({ ...c, attachmentCount: c.attachmentCount + 1 }));
+    },
+    onError: onFail,
+  });
+
+  const renameAttachment = useMutation({
+    mutationFn: ({ attachmentId, name }: { attachmentId: string; name: string }) =>
+      boardApi.updateAttachment(attachmentId, { name }),
+    onMutate: ({ attachmentId, name }) => {
+      patchDetail((card) => ({
+        ...card,
+        attachments: card.attachments.map((a) => (a.id === attachmentId ? { ...a, name } : a)),
+      }));
     },
     onError: onFail,
   });
@@ -247,10 +345,15 @@ export function useCardDetail(cardId: string) {
     error: query.error,
     updateCard,
     addChecklist,
+    renameChecklist,
+    deleteChecklist,
     addChecklistItem,
     toggleChecklistItem,
+    updateChecklistItemContent,
+    reorderChecklistItem,
     deleteChecklistItem,
     addAttachment,
+    renameAttachment,
     deleteAttachment,
     addNote,
     updateNote,

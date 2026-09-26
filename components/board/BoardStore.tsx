@@ -150,6 +150,8 @@ type BoardContextValue = {
   /** null khi chưa tải xong — component phải chịu được trạng thái này */
   board: Board | null;
   lists: BoardList[];
+  /** Danh sách đã lưu trữ — snapshot vẫn trả về, chỉ ẩn khỏi bảng */
+  archivedLists: BoardList[];
   labels: BoardLabel[];
   cardsByList: Map<string, CardSummary[]>;
   inboxCards: CardSummary[];
@@ -194,6 +196,8 @@ type BoardContextValue = {
   addList: (title: string) => void;
   renameList: (listId: string, title: string) => void;
   archiveList: (listId: string) => void;
+  /** Mở lại một danh sách đã lưu trữ (cột trở lại bảng, rỗng) */
+  restoreList: (listId: string) => void;
   moveList: (listId: string, toIndex: number) => void;
   toggleStar: () => void;
 
@@ -318,12 +322,42 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
-  /** Sửa cache tại chỗ — mọi cập nhật lạc quan đều đi qua đây */
+  /**
+   * Sửa cache tại chỗ — mọi cập nhật lạc quan đều đi qua đây.
+   *
+   * `cardCounts` (tổng thật mỗi cột) được tự bù theo chênh lệch số thẻ mỗi cột
+   * trước/sau khi vá. Trước đây chỉ `addCard` tự cộng: xoá hay chuyển cột thì
+   * cột cũ vẫn giữ tổng cũ, nên hiện "Tải thêm 1 việc" mà bấm vào chẳng có gì.
+   * Tải trang kế tiếp thì truyền `recount: false` — thẻ đó vốn đã nằm trong tổng.
+   */
   const patchSnapshot = useCallback(
-    (fn: (snap: BoardSnapshot) => BoardSnapshot) => {
-      queryClient.setQueryData<BoardSnapshot>(BOARD_QUERY_KEY, (prev) =>
-        prev ? fn(prev) : prev,
-      );
+    (
+      fn: (snap: BoardSnapshot) => BoardSnapshot,
+      { recount = true }: { recount?: boolean } = {},
+    ) => {
+      queryClient.setQueryData<BoardSnapshot>(BOARD_QUERY_KEY, (prev) => {
+        if (!prev) return prev;
+        const next = fn(prev);
+        if (!recount || next.cards === prev.cards) return next;
+
+        const delta = new Map<string, number>();
+        const bump = (cards: CardSummary[], sign: 1 | -1) =>
+          cards.forEach((c) => {
+            const key = c.listId ?? INBOX_KEY;
+            delta.set(key, (delta.get(key) ?? 0) + sign);
+          });
+        bump(prev.cards, -1);
+        bump(next.cards, 1);
+
+        let changed = false;
+        const cardCounts = { ...next.cardCounts };
+        delta.forEach((d, key) => {
+          if (d === 0) return;
+          changed = true;
+          cardCounts[key] = Math.max(0, (cardCounts[key] ?? 0) + d);
+        });
+        return changed ? { ...next, cardCounts } : next;
+      });
     },
     [queryClient],
   );
@@ -378,6 +412,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     const today = new Date();
     const allLists = data?.lists ?? [];
     const lists = allLists.filter((l) => !l.archived).sort(byPosition);
+    const archivedLists = allLists.filter((l) => l.archived).sort(byPosition);
     const cards = data?.cards ?? [];
 
     const cardsByList = new Map<string, CardSummary[]>();
@@ -400,6 +435,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
 
     return {
       lists,
+      archivedLists,
       cardsByList,
       inboxCards,
       totalByList,
@@ -670,10 +706,6 @@ export function BoardProvider({ children }: { children: ReactNode }) {
           patchSnapshot((snap) => ({
             ...snap,
             cards: [...snap.cards, card],
-            cardCounts: {
-              ...snap.cardCounts,
-              [listId ?? INBOX_KEY]: (snap.cardCounts[listId ?? INBOX_KEY] ?? 0) + 1,
-            },
           }));
           pushHistory({
             label: "thêm việc",
@@ -755,17 +787,49 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       boardApi
         .deleteCard(cardId)
         .then(() => {
-          message.success("Đã xoá việc");
-          if (!card) return;
-          pushHistory({
+          if (!card) {
+            message.success("Đã xoá việc");
+            return;
+          }
+          const entry: UndoEntry = {
             label: "xoá việc",
             undo: () => boardApi.restoreCard(cardId, true),
             redo: () => boardApi.deleteCard(cardId),
+          };
+          pushHistory(entry);
+
+          /*
+           * Xoá không hỏi lại (hỏi mỗi lần thì phiền), nhưng phải cứu được ngay
+           * tại chỗ: Ctrl+Z thì người dùng chưa chắc biết. Bấm "Hoàn tác" ở đây
+           * gỡ luôn bước này khỏi lịch sử, để Ctrl+Z sau đó không khôi phục lần hai.
+           */
+          const key = `deleted-${cardId}`;
+          message.open({
+            key,
+            type: "success",
+            duration: 6,
+            content: (
+              <span className="inline-flex items-center gap-3">
+                Đã xoá “{card.title.length > 40 ? `${card.title.slice(0, 40)}…` : card.title}”
+                <button
+                  type="button"
+                  className="border-0 bg-transparent p-0 font-semibold cursor-pointer"
+                  style={{ color: "#0a436d" }}
+                  onClick={() => {
+                    message.destroy(key);
+                    setPast((prev) => prev.filter((e) => e !== entry));
+                    entry.undo().then(invalidate).catch(onFail);
+                  }}
+                >
+                  Hoàn tác
+                </button>
+              </span>
+            ),
           });
         })
         .catch(onFail);
     },
-    [derived.cardById, patchSnapshot, pushHistory, onFail, message],
+    [derived.cardById, patchSnapshot, pushHistory, onFail, message, invalidate],
   );
 
   const snoozeCard = useCallback(
@@ -949,6 +1013,12 @@ export function BoardProvider({ children }: { children: ReactNode }) {
 
   const archiveList = useCallback(
     (listId: string) => {
+      // Nhớ thẻ nào đang ở cột này (và ở vị trí nào) để hoàn tác trả đúng chỗ.
+      // Backend chỉ đẩy thẻ về Hộp thư đến, không ghi lại cột cũ. Chỉ nhớ được
+      // thẻ đã tải — cột dài quá 20 thẻ thì phần chưa tải ở lại Hộp thư đến.
+      const released = (data?.cards ?? [])
+        .filter((c) => c.listId === listId)
+        .map((c) => ({ id: c.id, position: c.position }));
       patchSnapshot((snap) => ({
         ...snap,
         lists: snap.lists.map((l) => (l.id === listId ? { ...l, archived: true } : l)),
@@ -961,8 +1031,36 @@ export function BoardProvider({ children }: { children: ReactNode }) {
           message.success("Đã lưu trữ danh sách, các việc quay về Hộp thư đến");
           pushHistory({
             label: "lưu trữ danh sách",
-            undo: () => boardApi.updateList(listId, { archived: false }, true),
+            undo: async () => {
+              await boardApi.updateList(listId, { archived: false }, true);
+              // Tuần tự chứ không song song: backend có trần tần suất ghi
+              for (const card of released) {
+                await boardApi.moveCard(card.id, { listId, position: card.position }, true);
+              }
+            },
             redo: () => boardApi.updateList(listId, { archived: true }, true),
+          });
+          invalidate();
+        })
+        .catch(onFail);
+    },
+    [data, patchSnapshot, pushHistory, onFail, message, invalidate],
+  );
+
+  const restoreList = useCallback(
+    (listId: string) => {
+      patchSnapshot((snap) => ({
+        ...snap,
+        lists: snap.lists.map((l) => (l.id === listId ? { ...l, archived: false } : l)),
+      }));
+      boardApi
+        .updateList(listId, { archived: false })
+        .then(() => {
+          message.success("Đã khôi phục danh sách");
+          pushHistory({
+            label: "khôi phục danh sách",
+            undo: () => boardApi.updateList(listId, { archived: true }, true),
+            redo: () => boardApi.updateList(listId, { archived: false }, true),
           });
           invalidate();
         })
@@ -1018,11 +1116,19 @@ export function BoardProvider({ children }: { children: ReactNode }) {
           limit: 20,
           projectId: projectId ?? undefined,
         });
-        patchSnapshot((snap) => {
-          const known = new Set(snap.cards.map((c) => c.id));
-          const fresh = page.items.filter((c) => !known.has(c.id));
-          return { ...snap, cards: [...snap.cards, ...fresh] };
-        });
+        patchSnapshot(
+          (snap) => {
+            const known = new Set(snap.cards.map((c) => c.id));
+            const fresh = page.items.filter((c) => !known.has(c.id));
+            return {
+              ...snap,
+              cards: [...snap.cards, ...fresh],
+              // Nhân tiện lấy lại tổng thật từ server, xoá mọi sai lệch cũ
+              cardCounts: { ...snap.cardCounts, [key]: page.total },
+            };
+          },
+          { recount: false },
+        );
       } catch (error) {
         onFail(error);
       } finally {
@@ -1082,6 +1188,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       addList,
       renameList,
       archiveList,
+      restoreList,
       moveList,
       toggleStar,
 
@@ -1129,6 +1236,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       addList,
       renameList,
       archiveList,
+      restoreList,
       moveList,
       toggleStar,
       createLabel,
