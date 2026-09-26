@@ -41,6 +41,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Nút "N" (dev) mặc định ở góc dưới trái — đè lên tab "Hôm nay" của thanh
+  // tab mobile. Chỉ có ở `next dev`, bản build không có.
+  devIndicators: { position: "top-right" },
   sassOptions: {
     includePaths: [path.join(process.cwd(), "styles")],
     silenceDeprecations: ["legacy-js-api"],
@@ -50,6 +53,14 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: securityHeaders,
+      },
+      {
+        // Service worker không được cache: sửa sw.js thì thiết bị phải thấy ngay
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        ],
       },
     ];
   },

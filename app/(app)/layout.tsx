@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Avatar, Drawer, Dropdown, Grid, Spin, Tooltip } from "antd";
 import {
+  CalendarCheck,
   CalendarDays,
   ClipboardList,
   Columns3,
@@ -16,6 +17,7 @@ import {
   Palette,
   PlugZap,
   SquareKanban,
+  StickyNote,
   Tags,
 } from "lucide-react";
 import { authApi } from "@/apis/auth.api";
@@ -29,6 +31,10 @@ import {
   useThemeSync,
 } from "@/contexts/ThemeContext";
 import ThemeSettings from "@/components/global/ThemeSettings/ThemeSettings";
+import InstallAppBanner from "@/components/global/InstallApp/InstallAppBanner";
+import { QuickAddSheet } from "@/components/mobile/QuickAddSheet";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import MobileTabBar from "./_components/MobileTabBar";
 import ProjectSwitcher from "./_components/ProjectSwitcher";
 import SyncIndicator from "./_components/SyncIndicator";
 import styles from "./layout.module.scss";
@@ -39,6 +45,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  // Thanh tab dưới cùng — xem hooks/useIsMobile vì sao tách khỏi `isMobile`
+  const showTabBar = useIsMobile();
   const [tokenChecked, setTokenChecked] = useState(false);
 
   const { setSettingsOpen } = useAppTheme();
@@ -88,6 +97,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         label: "Tổng quan",
       },
       {
+        key: "/today",
+        icon: <CalendarCheck size={19} />,
+        label: "Hôm nay",
+      },
+      {
         key: "/tasks",
         icon: <ListChecks size={19} />,
         label: "Công việc",
@@ -101,6 +115,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         key: "/boards",
         icon: <Columns3 size={19} />,
         label: "Bảng công việc",
+      },
+      {
+        key: "/notes",
+        icon: <StickyNote size={19} />,
+        label: "Ghi chú",
       },
       {
         key: "/calendar",
@@ -239,7 +258,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className={styles.shell}>
+    <div className={`${styles.shell} ${showTabBar ? styles.shellWithTabs : ""}`}>
       {!isMobile && rail()}
 
       {isMobile && (
@@ -257,20 +276,36 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           >
             {rail(true)}
           </Drawer>
-          <button
-            type="button"
-            aria-label="Mở menu"
-            className={styles.mobileFab}
-            onClick={() => setMobileNavOpen(true)}
-          >
-            <MenuIcon size={22} />
-          </button>
+          {/* Có thanh tab thì nút Menu nằm trong đó — nút nổi chỉ còn là dự phòng */}
+          {!showTabBar && (
+            <button
+              type="button"
+              aria-label="Mở menu"
+              className={styles.mobileFab}
+              onClick={() => setMobileNavOpen(true)}
+            >
+              <MenuIcon size={22} />
+            </button>
+          )}
+        </>
+      )}
+
+      {showTabBar && (
+        <>
+          <MobileTabBar
+            onQuickAdd={() => setQuickAddOpen(true)}
+            onMenu={() => setMobileNavOpen(true)}
+          />
+          <QuickAddSheet open={quickAddOpen} onClose={() => setQuickAddOpen(false)} />
         </>
       )}
 
       <main className={styles.main}>
         <SyncIndicator />
-        <div className={styles.content}>{children}</div>
+        <div className={styles.content}>
+          {showTabBar && <InstallAppBanner />}
+          {children}
+        </div>
       </main>
 
       <ThemeSettings />

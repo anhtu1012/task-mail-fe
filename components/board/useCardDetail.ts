@@ -22,7 +22,7 @@ import {
 } from "@/models/board";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { isRichTextEmpty } from "@/utils/client/richText";
-import { BOARD_QUERY_KEY, cardDetailKey } from "./BoardStore";
+import { BOARD_QUERY_KEY, NOTES_FEED_KEY, cardDetailKey } from "./BoardStore";
 
 export { cardDetailKey };
 
@@ -63,6 +63,12 @@ export function useCardDetail(cardId: string) {
       queryClient.invalidateQueries({ queryKey: cardDetailKey(cardId) });
     },
     [message, queryClient, cardId],
+  );
+
+  /** Tab "Ghi chú" trên mobile đọc từ query riêng — thêm/sửa/xoá xong phải làm mới */
+  const refreshNotesFeed = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: NOTES_FEED_KEY }),
+    [queryClient],
   );
 
   // ==========================================
@@ -297,6 +303,7 @@ export function useCardDetail(cardId: string) {
       // Ghi chú mới nhất đứng đầu, giống thứ tự server trả
       patchDetail((card) => ({ ...card, notes: [note, ...card.notes] }));
       patchSummary((c) => ({ ...c, noteCount: c.noteCount + 1 }));
+      refreshNotesFeed();
     },
     onError: onFail,
   });
@@ -326,6 +333,7 @@ export function useCardDetail(cardId: string) {
         ...card,
         notes: card.notes.map((n) => (n.id === note.id ? note : n)),
       }));
+      refreshNotesFeed();
     },
     onError: onFail,
   });
@@ -336,6 +344,7 @@ export function useCardDetail(cardId: string) {
       patchDetail((card) => ({ ...card, notes: card.notes.filter((n) => n.id !== noteId) }));
       patchSummary((c) => ({ ...c, noteCount: Math.max(0, c.noteCount - 1) }));
     },
+    onSuccess: () => refreshNotesFeed(),
     onError: onFail,
   });
 

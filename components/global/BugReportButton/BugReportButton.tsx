@@ -138,7 +138,7 @@ export default function BugReportButton() {
             <span className={styles.bugBadge}>
               <Bug size={14} />
             </span>
-            <span>Báo lỗi</span>
+            <span className={styles.triggerLabel}>Báo lỗi</span>
             <span className={styles.pulseDot} />
           </button>
         </Tooltip>
