@@ -98,6 +98,8 @@ export const API_ENDPOINTS = {
   },
   ZALO_BOT: {
     STATUS: "/zalo-bot/status",
+    BROADCAST: "/zalo-bot/broadcast",
+    RECIPIENTS: "/zalo-bot/recipients",
   },
   // Cài đặt của người dùng — backend đã deploy.
   // Hợp đồng: docs/backend/theme-settings-api.md

@@ -262,6 +262,29 @@ export type ZaloLinkStatus = {
 export type ZaloBotStatus = {
   connected: boolean;
   botName?: string;
+  /** Số user đã liên kết Zalo = số người nhận khi gửi thông báo */
+  linkedUsers: number;
+};
+
+export type ZaloBroadcastPayload = {
+  message: string;
+  /** true = chỉ gửi thử cho Zalo của chính admin */
+  testOnly?: boolean;
+  /** Chỉ gửi cho những user này; bỏ trống = gửi tất cả */
+  userIds?: string[];
+};
+
+/** User đã liên kết Zalo — ứng viên nhận thông báo */
+export type ZaloRecipient = {
+  userId: string;
+  email: string;
+  linkedAt: string;
+};
+
+export type ZaloBroadcastResult = {
+  total: number;
+  sent: number;
+  failed: number;
 };
 
 // ==========================================

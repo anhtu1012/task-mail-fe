@@ -53,6 +53,7 @@ export const QK = {
   mailAccounts: ["mail-accounts"] as const,
   zaloMe: ["zalo-me"] as const,
   zaloBot: ["zalo-bot-status"] as const,
+  zaloRecipients: ["zalo-bot-recipients"] as const,
 };
 
 // ==========================================
@@ -438,6 +439,15 @@ export function useZaloBotStatus(enabled: boolean) {
     enabled,
     staleTime: 5 * 60 * 1000,
     retry: false,
+  });
+}
+
+export function useZaloRecipients(enabled: boolean) {
+  return useQuery({
+    queryKey: QK.zaloRecipients,
+    queryFn: () => integrationApi.listZaloRecipients(),
+    enabled,
+    staleTime: 60 * 1000,
   });
 }
 

@@ -1,6 +1,9 @@
 import {
   MailAccount,
   ZaloBotStatus,
+  ZaloBroadcastPayload,
+  ZaloBroadcastResult,
+  ZaloRecipient,
   ZaloLinkCode,
   ZaloLinkStatus,
 } from "@/models/task";
@@ -41,6 +44,21 @@ class IntegrationApi extends AxiosService {
   /** Chỉ ADMIN/SUPER_ADMIN */
   public async getZaloBotStatus(): Promise<ZaloBotStatus> {
     return this.get<ZaloBotStatus>(API_ENDPOINTS.ZALO_BOT.STATUS);
+  }
+
+  /** Chỉ ADMIN/SUPER_ADMIN — danh sách user đã liên kết Zalo để chọn người nhận. */
+  public async listZaloRecipients(): Promise<ZaloRecipient[]> {
+    return this.get<ZaloRecipient[]>(API_ENDPOINTS.ZALO_BOT.RECIPIENTS);
+  }
+
+  /** Chỉ ADMIN/SUPER_ADMIN — gửi thông báo tới mọi user đã liên kết Zalo (không lưu lịch sử). */
+  public async broadcastZalo(
+    payload: ZaloBroadcastPayload,
+  ): Promise<ZaloBroadcastResult> {
+    return this.post<ZaloBroadcastResult, ZaloBroadcastPayload>(
+      API_ENDPOINTS.ZALO_BOT.BROADCAST,
+      payload,
+    );
   }
 }
 
