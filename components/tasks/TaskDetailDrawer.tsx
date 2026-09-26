@@ -9,6 +9,7 @@ import {
   Tag,
   Tooltip,
   Typography,
+  Grid,
 } from "antd";
 import dayjs from "dayjs";
 import { CheckCheck, Mail, Pencil, Repeat, Trash2 } from "lucide-react";
@@ -37,6 +38,7 @@ type Props = {
 
 export default function TaskDetailDrawer({ task, onClose, onEdit }: Props) {
   const { data: taskTypes } = useTaskTypes();
+  const screens = Grid.useBreakpoint();
   const completeTask = useCompleteTask();
   const deleteTask = useDeleteTask();
 
@@ -48,7 +50,8 @@ export default function TaskDetailDrawer({ task, onClose, onEdit }: Props) {
     <Drawer
       open={!!task}
       onClose={onClose}
-      width={620}
+      // Điện thoại: phủ hết chiều ngang — 620px rộng hơn cả màn hình
+      width={screens.md === false ? "100%" : 620}
       title={
         task && (
           <div className="flex items-center gap-2">

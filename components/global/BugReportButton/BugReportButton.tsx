@@ -125,7 +125,8 @@ export default function BugReportButton() {
         open={open}
         onOpenChange={setOpen}
         trigger="click"
-        placement="topLeft"
+        // Nút nằm sát mép phải -> mở popup về phía trái, không tràn khỏi màn hình
+        placement="topRight"
         content={popoverContent}
         styles={{ content: { padding: 12, borderRadius: 14 } }}
       >
