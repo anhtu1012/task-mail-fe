@@ -12,6 +12,7 @@ import {
   Grid,
 } from "antd";
 import dayjs from "dayjs";
+import palette from "@/styles/palette";
 import { CheckCheck, Mail, Pencil, Repeat, Trash2 } from "lucide-react";
 import { useCompleteTask, useDeleteTask, useTaskTypes } from "@/hooks/useTaskApp";
 import { RichTextEditor } from "@/components/board/RichTextEditor";
@@ -36,9 +37,14 @@ type Props = {
   onEdit: (task: Task) => void;
 };
 
+// Cùng màu xanh "hoàn thành" với màn chi tiết thẻ / kanban / danh sách —
+// primary (xanh navy) là màu của Lưu/Tìm, không phải của Xong
+const COMPLETE_BTN = { background: palette.success, borderColor: palette.success };
+
 export default function TaskDetailDrawer({ task, onClose, onEdit }: Props) {
   const { data: taskTypes } = useTaskTypes();
   const screens = Grid.useBreakpoint();
+  const isMobile = screens.md === false;
   const completeTask = useCompleteTask();
   const deleteTask = useDeleteTask();
 
@@ -51,7 +57,7 @@ export default function TaskDetailDrawer({ task, onClose, onEdit }: Props) {
       open={!!task}
       onClose={onClose}
       // Điện thoại: phủ hết chiều ngang — 620px rộng hơn cả màn hình
-      width={screens.md === false ? "100%" : 620}
+      width={isMobile ? "100%" : 620}
       title={
         task && (
           <div className="flex items-center gap-2">
@@ -66,12 +72,15 @@ export default function TaskDetailDrawer({ task, onClose, onEdit }: Props) {
           </div>
         )
       }
+      // Điện thoại: thao tác xuống đáy (tầm ngón cái), header chỉ còn mã + nút đóng
       extra={
-        task && (
+        task &&
+        !isMobile && (
           <Space>
             {canComplete && (
               <Button
                 type="primary"
+                style={COMPLETE_BTN}
                 icon={<CheckCheck size={14} />}
                 loading={completeTask.isPending}
                 onClick={() =>
@@ -93,6 +102,47 @@ export default function TaskDetailDrawer({ task, onClose, onEdit }: Props) {
               <Button danger icon={<Trash2 size={14} />} />
             </Popconfirm>
           </Space>
+        )
+      }
+      footer={
+        task &&
+        isMobile && (
+          <div className="flex gap-2">
+            {canComplete && (
+              <Button
+                type="primary"
+                size="large"
+                className="flex-1"
+                style={COMPLETE_BTN}
+                icon={<CheckCheck size={16} />}
+                loading={completeTask.isPending}
+                onClick={() =>
+                  completeTask.mutate(task.id, { onSuccess: onClose })
+                }
+              >
+                Hoàn thành
+              </Button>
+            )}
+            <Button
+              size="large"
+              className={canComplete ? "" : "flex-1"}
+              icon={<Pencil size={16} />}
+              onClick={() => onEdit(task)}
+            >
+              Sửa
+            </Button>
+            <Popconfirm
+              title="Xoá công việc này?"
+              description="Hành động không thể hoàn tác."
+              okText="Xoá"
+              okButtonProps={{ danger: true }}
+              cancelText="Huỷ"
+              placement="topRight"
+              onConfirm={() => deleteTask.mutate(task.id, { onSuccess: onClose })}
+            >
+              <Button size="large" danger aria-label="Xoá" icon={<Trash2 size={16} />} />
+            </Popconfirm>
+          </div>
         )
       }
     >

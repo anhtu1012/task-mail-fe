@@ -332,3 +332,25 @@
     animation: none;
   }
 }
+
+/*
+ * Màn chi tiết thẻ là `fixed inset-0` trong khi viewport đặt `viewport-fit:
+ * cover` (app/layout.tsx) — không đệm safe-area thì thanh trên nằm dưới thanh
+ * trạng thái / tai thỏ và hai nút đầu-cuối rơi vào góc bo của màn hình, bấm
+ * không trúng. Chiều cao h-14 là phần nội dung; phần đệm cộng thêm bên ngoài.
+ */
+.detailTopBar {
+  box-sizing: content-box;
+  padding-top: env(safe-area-inset-top);
+
+  @media (max-width: 767px) {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+}
+
+.detailBottomBar {
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}

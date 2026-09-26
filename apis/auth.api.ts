@@ -1,7 +1,7 @@
 import { AuthTokenResponse, MeResponse } from "@/models/task";
 import { AxiosService } from "./axios.base";
 import { API_ENDPOINTS } from "./endpoints";
-import { setCookieSecurely } from "./interceptors";
+import { refreshAccessToken, setCookieSecurely } from "./interceptors";
 
 export type Credentials = { email: string; password: string };
 
@@ -31,6 +31,20 @@ class AuthApi extends AxiosService {
   /** Lưu accessToken (từ login/register/oauth-callback) vào cookie client. */
   public persistToken(accessToken: string): void {
     setCookieSecurely("accessToken", accessToken, this);
+  }
+
+  /**
+   * Khôi phục phiên khi mất accessToken (đóng trình duyệt, cookie hết hạn) mà
+   * refresh_token HttpOnly vẫn còn. Trả về false nếu không còn phiên hợp lệ —
+   * KHÔNG dọn storage/bắn sự kiện unauthorized như interceptor.
+   */
+  public async restoreSession(): Promise<boolean> {
+    try {
+      await refreshAccessToken(this.baseUrl, this);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** Gọi POST /auth/logout (xoá refresh_token HttpOnly) rồi dọn state client. */

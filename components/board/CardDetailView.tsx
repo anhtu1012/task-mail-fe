@@ -178,21 +178,37 @@ export function CardDetailView({
     })),
   };
 
+  const toggleDone = () => {
+    setCompleting(true);
+    void toggleComplete(card.id).finally(() => setCompleting(false));
+  };
+
+  const completeStyle = done
+    ? { background: C.success50, color: C.success }
+    : { background: C.success, color: "#fff" };
+
+  const completeIcon = completing ? (
+    <LoaderCircle size={14} className="animate-spin" />
+  ) : (
+    <CheckSquare size={14} />
+  );
+
   return (
     <div className="h-full flex flex-col bg-white">
       {/* ===== Thanh trên cùng ===== */}
       <div
-        className="h-14 shrink-0 flex items-center gap-2 px-3 sm:px-4"
+        className={`${styles.detailTopBar} h-14 shrink-0 flex items-center gap-2 px-3 sm:px-4`}
         style={{ borderBottom: `1px solid ${C.border}` }}
       >
         <button
           onClick={onClose}
-          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border-0 bg-transparent
-            cursor-pointer text-[13px] hover:bg-[#f0f2f5]"
+          className="inline-flex items-center gap-1.5 h-11 md:h-8 px-3 md:px-2.5 -ml-1 md:ml-0 rounded-lg border-0
+            bg-transparent cursor-pointer text-[14px] md:text-[13px] hover:bg-[#f0f2f5] active:bg-[#e6e9ee]"
           style={{ color: C.neutral700 }}
         >
-          <ArrowLeft size={16} />
-          <span className="hidden sm:inline">Quay lại bảng</span>
+          <ArrowLeft size={18} />
+          <span className="md:hidden">Quay lại</span>
+          <span className="hidden md:inline">Quay lại bảng</span>
         </button>
 
         <span
@@ -215,37 +231,27 @@ export function CardDetailView({
 
         <div className="flex-1" />
 
+        {/* Mobile: hai nút này xuống thanh dưới đáy, trong tầm ngón cái */}
         {!done && (
           <Dropdown trigger={["click"]} placement="bottomRight" menu={snoozeMenu}>
             <button
-              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg cursor-pointer text-[13px]"
+              className="hidden md:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg cursor-pointer text-[13px]"
               style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.neutral700 }}
             >
               <Hourglass size={14} />
-              <span className="hidden sm:inline">Dời hạn</span>
+              Dời hạn
             </button>
           </Dropdown>
         )}
 
         <button
           disabled={completing}
-          onClick={() => {
-            setCompleting(true);
-            void toggleComplete(card.id).finally(() => setCompleting(false));
-          }}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border-0 cursor-pointer
+          onClick={toggleDone}
+          className="hidden md:inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border-0 cursor-pointer
             text-[13px] font-medium disabled:cursor-wait"
-          style={
-            done
-              ? { background: C.success50, color: C.success }
-              : { background: C.success, color: "#fff" }
-          }
+          style={completeStyle}
         >
-          {completing ? (
-            <LoaderCircle size={14} className="animate-spin" />
-          ) : (
-            <CheckSquare size={14} />
-          )}
+          {completeIcon}
           {done ? "Đã xong" : "Hoàn thành"}
         </button>
 
@@ -285,17 +291,18 @@ export function CardDetailView({
         >
           <button
             aria-label="Thao tác khác"
-            className="grid place-items-center size-8 rounded-lg cursor-pointer"
+            className="grid place-items-center size-11 md:size-8 rounded-lg cursor-pointer"
             style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.neutral700 }}
           >
             <MoreHorizontal size={16} />
           </button>
         </Dropdown>
 
+        {/* Mobile đã có "Quay lại" — bỏ X để nút cuối không dính vào mép bo */}
         <button
           aria-label="Đóng"
           onClick={onClose}
-          className="grid place-items-center size-8 rounded-lg border-0 bg-transparent cursor-pointer hover:bg-[#f0f2f5]"
+          className="hidden md:grid place-items-center size-8 rounded-lg border-0 bg-transparent cursor-pointer hover:bg-[#f0f2f5]"
           style={{ color: C.neutral700 }}
         >
           <X size={18} />
@@ -501,6 +508,35 @@ export function CardDetailView({
 
         <NotesColumn card={card} detail={detail} />
       </div>
+
+      {/* ===== Thanh thao tác đáy (mobile) — trong tầm ngón cái, tránh mép bo & thanh home ===== */}
+      <div
+        className={`${styles.detailBottomBar} md:hidden shrink-0 flex items-center gap-2 px-4 pt-2`}
+        style={{ borderTop: `1px solid ${C.border}` }}
+      >
+        {!done && (
+          <Dropdown trigger={["click"]} placement="topLeft" menu={snoozeMenu}>
+            <button
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-xl cursor-pointer
+                text-[14px] active:bg-[#f0f2f5]"
+              style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.neutral700 }}
+            >
+              <Hourglass size={16} />
+              Dời hạn
+            </button>
+          </Dropdown>
+        )}
+        <button
+          disabled={completing}
+          onClick={toggleDone}
+          className="flex-[2] inline-flex items-center justify-center gap-1.5 h-11 rounded-xl border-0 cursor-pointer
+            text-[14px] font-semibold disabled:cursor-wait"
+          style={completeStyle}
+        >
+          {completeIcon}
+          {done ? "Đã xong · bỏ đánh dấu" : "Hoàn thành"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -531,17 +567,18 @@ function DetailSkeleton({
   return (
     <div className="h-full flex flex-col bg-white" aria-busy="true">
       <div
-        className="h-14 shrink-0 flex items-center gap-2 px-3 sm:px-4"
+        className={`${styles.detailTopBar} h-14 shrink-0 flex items-center gap-2 px-3 sm:px-4`}
         style={{ borderBottom: `1px solid ${C.border}` }}
       >
         <button
           onClick={onClose}
-          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border-0 bg-transparent
-            cursor-pointer text-[13px] hover:bg-[#f0f2f5]"
+          className="inline-flex items-center gap-1.5 h-11 md:h-8 px-3 md:px-2.5 -ml-1 md:ml-0 rounded-lg border-0
+            bg-transparent cursor-pointer text-[14px] md:text-[13px] hover:bg-[#f0f2f5] active:bg-[#e6e9ee]"
           style={{ color: C.neutral700 }}
         >
-          <ArrowLeft size={16} />
-          <span className="hidden sm:inline">Quay lại bảng</span>
+          <ArrowLeft size={18} />
+          <span className="md:hidden">Quay lại</span>
+          <span className="hidden md:inline">Quay lại bảng</span>
         </button>
         {summary ? (
           <span

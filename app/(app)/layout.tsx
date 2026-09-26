@@ -68,13 +68,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const clearProject = useClearProject();
   const queryClient = useQueryClient();
 
-  // Guard: chưa có accessToken -> về /login
+  // Guard: chưa có accessToken -> thử refresh_token, thất bại mới về /login
   useEffect(() => {
-    if (!getCookie("accessToken")) {
-      router.replace("/login");
-    } else {
-      setTokenChecked(true);
-    }
+    let cancelled = false;
+    const check = getCookie("accessToken")
+      ? Promise.resolve(true)
+      : authApi.restoreSession();
+    check.then((ok) => {
+      if (cancelled) return;
+      if (ok) setTokenChecked(true);
+      else router.replace("/login");
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   /*

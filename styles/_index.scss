@@ -20,6 +20,8 @@
 @use "./ui/CTreeSelect";
 @use "./ui/CForm";
 @use "./ui/CCard";
+// mobile: safe-area + vùng bấm cho mọi Drawer/Modal — đặt sau cùng để ghi đè
+@use "./mobile";
 // pages
 // @forward "./pages/index.scss";
 
