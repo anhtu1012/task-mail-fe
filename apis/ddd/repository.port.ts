@@ -1,6 +1,6 @@
 export interface AuthorizationPort {
   getToken: () => string;
-  setToken: (token: string, expires?: string) => void;
+  setToken: (token: string) => void;
   removeToken: () => void;
 }
 
