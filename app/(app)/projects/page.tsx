@@ -8,6 +8,7 @@
  *     `PROJECT_NOT_EMPTY`), và không bao giờ xoá được dự án cuối cùng.
  */
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { App, Button, Popconfirm, Table, Tag, Tooltip } from "antd";
 import { CSegmented } from "@/components/ui";
 import type { ColumnsType } from "antd/es/table";
@@ -48,6 +49,7 @@ export default function ProjectsPage() {
   const atLimit = activeCount >= PROJECT_LIMIT;
   const { projectId } = useCurrentProject();
   const switchProject = useSwitchProject();
+  const router = useRouter();
   const setDefault = useSetDefaultProject();
   const archive = useArchiveProject();
   const remove = useDeleteProject();
@@ -270,6 +272,11 @@ export default function ProjectsPage() {
         open={formOpen}
         project={editing}
         onClose={() => setFormOpen(false)}
+        // Tạo xong thì vào luôn dự án đó — bảng của nó được backend tự dựng
+        onCreated={(p) => {
+          switchProject(p.id);
+          router.push("/boards");
+        }}
       />
     </div>
   );

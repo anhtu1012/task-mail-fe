@@ -89,9 +89,19 @@ function PickerBody({
         size="small"
         allowClear
         autoFocus
-        placeholder="Tìm hoặc tạo nhãn..."
+        placeholder="Tìm hoặc tạo nhãn... (Enter để chọn)"
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
+        // Gắn nhanh bằng bàn phím: gõ vài chữ rồi Enter là bật/tắt nhãn khớp
+        // đầu tiên; không khớp nhãn nào thì mở form tạo với đúng tên vừa gõ
+        onPressEnter={() => {
+          if (visible[0]) {
+            toggleCardLabel(cardId, visible[0].id);
+            setKeyword("");
+          } else if (kw) {
+            setMode({ kind: "create" });
+          }
+        }}
       />
 
       <div className="flex flex-col gap-0.5 max-h-[232px] overflow-auto">
