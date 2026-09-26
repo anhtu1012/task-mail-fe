@@ -22,7 +22,7 @@ import {
   LABEL_COLORS,
   LABEL_ICONS,
 } from "@/models/board";
-import { useBoard } from "./BoardStore";
+import { useBoardActions, useBoardMeta } from "./BoardStore";
 import LabelIcon from "./LabelIcon";
 import { C } from "./ui";
 
@@ -60,7 +60,9 @@ function PickerBody({
   cardId: string;
   selectedIds: string[];
 }) {
-  const { labels, toggleCardLabel, deleteLabel } = useBoard();
+  // Context hẹp: popover này gắn trên MỌI thẻ, đọc `useBoard()` là vẽ lại theo cả bảng
+  const { labels } = useBoardMeta();
+  const { toggleCardLabel, deleteLabel } = useBoardActions();
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const [keyword, setKeyword] = useState("");
 
@@ -197,7 +199,7 @@ function LabelForm({
   initialName?: string;
   onDone: () => void;
 }) {
-  const { createLabel, updateLabel } = useBoard();
+  const { createLabel, updateLabel } = useBoardActions();
   const [name, setName] = useState(label?.name ?? initialName ?? "");
   const [color, setColor] = useState(label?.color ?? LABEL_COLORS[0]);
   // `null` là giá trị hợp lệ: nhãn không icon, chỉ có màu

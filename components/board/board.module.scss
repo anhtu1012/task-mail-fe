@@ -111,11 +111,17 @@
     0 0 0 3px rgba(163, 209, 235, 0.3);
 }
 
-/* Thẻ sáng hơn cột một bậc để nổi lên khỏi cột */
+/*
+ * Thẻ sáng hơn cột một bậc để nổi lên khỏi cột.
+ *
+ * KHÔNG tự `backdrop-filter`: thẻ nằm trên cột vốn đã làm mờ nền, mờ thêm lần
+ * nữa gần như không thấy khác, nhưng mỗi thẻ thành một lớp GPU phải tính lại
+ * mỗi khung hình khi cuộn/kéo — bảng vài trăm thẻ là giật. Bù bằng nền đậm
+ * hơn chút. Riêng bản đang bay theo con trỏ (.cardOverlay) nằm ngoài cột nên
+ * vẫn giữ hiệu ứng kính.
+ */
 .card {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px) saturate(140%);
-  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  background: rgba(255, 255, 255, 0.17);
   border: 1px solid var(--g-line, rgba(255, 255, 255, 0.22));
   border-radius: 11px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
@@ -141,6 +147,8 @@
 
 .cardOverlay {
   background: rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
   border-color: var(--g-line, rgba(255, 255, 255, 0.55));
   box-shadow: 0 18px 40px rgba(2, 19, 33, 0.45);
 }

@@ -76,6 +76,9 @@ function createQueryClient(): QueryClient {
       },
     },
   });
+  // Bản cất bảng của từng dự án (xem useSwitchProject) không có observer nào,
+  // nên với gcTime mặc định 5 phút nó bị dọn trước khi người dùng kịp quay lại
+  client.setQueryDefaults(["board-stash"], { gcTime: 30 * 60 * 1000 });
   return client;
 }
 

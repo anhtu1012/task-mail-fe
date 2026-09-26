@@ -26,15 +26,22 @@ import { BOARD_QUERY_KEY, NOTES_FEED_KEY, cardDetailKey } from "./BoardStore";
 
 export { cardDetailKey };
 
+/**
+ * Cấu hình query chi tiết — dùng chung cho `useCardDetail` và phần tải trước
+ * khi rê chuột trên thẻ (CardTile). Hai nơi mà tự viết queryFn/staleTime riêng
+ * thì sớm muộn sẽ lệch nhau.
+ */
+export const cardDetailQuery = (cardId: string) => ({
+  queryKey: cardDetailKey(cardId),
+  queryFn: () => boardApi.cardDetail(cardId),
+  staleTime: 30_000,
+});
+
 export function useCardDetail(cardId: string) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
 
-  const query = useQuery({
-    queryKey: cardDetailKey(cardId),
-    queryFn: () => boardApi.cardDetail(cardId),
-    staleTime: 30_000,
-  });
+  const query = useQuery(cardDetailQuery(cardId));
 
   const patchDetail = useCallback(
     (fn: (card: CardDetail) => CardDetail) => {

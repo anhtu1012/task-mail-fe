@@ -1,7 +1,8 @@
 "use client";
 
-import { CSSProperties, memo, useState } from "react";
+import { CSSProperties, memo, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Dropdown, Tooltip } from "antd";
@@ -15,7 +16,6 @@ import {
   Clock,
   Flag,
   Hourglass,
-  LoaderCircle,
   MoreHorizontal,
   MoveRight,
   Paperclip,
@@ -43,7 +43,8 @@ const STATUS_TONE: Record<
   [TaskStatus.DONE]: "success",
   [TaskStatus.CANCELLED]: "danger",
 };
-import { useBoard } from "./BoardStore";
+import { useBoardActions, useBoardMeta } from "./BoardStore";
+import { cardDetailQuery } from "./useCardDetail";
 import LabelPicker from "./LabelPicker";
 import { SNOOZE_OPTIONS } from "./snooze";
 import { Badge, G, LabelChip, SourceIcon, fmtShort } from "./ui";
@@ -64,20 +65,20 @@ const MAX_VISIBLE_LABELS = 3;
 const fmtDuration = (min: number) =>
   min < 60 ? `${min}p` : min % 60 === 0 ? `${min / 60}h` : `${Math.floor(min / 60)}h${min % 60}`;
 
+/**
+ * Vỏ ngoài của thẻ: chỉ lo kéo thả, click mở chi tiết và tải trước.
+ *
+ * Tách khỏi phần nội dung vì `useSortable` của dnd-kit làm MỌI thẻ render lại
+ * mỗi khi vùng thả đổi trong lúc kéo — `memo` không chặn được (nó đăng ký
+ * context riêng của dnd-kit). Để vỏ này mỏng thì lượt render đó rẻ; phần nặng
+ * (Dropdown, Tooltip, LabelPicker...) nằm trong `CardTileContent` có memo
+ * riêng, chỉ vẽ lại khi chính thẻ đổi.
+ */
 function CardTileBase({ card, overlay = false }: Props) {
   const router = useRouter();
-  const {
-    labelById,
-    board,
-    lists,
-    snoozeCard,
-    toggleComplete,
-    moveCardToList,
-    updateCard,
-    deleteCard,
-  } = useBoard();
-  /** Đang chờ máy chủ trả lời cho đúng thẻ này — để nút không im lìm */
-  const [completing, setCompleting] = useState(false);
+  const queryClient = useQueryClient();
+  // Context hẹp thay cho `useBoard()` — xem ghi chú ở BoardStore
+  const { board } = useBoardMeta();
 
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } =
     useSortable({
@@ -85,6 +86,77 @@ function CardTileBase({ card, overlay = false }: Props) {
       data: { type: "card", listId: card.listId },
       disabled: overlay,
     });
+
+  /*
+   * Tải trước chi tiết thẻ khi người dùng dừng chuột trên thẻ — bấm vào là
+   * màn chi tiết có dữ liệu ngay thay vì quay spinner. Phải DỪNG lại một
+   * chút mới tải: lướt chuột ngang qua 20 thẻ mà thẻ nào cũng gọi API thì
+   * cháy trần 20 req/60s. Đã có trong cache (còn mới) thì không gọi lại.
+   */
+  const detailHref = board ? `/boards/${board.id}/cards/${card.id}` : null;
+  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prefetchDetail = () => {
+    if (overlay || !detailHref) return;
+    void queryClient.prefetchQuery(cardDetailQuery(card.id));
+    router.prefetch(detailHref);
+  };
+  const schedulePrefetch = () => {
+    if (prefetchTimer.current) return;
+    prefetchTimer.current = setTimeout(prefetchDetail, 400);
+  };
+  const cancelPrefetch = () => {
+    if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+    prefetchTimer.current = null;
+  };
+  useEffect(() => {
+    const timer = prefetchTimer;
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, []);
+
+  const done = card.completedAt !== null;
+  const style: CSSProperties = overlay
+    ? { cursor: "grabbing" }
+    : {
+        transform: CSS.Translate.toString(transform),
+        transition,
+        // Thẻ gốc ẩn đi khi đang kéo — bản nhìn thấy là DragOverlay
+        opacity: isDragging ? 0 : 1,
+      };
+
+  return (
+    <div
+      ref={overlay ? undefined : setNodeRef}
+      style={style}
+      {...(overlay ? {} : attributes)}
+      {...(overlay ? {} : listeners)}
+      onClick={overlay || !detailHref ? undefined : () => router.push(detailHref)}
+      onPointerEnter={overlay ? undefined : schedulePrefetch}
+      onPointerLeave={overlay ? undefined : cancelPrefetch}
+      onFocus={overlay ? undefined : schedulePrefetch}
+      className={`${styles.card} ${overlay ? styles.cardOverlay : ""} ${done ? styles.cardDone : ""} group/card relative overflow-hidden cursor-pointer`}
+      role="button"
+      tabIndex={overlay ? -1 : 0}
+      aria-label={`${card.code} — ${card.title}`}
+    >
+      <CardTileContent card={card} overlay={overlay} />
+    </div>
+  );
+}
+
+const CardTileContent = memo(function CardTileContent({
+  card,
+  overlay,
+}: {
+  card: CardSummary;
+  overlay: boolean;
+}) {
+  const { labelById, lists } = useBoardMeta();
+  const { snoozeCard, toggleComplete, moveCardToList, updateCard, deleteCard } =
+    useBoardActions();
+  /** Đang chờ máy chủ trả lời cho đúng thẻ này — khoá nút để không bấm đảo chiều */
+  const [completing, setCompleting] = useState(false);
 
   const done = card.completedAt !== null;
   const overdue = card.deadlineStatus === "LATE" && !done;
@@ -94,15 +166,6 @@ function CardTileBase({ card, overlay = false }: Props) {
   // Chỉ Cao/Khẩn cấp mới có chấm ưu tiên — thẻ nào cũng có thì chấm mất tác dụng
   const showPriority =
     card.priority === TaskPriority.URGENT || card.priority === TaskPriority.HIGH;
-
-  const style: CSSProperties = overlay
-    ? { cursor: "grabbing" }
-    : {
-        transform: CSS.Translate.toString(transform),
-        transition,
-        // Thẻ gốc ẩn đi khi đang kéo — bản nhìn thấy là DragOverlay
-        opacity: isDragging ? 0 : 1,
-      };
 
   const labels = card.labelIds
     .map((id) => labelById.get(id))
@@ -161,21 +224,7 @@ function CardTileBase({ card, overlay = false }: Props) {
   );
 
   return (
-    <div
-      ref={overlay ? undefined : setNodeRef}
-      style={style}
-      {...(overlay ? {} : attributes)}
-      {...(overlay ? {} : listeners)}
-      onClick={
-        overlay || !board
-          ? undefined
-          : () => router.push(`/boards/${board.id}/cards/${card.id}`)
-      }
-      className={`${styles.card} ${overlay ? styles.cardOverlay : ""} ${done ? styles.cardDone : ""} group/card relative overflow-hidden cursor-pointer`}
-      role="button"
-      tabIndex={overlay ? -1 : 0}
-      aria-label={`${card.code} — ${card.title}`}
-    >
+    <>
       {card.cover && <div style={{ background: card.cover, height: 32 }} />}
 
       {/*
@@ -210,9 +259,9 @@ function CardTileBase({ card, overlay = false }: Props) {
             color: done ? "#2a9d8f" : G.text,
           }}
         >
-          {completing ? (
-            <LoaderCircle size={13} className="animate-spin" />
-          ) : done ? (
+          {/* Không quay spinner: toggleComplete đã đổi thẻ ngay (lạc quan), chỉ
+              khoá nút tới khi server trả lời để không bấm đảo chiều giữa chừng */}
+          {done ? (
             <RotateCcw size={12.5} />
           ) : (
             <Check size={14} />
@@ -537,9 +586,9 @@ function CardTileBase({ card, overlay = false }: Props) {
             )}
         </div>
       </div>
-    </div>
+    </>
   );
-}
+});
 
 /**
  * Chặn click / pointerdown nổi lên thẻ. Popover của antd render qua portal

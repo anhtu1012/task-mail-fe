@@ -11,6 +11,7 @@
  * cụ cá nhân, thứ có giá trị là những gì mình tự nhắc mình.
  */
 import { useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   DndContext,
   KeyboardSensor,
@@ -67,6 +68,7 @@ import {
   CardDetail,
   CardNote,
   CardAttachment,
+  CardSummary,
   Checklist,
   ChecklistItem,
 } from "@/models/board";
@@ -96,7 +98,8 @@ import { useCardDetail } from "./useCardDetail";
 import { SNOOZE_OPTIONS } from "./snooze";
 import { RichTextEditor } from "./RichTextEditor";
 import LabelPicker from "./LabelPicker";
-import MarkdownImport from "./MarkdownImport";
+// Chỉ cần khi bấm "Nhập Markdown" — tách chunk để màn chi tiết mở nhanh hơn
+const MarkdownImport = dynamic(() => import("./MarkdownImport"), { ssr: false });
 import { C, LabelChip, fmtBytes, fmtDateTime, fmtShort } from "./ui";
 import styles from "./board.module.scss";
 
@@ -114,18 +117,14 @@ export function CardDetailView({
   cardId: string;
   onClose: () => void;
 }) {
-  const { lists, labelById, snoozeCard, toggleComplete, deleteCard } = useBoard();
+  const { lists, labelById, cardById, snoozeCard, toggleComplete, deleteCard } = useBoard();
   const detail = useCardDetail(cardId);
   const card = detail.card;
   const [completing, setCompleting] = useState(false);
 
 
   if (detail.isLoading) {
-    return (
-      <div className="h-full grid place-items-center bg-white">
-        <Spin />
-      </div>
-    );
+    return <DetailSkeleton summary={cardById.get(cardId)} onClose={onClose} />;
   }
 
   if (!card) {
@@ -511,6 +510,72 @@ type DetailApi = ReturnType<typeof useCardDetail>;
 // ==========================================
 // TIÊU ĐỀ
 // ==========================================
+/**
+ * Khung chờ của màn chi tiết.
+ *
+ * Thẻ bấm từ bảng đã có sẵn tóm tắt trong snapshot (mã, tiêu đề, nhãn...) —
+ * hiện ngay những thứ đó thay cho một spinner trắng trơn, chỉ phần mô tả /
+ * checklist / ghi chú là chờ mạng. Mở bằng link trực tiếp (không có tóm tắt)
+ * thì chỉ còn khung xám.
+ */
+function DetailSkeleton({
+  summary,
+  onClose,
+}: {
+  summary: CardSummary | undefined;
+  onClose: () => void;
+}) {
+  const bar = (w: string, h = 12) => (
+    <div className="rounded-md animate-pulse" style={{ width: w, height: h, background: C.muted }} />
+  );
+  return (
+    <div className="h-full flex flex-col bg-white" aria-busy="true">
+      <div
+        className="h-14 shrink-0 flex items-center gap-2 px-3 sm:px-4"
+        style={{ borderBottom: `1px solid ${C.border}` }}
+      >
+        <button
+          onClick={onClose}
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border-0 bg-transparent
+            cursor-pointer text-[13px] hover:bg-[#f0f2f5]"
+          style={{ color: C.neutral700 }}
+        >
+          <ArrowLeft size={16} />
+          <span className="hidden sm:inline">Quay lại bảng</span>
+        </button>
+        {summary ? (
+          <span
+            className="font-mono text-[12px] px-2 h-6 grid place-items-center rounded-md shrink-0"
+            style={{ background: C.muted, color: C.neutral700 }}
+          >
+            {summary.code}
+          </span>
+        ) : (
+          bar("64px", 24)
+        )}
+        <div className="flex-1" />
+        <Spin size="small" />
+      </div>
+      <div className="flex-1 overflow-hidden px-4 sm:px-6 py-5 flex flex-col gap-4 max-w-[760px]">
+        {summary ? (
+          <h1
+            className="m-0 text-[20px] font-semibold leading-snug [overflow-wrap:anywhere]"
+            style={{ color: C.foreground }}
+          >
+            {summary.title}
+          </h1>
+        ) : (
+          bar("70%", 24)
+        )}
+        {bar("40%")}
+        {bar("100%", 88)}
+        {bar("55%")}
+        {bar("85%")}
+      </div>
+    </div>
+  );
+}
+
 function CardTitle({
   card,
   done,
@@ -637,12 +702,14 @@ function DescriptionSection({ card, detail }: { card: CardDetail; detail: Detail
         </div>
       }
     >
-      <MarkdownImport
-        open={importing}
-        hasExisting={hasDescription}
-        onClose={() => setImporting(false)}
-        onInsert={insertMarkdown}
-      />
+      {importing && (
+        <MarkdownImport
+          open={importing}
+          hasExisting={hasDescription}
+          onClose={() => setImporting(false)}
+          onInsert={insertMarkdown}
+        />
+      )}
 
       {editing ? (
         <div className="flex flex-col gap-2">

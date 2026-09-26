@@ -20,7 +20,11 @@ import {
   StickyNote,
   Tags,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { authApi } from "@/apis/auth.api";
+import { boardApi } from "@/apis/board.api";
+import { BOARD_QUERY_KEY } from "@/hooks/boardKeys";
+import { useAppSelector } from "@/store/hooks";
 import { useMe } from "@/hooks/useTaskApp";
 import { useClearProject, useCurrentProject } from "@/hooks/useProjects";
 import { ROLE_META, isAdminRole } from "@/models/task";
@@ -61,6 +65,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     isLoading: projectsLoading,
   } = useCurrentProject();
   const clearProject = useClearProject();
+  const queryClient = useQueryClient();
 
   // Guard: chưa có accessToken -> về /login
   useEffect(() => {
@@ -70,6 +75,29 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       setTokenChecked(true);
     }
   }, [router]);
+
+  /*
+   * Mở thẳng vào bảng: gọi snapshot NGAY, song song với `/auth/me` và
+   * `/projects`, thay vì đợi hai cái đó xong (trang chưa qua chốt chặn bên
+   * dưới thì BoardProvider chưa mount, nên chưa gọi được) — bớt hẳn một vòng
+   * mạng lúc mở app. Dùng dự án đã lưu từ lần trước; nếu nó hoá ra không còn
+   * hợp lệ, `useCurrentProject` sẽ dọn lựa chọn và trang chọn dự án xoá cache
+   * bảng như thường, nên dữ liệu tải trước không bao giờ được hiển thị sai.
+   * BoardProvider gắn vào sau sẽ dùng lại kết quả này (staleTime 30s).
+   */
+  const persisted = useAppSelector((s) => s.project);
+  useEffect(() => {
+    if (!pathname.startsWith("/boards/") || !getCookie("accessToken")) return;
+    const { currentProjectId, ownerUserId } = persisted;
+    if (!currentProjectId || !ownerUserId) return;
+    void queryClient.prefetchQuery({
+      queryKey: BOARD_QUERY_KEY,
+      queryFn: () => boardApi.snapshot(currentProjectId),
+      staleTime: 30_000,
+    });
+    // Chỉ một lần lúc mở app — các lần sau BoardProvider tự lo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Refresh token thất bại / session hết hạn -> interceptor bắn event này
   useEffect(() => {
@@ -159,6 +187,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     clearThemeSession();
     // Người kế tiếp đăng nhập trên máy này phải tự chọn dự án của họ
     clearProject();
+    // Xoá cả cache dữ liệu: không thì người đăng nhập kế tiếp trên cùng tab
+    // thoáng thấy việc / bảng (kể cả bản cất theo dự án) của người trước
+    queryClient.clear();
     router.replace("/login");
   };
 

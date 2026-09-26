@@ -25,6 +25,7 @@ import { clearCurrentProject, setCurrentProject } from "@/store/slices/project";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { getCookie } from "@/utils/client/getCookie";
 import { useMe } from "./useTaskApp";
+import { BOARD_QUERY_KEY, boardStashKey } from "./boardKeys";
 
 export const PROJECT_QK = {
   all: ["projects"] as const,
@@ -108,15 +109,33 @@ export function useSwitchProject() {
   const queryClient = useQueryClient();
   const { data: me } = useMe();
 
+  const currentProjectId = useAppSelector((s) => s.project.currentProjectId);
+
   return useCallback(
     (projectId: string) => {
       if (!me) return;
+      /*
+       * Cất bảng của dự án đang rời đi, trước khi dọn cache. Quay lại dự án đó
+       * là bảng hiện NGAY từ bản cất (của đúng dự án đó, nên không có chuyện
+       * lộ việc của dự án khác), rồi tải lại ở nền vì bản cất đã cũ.
+       */
+      const leaving = queryClient.getQueryData(BOARD_QUERY_KEY);
+      if (currentProjectId && leaving) {
+        queryClient.setQueryData(boardStashKey(me.id, currentProjectId), leaving);
+      }
+
       dispatch(setCurrentProject({ projectId, userId: me.id }));
       ["tasks", "task", "task-stats", "board", "agenda"].forEach((key) =>
         queryClient.removeQueries({ queryKey: [key] }),
       );
+
+      const stashed = queryClient.getQueryData(boardStashKey(me.id, projectId));
+      if (stashed) {
+        // updatedAt = 0 -> coi như đã cũ, query của bảng sẽ tự tải lại khi gắn vào
+        queryClient.setQueryData(BOARD_QUERY_KEY, stashed, { updatedAt: 0 });
+      }
     },
-    [dispatch, me, queryClient],
+    [dispatch, me, queryClient, currentProjectId],
   );
 }
 
