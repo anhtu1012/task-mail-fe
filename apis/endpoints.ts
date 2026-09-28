@@ -105,5 +105,6 @@ export const API_ENDPOINTS = {
   // Hợp đồng: docs/backend/theme-settings-api.md
   PREFERENCES: {
     THEME: "/me/preferences/theme",
+    NOTIFICATIONS: "/me/preferences/notifications",
   },
 };

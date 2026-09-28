@@ -1,5 +1,7 @@
 import {
   MailAccount,
+  NotificationPreference,
+  NotificationPreferenceInput,
   ZaloBotStatus,
   ZaloBroadcastPayload,
   ZaloBroadcastResult,
@@ -39,6 +41,21 @@ class IntegrationApi extends AxiosService {
 
   public async unlinkZalo(): Promise<void> {
     return this.delete<void>(API_ENDPOINTS.ZALO_ACCOUNTS.ME);
+  }
+
+  /** Luôn 200 — chưa lưu thì `source: "default"` */
+  public async getNotificationPreference(): Promise<NotificationPreference> {
+    return this.get<NotificationPreference>(API_ENDPOINTS.PREFERENCES.NOTIFICATIONS);
+  }
+
+  /** Ghi đè toàn bộ; body sai ràng buộc trả 422 */
+  public async saveNotificationPreference(
+    input: NotificationPreferenceInput,
+  ): Promise<NotificationPreference> {
+    return this.put<NotificationPreference, NotificationPreferenceInput>(
+      API_ENDPOINTS.PREFERENCES.NOTIFICATIONS,
+      input,
+    );
   }
 
   /** Chỉ ADMIN/SUPER_ADMIN */
