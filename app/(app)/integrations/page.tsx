@@ -18,6 +18,7 @@ import {
   BellRing,
   Bot,
   CheckCircle2,
+  Clock,
   ExternalLink,
   Link2,
   Mail,
@@ -35,6 +36,7 @@ import {
 } from "@/hooks/useTaskApp";
 import { ZaloLinkCode, isAdminRole } from "@/models/task";
 import { getApiErrorMessage } from "@/utils/client/apiError";
+import ZaloNotificationSettings from "./_components/ZaloNotificationSettings";
 
 export default function IntegrationsPage() {
   const { message } = App.useApp();
@@ -291,6 +293,21 @@ export default function IntegrationsPage() {
             Tạo mã liên kết Zalo
           </Button>
         )}
+      </Card>
+
+      {/* ===== CÀI ĐẶT THÔNG BÁO ZALO ===== */}
+      <Card
+        variant="borderless"
+        title={
+          <span className="inline-flex items-center gap-2">
+            <span className="grid place-items-center size-8 rounded-lg bg-amber-50 text-amber-500">
+              <Clock size={17} />
+            </span>
+            Cài đặt thông báo Zalo
+          </span>
+        }
+      >
+        <ZaloNotificationSettings linked={!!zalo?.linked} />
       </Card>
 
       {/* ===== ZALO BOT STATUS (admin) ===== */}

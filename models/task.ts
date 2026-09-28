@@ -259,6 +259,37 @@ export type ZaloLinkStatus = {
   linkedAt?: string;
 };
 
+/** Body của `PUT /me/preferences/notifications` — gửi đủ cả bốn trường */
+export type NotificationPreferenceInput = {
+  newTaskEnabled: boolean;
+  /** Mốc nhắc trước hạn, tính bằng PHÚT; [] = tắt nhắc hạn */
+  reminderOffsets: number[];
+  digestEnabled: boolean;
+  /** "HH:mm" giờ địa phương, phút là bội số của 5 */
+  digestTime: string;
+};
+
+export type NotificationPreference = NotificationPreferenceInput & {
+  /** "default" = chưa từng lưu, đang hiển thị mặc định hệ thống */
+  source: "user" | "default";
+  updatedAt: string | null;
+};
+
+/** Phải khớp `REMINDER_OFFSET_CHOICES` của backend (notification.constants.ts) */
+export const REMINDER_OFFSET_CHOICES: { value: number; label: string }[] = [
+  { value: 15, label: "15 phút" },
+  { value: 30, label: "30 phút" },
+  { value: 60, label: "1 giờ" },
+  { value: 120, label: "2 giờ" },
+  { value: 180, label: "3 giờ" },
+  { value: 360, label: "6 giờ" },
+  { value: 720, label: "12 giờ" },
+  { value: 1440, label: "1 ngày" },
+  { value: 2880, label: "2 ngày" },
+];
+
+export const MAX_REMINDER_OFFSETS = 3;
+
 export type ZaloBotStatus = {
   connected: boolean;
   botName?: string;

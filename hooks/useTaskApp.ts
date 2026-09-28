@@ -18,6 +18,7 @@ import { taskTypeApi } from "@/apis/task-type.api";
 import { integrationApi } from "@/apis/integration.api";
 import {
   CreateTaskInput,
+  NotificationPreferenceInput,
   QueryTaskParams,
   SaveTaskTypeInput,
   Task,
@@ -54,6 +55,7 @@ export const QK = {
   zaloMe: ["zalo-me"] as const,
   zaloBot: ["zalo-bot-status"] as const,
   zaloRecipients: ["zalo-bot-recipients"] as const,
+  notificationPreference: ["notification-preference"] as const,
 };
 
 // ==========================================
@@ -433,6 +435,28 @@ export function useZaloLinkStatus() {
     queryKey: QK.zaloMe,
     queryFn: () => integrationApi.getZaloLinkStatus(),
     staleTime: 30 * 1000,
+  });
+}
+
+export function useNotificationPreference() {
+  return useQuery({
+    queryKey: QK.notificationPreference,
+    queryFn: () => integrationApi.getNotificationPreference(),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSaveNotificationPreference() {
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: NotificationPreferenceInput) =>
+      integrationApi.saveNotificationPreference(input),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(QK.notificationPreference, saved);
+      message.success("Đã lưu cài đặt thông báo");
+    },
+    onError: (error) => message.error(getApiErrorMessage(error)),
   });
 }
 
