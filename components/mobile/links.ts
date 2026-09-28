@@ -1,8 +1,8 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { boardApi } from "@/apis/board.api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BOARD_QUERY_KEY } from "@/components/board/BoardStore";
+import { loadBoardSnapshot } from "@/hooks/boardSnapshot";
 import { useCurrentProject } from "@/hooks/useProjects";
 
 /**
@@ -11,9 +11,10 @@ import { useCurrentProject } from "@/hooks/useProjects";
  */
 export function useBoardId(): string | null {
   const { projectId } = useCurrentProject();
+  const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: BOARD_QUERY_KEY,
-    queryFn: () => boardApi.snapshot(projectId ?? undefined),
+    queryFn: () => loadBoardSnapshot(queryClient, projectId ?? undefined),
     enabled: !!projectId,
     staleTime: 30_000,
   });

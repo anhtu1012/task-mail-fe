@@ -14,6 +14,8 @@ import {
   NotesFeed,
   Board,
   BoardLabel,
+  BoardFullResponse,
+  BoardInclude,
   BoardList,
   BoardSnapshot,
   CardDetail,
@@ -79,6 +81,28 @@ class BoardApi extends AxiosService {
     return this.getWithParams<BoardSnapshot>(
       API_ENDPOINTS.BOARD.ME_FULL,
       params({ projectId, cardsPerList, tz: browserTimezone() }),
+    );
+  }
+
+  /**
+   * Như `snapshot` nhưng gộp thêm danh sách dự án / loại việc vào cùng một
+   * request (backend `?include=`). Đừng gọi trực tiếp — dùng
+   * `hooks/boardSnapshot.loadBoardSnapshot`, nơi đổ phần gộp vào đúng khoá
+   * cache của endpoint riêng.
+   */
+  public snapshotWith(
+    include: BoardInclude[],
+    projectId?: string,
+    cardsPerList = 20,
+  ): Promise<BoardFullResponse> {
+    return this.getWithParams<BoardFullResponse>(
+      API_ENDPOINTS.BOARD.ME_FULL,
+      params({
+        projectId,
+        cardsPerList,
+        tz: browserTimezone(),
+        include: include.join(","),
+      }),
     );
   }
 

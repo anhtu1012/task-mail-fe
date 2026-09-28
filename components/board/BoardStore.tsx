@@ -56,6 +56,7 @@ import {
 } from "@/store/slices/boardView";
 import { useStickyState } from "./useStickyState";
 import { BOARD_QUERY_KEY } from "@/hooks/boardKeys";
+import { loadBoardSnapshot } from "@/hooks/boardSnapshot";
 
 /**
  * Khoá cache của bảng KHÔNG chứa projectId, dù mỗi dự án có một bảng riêng.
@@ -418,7 +419,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     refetch,
   } = useQuery({
     queryKey: BOARD_QUERY_KEY,
-    queryFn: () => boardApi.snapshot(projectId ?? undefined),
+    queryFn: () => loadBoardSnapshot(queryClient, projectId ?? undefined),
     enabled: !!projectId,
     // Thao tác kéo thả đã cập nhật lạc quan rồi, không cần tải lại liên tục
     staleTime: 30_000,
