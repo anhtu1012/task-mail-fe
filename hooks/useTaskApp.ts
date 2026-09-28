@@ -345,10 +345,14 @@ export function useAssignableUsers(enabled: boolean) {
  * Nhãn thuộc BẢNG, mà mỗi dự án một bảng — nên khoá cache có `projectId`, đổi
  * dự án là tra bảng khác.
  */
+/** Khoá cache nhãn của một dự án — `loadBoardSnapshot` cũng ghi vào đây */
+export const boardLabelsKey = (projectId: string | null) =>
+  ["board", "labels", projectId] as const;
+
 export function useBoardLabels() {
   const projectId = useProjectScope();
   const query = useQuery({
-    queryKey: ["board", "labels", projectId],
+    queryKey: boardLabelsKey(projectId),
     queryFn: () => boardApi.labels(projectId ?? undefined),
     enabled: !!projectId,
     staleTime: 5 * 60 * 1000,
@@ -369,7 +373,7 @@ export function useCreateBoardLabel() {
 
   return useMutation({
     mutationFn: async (input: { name: string; color: string; icon?: string | null }) => {
-      const cachedLabels = queryClient.getQueryData<BoardLabel[]>(["board", "labels", projectId]);
+      const cachedLabels = queryClient.getQueryData<BoardLabel[]>(boardLabelsKey(projectId));
       let boardId = cachedLabels?.[0]?.boardId;
       if (!boardId) {
         const snap = queryClient.getQueryData<BoardSnapshot>(["board", "snapshot"]);
@@ -384,7 +388,7 @@ export function useCreateBoardLabel() {
     onSuccess: (newLabel) => {
       message.success(`Đã tạo nhãn "${newLabel.name}"`);
       queryClient.setQueryData<BoardLabel[]>(
-        ["board", "labels", projectId],
+        boardLabelsKey(projectId),
         (old) => (old ? [...old, newLabel] : [newLabel]),
       );
       queryClient.setQueryData<BoardSnapshot>(["board", "snapshot"], (snap) => {

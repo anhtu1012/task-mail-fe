@@ -23,8 +23,8 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authApi } from "@/apis/auth.api";
-import { boardApi } from "@/apis/board.api";
 import { BOARD_QUERY_KEY } from "@/hooks/boardKeys";
+import { loadBoardSnapshot } from "@/hooks/boardSnapshot";
 import { useAppSelector } from "@/store/hooks";
 import { useMe } from "@/hooks/useTaskApp";
 import { useClearProject, useCurrentProject } from "@/hooks/useProjects";
@@ -100,7 +100,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     if (!currentProjectId || !ownerUserId) return;
     void queryClient.prefetchQuery({
       queryKey: BOARD_QUERY_KEY,
-      queryFn: () => boardApi.snapshot(currentProjectId),
+      queryFn: () => loadBoardSnapshot(queryClient, currentProjectId),
       staleTime: 30_000,
     });
     // Chỉ một lần lúc mở app — các lần sau BoardProvider tự lo
