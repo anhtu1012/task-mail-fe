@@ -7,18 +7,20 @@
  */
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Spin } from "antd";
-import { boardApi } from "@/apis/board.api";
+import { BOARD_QUERY_KEY } from "@/hooks/boardKeys";
+import { loadBoardSnapshot } from "@/hooks/boardSnapshot";
 import { useCurrentProject } from "@/hooks/useProjects";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 
 export default function BoardsIndexPage() {
   const router = useRouter();
   const { projectId } = useCurrentProject();
+  const queryClient = useQueryClient();
   const { data, error } = useQuery({
-    queryKey: ["board", "snapshot"],
-    queryFn: () => boardApi.snapshot(projectId ?? undefined),
+    queryKey: BOARD_QUERY_KEY,
+    queryFn: () => loadBoardSnapshot(queryClient, projectId ?? undefined),
     enabled: !!projectId,
   });
 

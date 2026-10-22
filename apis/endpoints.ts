@@ -37,6 +37,7 @@ export const API_ENDPOINTS = {
     ME_TODAY: "/boards/me/today",
     ME_AGENDA: "/boards/me/agenda",
     ME_SEARCH: "/boards/me/search",
+    ME_NOTES: "/boards/me/notes",
     ME_LABELS: "/boards/me/labels",
     INBOX_CARDS: "/boards/me/inbox/cards",
     INBOX_REBALANCE: "/boards/me/inbox/rebalance",
@@ -97,10 +98,13 @@ export const API_ENDPOINTS = {
   },
   ZALO_BOT: {
     STATUS: "/zalo-bot/status",
+    BROADCAST: "/zalo-bot/broadcast",
+    RECIPIENTS: "/zalo-bot/recipients",
   },
   // Cài đặt của người dùng — backend đã deploy.
   // Hợp đồng: docs/backend/theme-settings-api.md
   PREFERENCES: {
     THEME: "/me/preferences/theme",
+    NOTIFICATIONS: "/me/preferences/notifications",
   },
 };

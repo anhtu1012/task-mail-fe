@@ -52,6 +52,40 @@ export const setCookieSecurely = (
   }
 };
 
+/**
+ * Xin accessToken mới bằng refresh_token (HttpOnly cookie, `withCredentials`
+ * tự mang đi). Single-flight: BE xoay vòng refresh token và coi việc dùng lại
+ * token cũ là tấn công (AUTH_REFRESH_TOKEN_REUSED) — hai lời gọi song song
+ * (StrictMode, interceptor + trang login) sẽ làm hỏng phiên, nên mọi nơi phải
+ * đi qua hàm này và dùng chung một promise.
+ */
+let refreshPromise: Promise<string> | null = null;
+
+export const refreshAccessToken = (
+  baseUrl: string,
+  authInstance?: Authorization,
+): Promise<string> => {
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post<{ accessToken: string }>(
+        `${baseUrl}${API_ENDPOINTS.AUTH.REFRESH}`,
+        {},
+        { withCredentials: true, timeout: 10000 },
+      )
+      .then(({ data }) => {
+        if (!data?.accessToken) {
+          throw new Error("Invalid refresh response: missing accessToken");
+        }
+        setCookieSecurely("accessToken", data.accessToken, authInstance);
+        return data.accessToken;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+};
+
 export const dispatchUnauthorizedEvent = (message: string): void => {
   if (typeof window !== "undefined") {
     window.dispatchEvent(
@@ -162,23 +196,10 @@ export const setupResponseInterceptor = (
 
         try {
           // Token lưu trong HttpOnly Cookie nên withCredentials: true tự mang đi ngầm
-          const { data } = await axios.post<{ accessToken: string }>(
-            `${baseUrl}${API_ENDPOINTS.AUTH.REFRESH}`,
-            {},
-            {
-              withCredentials: true,
-              timeout: 10000,
-            },
+          const newAccessToken = await refreshAccessToken(
+            baseUrl,
+            authInstance,
           );
-
-          if (!data.accessToken) {
-            throw new Error("Invalid refresh response: missing accessToken");
-          }
-
-          const newAccessToken = data.accessToken;
-
-          // Ghi nhận Token mới
-          setCookieSecurely("accessToken", newAccessToken, authInstance);
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
 
           // Giải phóng toàn bộ API đang chờ trong Queue

@@ -7,6 +7,55 @@
   bottom: 20px;
   right: 20px;
   z-index: 999;
+
+  /*
+   * Điện thoại: đứng ngay TRÊN thanh tab (64px + vùng an toàn của iPhone) và
+   * chỉ còn biểu tượng — nguyên nút "Báo lỗi" nằm đè lên tab "Menu", bấm
+   * menu lại thành mở báo lỗi.
+   */
+  @media (max-width: 767.98px) {
+    bottom: calc(64px + 12px + env(safe-area-inset-bottom));
+    right: 12px;
+
+    .triggerLabel {
+      display: none;
+    }
+
+    /*
+     * Bản thu gọn: nút tròn, biểu tượng nằm chính giữa, chấm đỏ thành huy hiệu
+     * ở góc. Trước đây vẫn xếp ngang "biểu tượng + gap 8px + chấm" như bản đầy
+     * đủ nên cả cụm lệch hẳn sang phải và chấm đỏ lòi ra mép nút.
+     */
+    .triggerBtn {
+      position: relative;
+      width: 42px;
+      height: 42px;
+      padding: 0;
+      gap: 0;
+      justify-content: center;
+      box-shadow: 0 8px 20px -6px rgba(10, 67, 109, 0.55);
+
+      &:hover {
+        transform: none;
+      }
+    }
+
+    .bugBadge {
+      width: auto;
+      height: auto;
+      background: transparent;
+    }
+
+    .pulseDot {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      width: 9px;
+      height: 9px;
+      border: 2px solid $color-primary;
+      box-sizing: content-box;
+    }
+  }
 }
 
 .triggerBtn {
@@ -72,7 +121,8 @@
 }
 
 .popoverContent {
-  width: 330px;
+  /* Không rộng hơn màn hình điện thoại (chừa 16px mỗi bên) */
+  width: min(330px, calc(100vw - 32px));
   padding: 4px;
 }
 

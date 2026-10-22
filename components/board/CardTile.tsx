@@ -1,7 +1,8 @@
 "use client";
 
-import { CSSProperties, memo, useState } from "react";
+import { CSSProperties, memo, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Dropdown, Tooltip } from "antd";
@@ -15,12 +16,12 @@ import {
   Clock,
   Flag,
   Hourglass,
-  LoaderCircle,
   MoreHorizontal,
   MoveRight,
   Paperclip,
   RotateCcw,
   StickyNote,
+  Tag,
   Timer,
   Trash2,
 } from "lucide-react";
@@ -42,7 +43,9 @@ const STATUS_TONE: Record<
   [TaskStatus.DONE]: "success",
   [TaskStatus.CANCELLED]: "danger",
 };
-import { useBoard } from "./BoardStore";
+import { useBoardActions, useBoardMeta } from "./BoardStore";
+import { cardDetailQuery } from "./useCardDetail";
+import LabelPicker from "./LabelPicker";
 import { SNOOZE_OPTIONS } from "./snooze";
 import { Badge, G, LabelChip, SourceIcon, fmtShort } from "./ui";
 import styles from "./board.module.scss";
@@ -62,20 +65,20 @@ const MAX_VISIBLE_LABELS = 3;
 const fmtDuration = (min: number) =>
   min < 60 ? `${min}p` : min % 60 === 0 ? `${min / 60}h` : `${Math.floor(min / 60)}h${min % 60}`;
 
+/**
+ * Vỏ ngoài của thẻ: chỉ lo kéo thả, click mở chi tiết và tải trước.
+ *
+ * Tách khỏi phần nội dung vì `useSortable` của dnd-kit làm MỌI thẻ render lại
+ * mỗi khi vùng thả đổi trong lúc kéo — `memo` không chặn được (nó đăng ký
+ * context riêng của dnd-kit). Để vỏ này mỏng thì lượt render đó rẻ; phần nặng
+ * (Dropdown, Tooltip, LabelPicker...) nằm trong `CardTileContent` có memo
+ * riêng, chỉ vẽ lại khi chính thẻ đổi.
+ */
 function CardTileBase({ card, overlay = false }: Props) {
   const router = useRouter();
-  const {
-    labelById,
-    board,
-    lists,
-    snoozeCard,
-    toggleComplete,
-    moveCardToList,
-    updateCard,
-    deleteCard,
-  } = useBoard();
-  /** Đang chờ máy chủ trả lời cho đúng thẻ này — để nút không im lìm */
-  const [completing, setCompleting] = useState(false);
+  const queryClient = useQueryClient();
+  // Context hẹp thay cho `useBoard()` — xem ghi chú ở BoardStore
+  const { board } = useBoardMeta();
 
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } =
     useSortable({
@@ -83,6 +86,77 @@ function CardTileBase({ card, overlay = false }: Props) {
       data: { type: "card", listId: card.listId },
       disabled: overlay,
     });
+
+  /*
+   * Tải trước chi tiết thẻ khi người dùng dừng chuột trên thẻ — bấm vào là
+   * màn chi tiết có dữ liệu ngay thay vì quay spinner. Phải DỪNG lại một
+   * chút mới tải: lướt chuột ngang qua 20 thẻ mà thẻ nào cũng gọi API thì
+   * cháy trần 20 req/60s. Đã có trong cache (còn mới) thì không gọi lại.
+   */
+  const detailHref = board ? `/boards/${board.id}/cards/${card.id}` : null;
+  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prefetchDetail = () => {
+    if (overlay || !detailHref) return;
+    void queryClient.prefetchQuery(cardDetailQuery(card.id));
+    router.prefetch(detailHref);
+  };
+  const schedulePrefetch = () => {
+    if (prefetchTimer.current) return;
+    prefetchTimer.current = setTimeout(prefetchDetail, 400);
+  };
+  const cancelPrefetch = () => {
+    if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+    prefetchTimer.current = null;
+  };
+  useEffect(() => {
+    const timer = prefetchTimer;
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, []);
+
+  const done = card.completedAt !== null;
+  const style: CSSProperties = overlay
+    ? { cursor: "grabbing" }
+    : {
+        transform: CSS.Translate.toString(transform),
+        transition,
+        // Thẻ gốc ẩn đi khi đang kéo — bản nhìn thấy là DragOverlay
+        opacity: isDragging ? 0 : 1,
+      };
+
+  return (
+    <div
+      ref={overlay ? undefined : setNodeRef}
+      style={style}
+      {...(overlay ? {} : attributes)}
+      {...(overlay ? {} : listeners)}
+      onClick={overlay || !detailHref ? undefined : () => router.push(detailHref)}
+      onPointerEnter={overlay ? undefined : schedulePrefetch}
+      onPointerLeave={overlay ? undefined : cancelPrefetch}
+      onFocus={overlay ? undefined : schedulePrefetch}
+      className={`${styles.card} ${overlay ? styles.cardOverlay : ""} ${done ? styles.cardDone : ""} group/card relative overflow-hidden cursor-pointer`}
+      role="button"
+      tabIndex={overlay ? -1 : 0}
+      aria-label={`${card.code} — ${card.title}`}
+    >
+      <CardTileContent card={card} overlay={overlay} />
+    </div>
+  );
+}
+
+const CardTileContent = memo(function CardTileContent({
+  card,
+  overlay,
+}: {
+  card: CardSummary;
+  overlay: boolean;
+}) {
+  const { labelById, lists } = useBoardMeta();
+  const { snoozeCard, toggleComplete, moveCardToList, updateCard, deleteCard } =
+    useBoardActions();
+  /** Đang chờ máy chủ trả lời cho đúng thẻ này — khoá nút để không bấm đảo chiều */
+  const [completing, setCompleting] = useState(false);
 
   const done = card.completedAt !== null;
   const overdue = card.deadlineStatus === "LATE" && !done;
@@ -92,15 +166,6 @@ function CardTileBase({ card, overlay = false }: Props) {
   // Chỉ Cao/Khẩn cấp mới có chấm ưu tiên — thẻ nào cũng có thì chấm mất tác dụng
   const showPriority =
     card.priority === TaskPriority.URGENT || card.priority === TaskPriority.HIGH;
-
-  const style: CSSProperties = overlay
-    ? { cursor: "grabbing" }
-    : {
-        transform: CSS.Translate.toString(transform),
-        transition,
-        // Thẻ gốc ẩn đi khi đang kéo — bản nhìn thấy là DragOverlay
-        opacity: isDragging ? 0 : 1,
-      };
 
   const labels = card.labelIds
     .map((id) => labelById.get(id))
@@ -120,22 +185,46 @@ function CardTileBase({ card, overlay = false }: Props) {
     checkTotal > 0 ||
     card.source !== "MANUAL";
 
+  // Hàng nhãn: tối đa ba chip, phần dư gom thành "+N" (xem ghi chú bên dưới)
+  const labelRow = (
+    <div className="flex flex-wrap items-center gap-1">
+      {labels.slice(0, MAX_VISIBLE_LABELS).map((l) => (
+        <LabelChip key={l.id} label={l} size="sm" onGlass />
+      ))}
+
+      {labels.length > MAX_VISIBLE_LABELS && (
+        <Tooltip
+          title={
+            <span className="flex flex-col gap-0.5">
+              {labels.slice(MAX_VISIBLE_LABELS).map((l) => (
+                <span key={l.id} className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block size-2 rounded-full shrink-0"
+                    style={{ background: l.color }}
+                  />
+                  {l.name}
+                </span>
+              ))}
+            </span>
+          }
+        >
+          <span
+            className="inline-flex items-center h-[18px] px-1.5 rounded-md text-[10.5px] font-semibold cursor-default"
+            style={{
+              background: "rgba(255,255,255,.22)",
+              border: `1px solid ${G.line}`,
+              color: G.text,
+            }}
+          >
+            +{labels.length - MAX_VISIBLE_LABELS}
+          </span>
+        </Tooltip>
+      )}
+    </div>
+  );
+
   return (
-    <div
-      ref={overlay ? undefined : setNodeRef}
-      style={style}
-      {...(overlay ? {} : attributes)}
-      {...(overlay ? {} : listeners)}
-      onClick={
-        overlay || !board
-          ? undefined
-          : () => router.push(`/boards/${board.id}/cards/${card.id}`)
-      }
-      className={`${styles.card} ${overlay ? styles.cardOverlay : ""} ${done ? styles.cardDone : ""} group/card relative overflow-hidden cursor-pointer`}
-      role="button"
-      tabIndex={overlay ? -1 : 0}
-      aria-label={`${card.code} — ${card.title}`}
-    >
+    <>
       {card.cover && <div style={{ background: card.cover, height: 32 }} />}
 
       {/*
@@ -170,9 +259,9 @@ function CardTileBase({ card, overlay = false }: Props) {
             color: done ? "#2a9d8f" : G.text,
           }}
         >
-          {completing ? (
-            <LoaderCircle size={13} className="animate-spin" />
-          ) : done ? (
+          {/* Không quay spinner: toggleComplete đã đổi thẻ ngay (lạc quan), chỉ
+              khoá nút tới khi server trả lời để không bấm đảo chiều giữa chừng */}
+          {done ? (
             <RotateCcw size={12.5} />
           ) : (
             <Check size={14} />
@@ -188,130 +277,145 @@ function CardTileBase({ card, overlay = false }: Props) {
         thấy. Menu này làm cùng việc đó bằng hai cú bấm.
       */}
       {!overlay && (
-        <Dropdown
-          trigger={["click"]}
-          placement="bottomRight"
-          menu={{
-            items: [
-              {
-                key: "move",
-                icon: <MoveRight size={14} />,
-                label: "Chuyển tới",
-                children: [
-                  ...lists
-                    .filter((l) => l.id !== card.listId)
-                    .map((l) => ({
-                      key: `move-${l.id}`,
-                      label: l.title,
-                      onClick: () => moveCardToList(card.id, l.id),
-                    })),
-                  ...(card.listId !== null
-                    ? [
-                        {
-                          key: "move-inbox",
-                          label: "Hộp thư đến",
-                          onClick: () => moveCardToList(card.id, null),
-                        },
-                      ]
-                    : []),
-                ],
-              },
-              {
-                key: "priority",
-                icon: <Flag size={14} />,
-                label: "Mức ưu tiên",
-                children: Object.values(TaskPriority).map((p) => ({
-                  key: `priority-${p}`,
-                  label: (
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="inline-block size-2 rounded-full"
-                        style={{ background: PRIORITY_META[p].color }}
-                      />
-                      {PRIORITY_META[p].label}
-                    </span>
-                  ),
-                  disabled: p === card.priority,
-                  onClick: () => updateCard(card.id, { priority: p }),
-                })),
-              },
-              { type: "divider" as const },
-              {
-                key: "delete",
-                danger: true,
-                icon: <Trash2 size={14} />,
-                label: "Xoá việc",
-                onClick: () => deleteCard(card.id),
-              },
-            ],
-          }}
+        <div
+          className="contents"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
-          <button
-            aria-label="Thao tác khác"
-            title="Thao tác khác"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="absolute top-1.5 right-1.5 z-10 grid place-items-center size-6 rounded-md
-              border-0 cursor-pointer opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100
-              transition-opacity"
-            style={{
-              background: "rgba(255,255,255,.22)",
-              border: "1px solid rgba(255,255,255,.3)",
-              color: G.text,
+          {/* Menu của antd render qua portal nhưng sự kiện React vẫn nổi theo cây
+              component lên thẻ: không chặn thì bấm "Xoá việc" xong lại mở trang
+              chi tiết, và pointerdown trong menu thành ra kéo thẻ. */}
+          <Dropdown
+            trigger={["click"]}
+            placement="bottomRight"
+            menu={{
+              items: [
+                {
+                  key: "move",
+                  icon: <MoveRight size={14} />,
+                  label: "Chuyển tới",
+                  children: [
+                    ...lists
+                      .filter((l) => l.id !== card.listId)
+                      .map((l) => ({
+                        key: `move-${l.id}`,
+                        label: l.title,
+                        onClick: () => moveCardToList(card.id, l.id),
+                      })),
+                    ...(card.listId !== null
+                      ? [
+                          {
+                            key: "move-inbox",
+                            label: "Hộp thư đến",
+                            onClick: () => moveCardToList(card.id, null),
+                          },
+                        ]
+                      : []),
+                  ],
+                },
+                {
+                  key: "priority",
+                  icon: <Flag size={14} />,
+                  label: "Mức ưu tiên",
+                  children: Object.values(TaskPriority).map((p) => ({
+                    key: `priority-${p}`,
+                    label: (
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block size-2 rounded-full"
+                          style={{ background: PRIORITY_META[p].color }}
+                        />
+                        {PRIORITY_META[p].label}
+                      </span>
+                    ),
+                    disabled: p === card.priority,
+                    onClick: () => updateCard(card.id, { priority: p }),
+                  })),
+                },
+                { type: "divider" as const },
+                {
+                  key: "delete",
+                  danger: true,
+                  icon: <Trash2 size={14} />,
+                  label: "Xoá việc",
+                  onClick: () => deleteCard(card.id),
+                },
+              ],
             }}
           >
-            <MoreHorizontal size={13} />
-          </button>
-        </Dropdown>
+            <button
+              aria-label="Thao tác khác"
+              title="Thao tác khác"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="absolute top-1.5 right-1.5 z-10 grid place-items-center size-6 rounded-md
+                border-0 cursor-pointer opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100
+                transition-opacity"
+              style={{
+                background: "rgba(255,255,255,.22)",
+                border: "1px solid rgba(255,255,255,.3)",
+                color: G.text,
+              }}
+            >
+              <MoreHorizontal size={13} />
+            </button>
+          </Dropdown>
+        </div>
       )}
 
       {/* Hoãn nhanh — chỉ hiện khi rê vào thẻ, để không làm rối lúc đọc lướt */}
       {!overlay && !done && (
-        <Dropdown
-          trigger={["click"]}
-          placement="bottomRight"
-          menu={{
-            items: SNOOZE_OPTIONS.map((opt) => ({
-              key: opt.key,
-              danger: opt.key === "clear",
-              label: (
-                <span className="flex items-center justify-between gap-6">
-                  {opt.label}
-                  {opt.hint && (
-                    <span className="text-[11.5px]" style={{ color: "#808080" }}>
-                      {opt.hint(new Date())}
-                    </span>
-                  )}
-                </span>
-              ),
-              onClick: () => {
-                const target = opt.resolve(new Date());
-                snoozeCard(
-                  card.id,
-                  target ? target.toISOString() : null,
-                  opt.label.toLowerCase(),
-                );
-              },
-            })),
-          }}
+        <div
+          className="contents"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
-          <button
-            aria-label="Dời hạn"
-            title="Dời hạn"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="absolute top-1.5 right-[34px] z-10 grid place-items-center size-6 rounded-md
-              border-0 cursor-pointer opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100
-              transition-opacity"
-            style={{
-              background: "rgba(255,255,255,.22)",
-              border: "1px solid rgba(255,255,255,.3)",
-              color: G.text,
+          <Dropdown
+            trigger={["click"]}
+            placement="bottomRight"
+            menu={{
+              items: SNOOZE_OPTIONS.map((opt) => ({
+                key: opt.key,
+                danger: opt.key === "clear",
+                label: (
+                  <span className="flex items-center justify-between gap-6">
+                    {opt.label}
+                    {opt.hint && (
+                      <span className="text-[11.5px]" style={{ color: "#808080" }}>
+                        {opt.hint(new Date())}
+                      </span>
+                    )}
+                  </span>
+                ),
+                onClick: () => {
+                  const target = opt.resolve(new Date());
+                  snoozeCard(
+                    card.id,
+                    target ? target.toISOString() : null,
+                    opt.label.toLowerCase(),
+                  );
+                },
+              })),
             }}
           >
-            <Hourglass size={13} />
-          </button>
-        </Dropdown>
+            <button
+              aria-label="Dời hạn"
+              title="Dời hạn"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="absolute top-1.5 right-[34px] z-10 grid place-items-center size-6 rounded-md
+                border-0 cursor-pointer opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100
+                transition-opacity"
+              style={{
+                background: "rgba(255,255,255,.22)",
+                border: "1px solid rgba(255,255,255,.3)",
+                color: G.text,
+              }}
+            >
+              <Hourglass size={13} />
+            </button>
+          </Dropdown>
+        </div>
       )}
 
       <div className="px-2.5 py-2 flex flex-col gap-1.5">
@@ -323,45 +427,33 @@ function CardTileBase({ card, overlay = false }: Props) {
           đầu vẫn đủ để nhận diện, phần dư vẫn xem được: rê chuột vào "+N" ra
           danh sách đầy đủ, mà bấm vào thẻ thì màn chi tiết hiện trọn.
         */}
-        {labels.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1">
-            {labels.slice(0, MAX_VISIBLE_LABELS).map((l) => (
-              <LabelChip key={l.id} label={l} size="sm" onGlass />
-            ))}
-
-            {labels.length > MAX_VISIBLE_LABELS && (
-              <Tooltip
-                title={
-                  <span className="flex flex-col gap-0.5">
-                    {labels.slice(MAX_VISIBLE_LABELS).map((l) => (
-                      <span key={l.id} className="flex items-center gap-1.5">
-                        <span
-                          className="inline-block size-2 rounded-full shrink-0"
-                          style={{ background: l.color }}
-                        />
-                        {l.name}
-                      </span>
-                    ))}
-                  </span>
-                }
-              >
-                <span
-                  className="inline-flex items-center h-[18px] px-1.5 rounded-md text-[10.5px] font-semibold cursor-default"
-                  style={{
-                    background: "rgba(255,255,255,.22)",
-                    border: `1px solid ${G.line}`,
-                    color: G.text,
-                  }}
-                >
-                  +{labels.length - MAX_VISIBLE_LABELS}
-                </span>
-              </Tooltip>
-            )}
-          </div>
-        )}
+        {labels.length > 0 &&
+          (overlay ? (
+            labelRow
+          ) : (
+            // Bấm vào hàng nhãn là mở bảng gắn nhãn ngay trên thẻ
+            <StopBubble>
+              <LabelPicker cardId={card.id} selectedIds={card.labelIds}>
+                <div className="cursor-pointer" title="Bấm để đổi nhãn">
+                  {labelRow}
+                </div>
+              </LabelPicker>
+            </StopBubble>
+          ))}
 
         {/* Tiêu đề là thứ đậm nhất trên thẻ */}
-        <div className="flex items-start gap-1.5 pr-5">
+        {/*
+          Chừa chỗ cho các nút nổi ở góc phải: thẻ đã xong luôn hiện 2 nút,
+          thẻ chưa xong hiện 3 nút khi rê chuột — không chừa thì tiêu đề dài
+          bị nút đè lên.
+        */}
+        <div
+          className={`flex items-start gap-1.5 ${
+            done
+              ? "pr-[58px]"
+              : "pr-5 group-hover/card:pr-[86px] group-focus-within/card:pr-[86px]"
+          }`}
+        >
           {showPriority && (
             <span
               title={`Ưu tiên: ${PRIORITY_META[card.priority].label}`}
@@ -375,7 +467,7 @@ function CardTileBase({ card, overlay = false }: Props) {
             />
           )}
           <span
-            className="text-[13.5px] font-medium leading-[1.45]"
+            className="min-w-0 text-[13.5px] font-medium leading-[1.45] [overflow-wrap:anywhere]"
             style={{
               color: done ? G.textMuted : G.text,
               textDecoration: done ? "line-through" : undefined,
@@ -466,8 +558,52 @@ function CardTileBase({ card, overlay = false }: Props) {
                 {card.noteCount}
               </Badge>
             )}
+
+            {/*
+              Gắn nhãn nhanh ngay trên bảng, không phải mở chi tiết thẻ. Hiện
+              khi rê vào thẻ; đặt ở hàng dưới cùng để không chen vào chỗ của
+              tiêu đề như ba nút ở góc trên.
+            */}
+            {!overlay && (
+              <StopBubble className="ml-auto">
+                <LabelPicker cardId={card.id} selectedIds={card.labelIds}>
+                  <button
+                    type="button"
+                    aria-label="Gắn nhãn"
+                    title="Gắn nhãn"
+                    className="grid place-items-center size-6 rounded-md border-0 cursor-pointer
+                      opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 transition-opacity"
+                    style={{
+                      background: "rgba(255,255,255,.22)",
+                      border: "1px solid rgba(255,255,255,.3)",
+                      color: G.text,
+                    }}
+                  >
+                    <Tag size={12.5} />
+                  </button>
+                </LabelPicker>
+              </StopBubble>
+            )}
         </div>
       </div>
+    </>
+  );
+});
+
+/**
+ * Chặn click / pointerdown nổi lên thẻ. Popover của antd render qua portal
+ * nhưng sự kiện React vẫn nổi theo cây component: không chặn thì bấm chọn một
+ * nhãn là mở luôn trang chi tiết, còn pointerdown thì thành ra kéo thẻ.
+ */
+function StopBubble({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={className ?? "contents"}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {children}
     </div>
   );
 }

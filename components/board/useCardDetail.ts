@@ -22,19 +22,26 @@ import {
 } from "@/models/board";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { isRichTextEmpty } from "@/utils/client/richText";
-import { BOARD_QUERY_KEY, cardDetailKey } from "./BoardStore";
+import { BOARD_QUERY_KEY, NOTES_FEED_KEY, cardDetailKey } from "./BoardStore";
 
 export { cardDetailKey };
+
+/**
+ * Cấu hình query chi tiết — dùng chung cho `useCardDetail` và phần tải trước
+ * khi rê chuột trên thẻ (CardTile). Hai nơi mà tự viết queryFn/staleTime riêng
+ * thì sớm muộn sẽ lệch nhau.
+ */
+export const cardDetailQuery = (cardId: string) => ({
+  queryKey: cardDetailKey(cardId),
+  queryFn: () => boardApi.cardDetail(cardId),
+  staleTime: 30_000,
+});
 
 export function useCardDetail(cardId: string) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
 
-  const query = useQuery({
-    queryKey: cardDetailKey(cardId),
-    queryFn: () => boardApi.cardDetail(cardId),
-    staleTime: 30_000,
-  });
+  const query = useQuery(cardDetailQuery(cardId));
 
   const patchDetail = useCallback(
     (fn: (card: CardDetail) => CardDetail) => {
@@ -65,6 +72,12 @@ export function useCardDetail(cardId: string) {
     [message, queryClient, cardId],
   );
 
+  /** Tab "Ghi chú" trên mobile đọc từ query riêng — thêm/sửa/xoá xong phải làm mới */
+  const refreshNotesFeed = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: NOTES_FEED_KEY }),
+    [queryClient],
+  );
+
   // ==========================================
   // MÔ TẢ / THUỘC TÍNH
   // ==========================================
@@ -89,6 +102,38 @@ export function useCardDetail(cardId: string) {
     mutationFn: (title: string) => boardApi.addChecklist(cardId, title),
     onSuccess: (checklist) =>
       patchDetail((card) => ({ ...card, checklists: [...card.checklists, checklist] })),
+    onError: onFail,
+  });
+
+  const renameChecklist = useMutation({
+    mutationFn: ({ checklistId, title }: { checklistId: string; title: string }) =>
+      boardApi.updateChecklist(checklistId, title),
+    onMutate: ({ checklistId, title }) => {
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.map((cl) => (cl.id === checklistId ? { ...cl, title } : cl)),
+      }));
+    },
+    onError: onFail,
+  });
+
+  const deleteChecklist = useMutation({
+    mutationFn: (checklistId: string) => boardApi.deleteChecklist(checklistId),
+    onMutate: (checklistId) => {
+      const removed = query.data?.checklists.find((cl) => cl.id === checklistId);
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.filter((cl) => cl.id !== checklistId),
+      }));
+      if (removed) {
+        const doneCount = removed.items.filter((it) => it.checked).length;
+        patchSummary((c) => ({
+          ...c,
+          checklistTotal: Math.max(0, c.checklistTotal - removed.items.length),
+          checklistDone: Math.max(0, c.checklistDone - doneCount),
+        }));
+      }
+    },
     onError: onFail,
   });
 
@@ -128,6 +173,60 @@ export function useCardDetail(cardId: string) {
     },
     onError: onFail,
   });
+
+  const updateChecklistItemContent = useMutation({
+    mutationFn: ({ itemId, content }: { itemId: string; content: string }) =>
+      boardApi.updateChecklistItem(itemId, { content }),
+    onMutate: ({ itemId, content }) => {
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.map((cl) => ({
+          ...cl,
+          items: cl.items.map((it) => (it.id === itemId ? { ...it, content } : it)),
+        })),
+      }));
+    },
+    onError: onFail,
+  });
+
+  /**
+   * Kéo mục tới vị trí `toIndex` trong cùng danh sách. Position tính kiểu
+   * "chen giữa hai hàng xóm" như thẻ trên bảng, nên chỉ phải ghi đúng một mục.
+   */
+  const moveChecklistItem = useMutation({
+    mutationFn: ({ itemId, position }: { itemId: string; position: number }) =>
+      boardApi.updateChecklistItem(itemId, { position }),
+    onError: onFail,
+  });
+
+  const reorderChecklistItem = useCallback(
+    (checklistId: string, itemId: string, toIndex: number) => {
+      const list = query.data?.checklists.find((c) => c.id === checklistId);
+      if (!list) return;
+      const others = [...list.items]
+        .sort((a, b) => a.position - b.position)
+        .filter((it) => it.id !== itemId);
+      const position = computePosition(
+        others[toIndex - 1]?.position,
+        others[toIndex]?.position,
+      );
+      patchDetail((card) => ({
+        ...card,
+        checklists: card.checklists.map((cl) =>
+          cl.id === checklistId
+            ? {
+                ...cl,
+                items: cl.items
+                  .map((it) => (it.id === itemId ? { ...it, position } : it))
+                  .sort((a, b) => a.position - b.position),
+              }
+            : cl,
+        ),
+      }));
+      moveChecklistItem.mutate({ itemId, position });
+    },
+    [query.data, patchDetail, moveChecklistItem],
+  );
 
   const deleteChecklistItem = useMutation({
     mutationFn: (itemId: string) => boardApi.deleteChecklistItem(itemId),
@@ -178,6 +277,18 @@ export function useCardDetail(cardId: string) {
     onError: onFail,
   });
 
+  const renameAttachment = useMutation({
+    mutationFn: ({ attachmentId, name }: { attachmentId: string; name: string }) =>
+      boardApi.updateAttachment(attachmentId, { name }),
+    onMutate: ({ attachmentId, name }) => {
+      patchDetail((card) => ({
+        ...card,
+        attachments: card.attachments.map((a) => (a.id === attachmentId ? { ...a, name } : a)),
+      }));
+    },
+    onError: onFail,
+  });
+
   const deleteAttachment = useMutation({
     mutationFn: (attachmentId: string) => boardApi.deleteAttachment(attachmentId),
     onMutate: (attachmentId) => {
@@ -199,6 +310,7 @@ export function useCardDetail(cardId: string) {
       // Ghi chú mới nhất đứng đầu, giống thứ tự server trả
       patchDetail((card) => ({ ...card, notes: [note, ...card.notes] }));
       patchSummary((c) => ({ ...c, noteCount: c.noteCount + 1 }));
+      refreshNotesFeed();
     },
     onError: onFail,
   });
@@ -228,6 +340,7 @@ export function useCardDetail(cardId: string) {
         ...card,
         notes: card.notes.map((n) => (n.id === note.id ? note : n)),
       }));
+      refreshNotesFeed();
     },
     onError: onFail,
   });
@@ -238,6 +351,7 @@ export function useCardDetail(cardId: string) {
       patchDetail((card) => ({ ...card, notes: card.notes.filter((n) => n.id !== noteId) }));
       patchSummary((c) => ({ ...c, noteCount: Math.max(0, c.noteCount - 1) }));
     },
+    onSuccess: () => refreshNotesFeed(),
     onError: onFail,
   });
 
@@ -247,10 +361,15 @@ export function useCardDetail(cardId: string) {
     error: query.error,
     updateCard,
     addChecklist,
+    renameChecklist,
+    deleteChecklist,
     addChecklistItem,
     toggleChecklistItem,
+    updateChecklistItemContent,
+    reorderChecklistItem,
     deleteChecklistItem,
     addAttachment,
+    renameAttachment,
     deleteAttachment,
     addNote,
     updateNote,

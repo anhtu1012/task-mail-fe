@@ -1,9 +1,11 @@
 "use client";
 
 import { ReactNode, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Avatar, Drawer, Dropdown, Grid, Spin, Tooltip } from "antd";
 import {
+  CalendarCheck,
   CalendarDays,
   ClipboardList,
   Columns3,
@@ -11,13 +13,19 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  Megaphone,
   Menu as MenuIcon,
   Palette,
   PlugZap,
   SquareKanban,
+  StickyNote,
   Tags,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { authApi } from "@/apis/auth.api";
+import { BOARD_QUERY_KEY } from "@/hooks/boardKeys";
+import { loadBoardSnapshot } from "@/hooks/boardSnapshot";
+import { useAppSelector } from "@/store/hooks";
 import { useMe } from "@/hooks/useTaskApp";
 import { useClearProject, useCurrentProject } from "@/hooks/useProjects";
 import { ROLE_META, isAdminRole } from "@/models/task";
@@ -28,6 +36,10 @@ import {
   useThemeSync,
 } from "@/contexts/ThemeContext";
 import ThemeSettings from "@/components/global/ThemeSettings/ThemeSettings";
+import InstallAppBanner from "@/components/global/InstallApp/InstallAppBanner";
+import { QuickAddSheet } from "@/components/mobile/QuickAddSheet";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import MobileTabBar from "./_components/MobileTabBar";
 import ProjectSwitcher from "./_components/ProjectSwitcher";
 import SyncIndicator from "./_components/SyncIndicator";
 import styles from "./layout.module.scss";
@@ -38,6 +50,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  // Thanh tab dưới cùng — xem hooks/useIsMobile vì sao tách khỏi `isMobile`
+  const showTabBar = useIsMobile();
   const [tokenChecked, setTokenChecked] = useState(false);
 
   const { setSettingsOpen } = useAppTheme();
@@ -51,15 +66,46 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     isLoading: projectsLoading,
   } = useCurrentProject();
   const clearProject = useClearProject();
+  const queryClient = useQueryClient();
 
-  // Guard: chưa có accessToken -> về /login
+  // Guard: chưa có accessToken -> thử refresh_token, thất bại mới về /login
   useEffect(() => {
-    if (!getCookie("accessToken")) {
-      router.replace("/login");
-    } else {
-      setTokenChecked(true);
-    }
+    let cancelled = false;
+    const check = getCookie("accessToken")
+      ? Promise.resolve(true)
+      : authApi.restoreSession();
+    check.then((ok) => {
+      if (cancelled) return;
+      if (ok) setTokenChecked(true);
+      else router.replace("/login");
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
+
+  /*
+   * Mở thẳng vào bảng: gọi snapshot NGAY, song song với `/auth/me` và
+   * `/projects`, thay vì đợi hai cái đó xong (trang chưa qua chốt chặn bên
+   * dưới thì BoardProvider chưa mount, nên chưa gọi được) — bớt hẳn một vòng
+   * mạng lúc mở app. Dùng dự án đã lưu từ lần trước; nếu nó hoá ra không còn
+   * hợp lệ, `useCurrentProject` sẽ dọn lựa chọn và trang chọn dự án xoá cache
+   * bảng như thường, nên dữ liệu tải trước không bao giờ được hiển thị sai.
+   * BoardProvider gắn vào sau sẽ dùng lại kết quả này (staleTime 30s).
+   */
+  const persisted = useAppSelector((s) => s.project);
+  useEffect(() => {
+    if (!pathname.startsWith("/boards/") || !getCookie("accessToken")) return;
+    const { currentProjectId, ownerUserId } = persisted;
+    if (!currentProjectId || !ownerUserId) return;
+    void queryClient.prefetchQuery({
+      queryKey: BOARD_QUERY_KEY,
+      queryFn: () => loadBoardSnapshot(queryClient, currentProjectId),
+      staleTime: 30_000,
+    });
+    // Chỉ một lần lúc mở app — các lần sau BoardProvider tự lo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Refresh token thất bại / session hết hạn -> interceptor bắn event này
   useEffect(() => {
@@ -87,6 +133,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         label: "Tổng quan",
       },
       {
+        key: "/today",
+        icon: <CalendarCheck size={19} />,
+        label: "Hôm nay",
+      },
+      {
         key: "/tasks",
         icon: <ListChecks size={19} />,
         label: "Công việc",
@@ -100,6 +151,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         key: "/boards",
         icon: <Columns3 size={19} />,
         label: "Bảng công việc",
+      },
+      {
+        key: "/notes",
+        icon: <StickyNote size={19} />,
+        label: "Ghi chú",
       },
       {
         key: "/calendar",
@@ -124,6 +180,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         icon: <Tags size={19} />,
         label: "Loại công việc",
       });
+      items.push({
+        key: "/announcements",
+        icon: <Megaphone size={19} />,
+        label: "Gửi thông báo",
+      });
     }
     return items;
   }, [admin]);
@@ -139,6 +200,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     clearThemeSession();
     // Người kế tiếp đăng nhập trên máy này phải tự chọn dự án của họ
     clearProject();
+    // Xoá cả cache dữ liệu: không thì người đăng nhập kế tiếp trên cùng tab
+    // thoáng thấy việc / bảng (kể cả bản cất theo dự án) của người trước
+    queryClient.clear();
     router.replace("/login");
   };
 
@@ -168,10 +232,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       <nav className={styles.nav}>
         {menuItems.map((item) => (
-          <button
+          // <Link> chứ không phải <button> + router.push: là thẻ <a> thật thì
+          // Ctrl/Cmd + click, chuột giữa, "Mở trong tab mới" đều dùng được
+          <Link
             key={item.key}
-            type="button"
-            onClick={() => router.push(item.key)}
+            href={item.key}
             className={`${styles.navItem} ${
               selectedKey === item.key ? styles.navItemActive : ""
             }`}
@@ -180,7 +245,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           >
             <span className={styles.navIcon}>{item.icon}</span>
             <span className={styles.navLabel}>{item.label}</span>
-          </button>
+          </Link>
         ))}
       </nav>
 
@@ -237,7 +302,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className={styles.shell}>
+    <div className={`${styles.shell} ${showTabBar ? styles.shellWithTabs : ""}`}>
       {!isMobile && rail()}
 
       {isMobile && (
@@ -255,20 +320,36 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           >
             {rail(true)}
           </Drawer>
-          <button
-            type="button"
-            aria-label="Mở menu"
-            className={styles.mobileFab}
-            onClick={() => setMobileNavOpen(true)}
-          >
-            <MenuIcon size={22} />
-          </button>
+          {/* Có thanh tab thì nút Menu nằm trong đó — nút nổi chỉ còn là dự phòng */}
+          {!showTabBar && (
+            <button
+              type="button"
+              aria-label="Mở menu"
+              className={styles.mobileFab}
+              onClick={() => setMobileNavOpen(true)}
+            >
+              <MenuIcon size={22} />
+            </button>
+          )}
+        </>
+      )}
+
+      {showTabBar && (
+        <>
+          <MobileTabBar
+            onQuickAdd={() => setQuickAddOpen(true)}
+            onMenu={() => setMobileNavOpen(true)}
+          />
+          <QuickAddSheet open={quickAddOpen} onClose={() => setQuickAddOpen(false)} />
         </>
       )}
 
       <main className={styles.main}>
         <SyncIndicator />
-        <div className={styles.content}>{children}</div>
+        <div className={styles.content}>
+          {showTabBar && <InstallAppBanner />}
+          {children}
+        </div>
       </main>
 
       <ThemeSettings />

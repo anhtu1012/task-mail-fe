@@ -12,7 +12,7 @@ import {
   Mail,
   TrendingUp,
 } from "lucide-react";
-import TaskDistributionCharts from "@/components/dashboard/TaskDistributionCharts";
+import dynamic from "next/dynamic";
 import { useTaskStats, useTasks } from "@/hooks/useTaskApp";
 import {
   DEADLINE_META,
@@ -21,6 +21,12 @@ import {
   Task,
   TaskStatus,
 } from "@/models/task";
+
+// recharts nặng (~100KB gzip) — tách chunk để số liệu hiện trước, biểu đồ vào sau
+const TaskDistributionCharts = dynamic(
+  () => import("@/components/dashboard/TaskDistributionCharts"),
+  { ssr: false, loading: () => <Skeleton active paragraph={{ rows: 6 }} /> },
+);
 
 const fmt = (d?: string | null) => (d ? dayjs(d).format("DD/MM/YYYY HH:mm") : "—");
 

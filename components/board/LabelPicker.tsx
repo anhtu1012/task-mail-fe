@@ -22,7 +22,7 @@ import {
   LABEL_COLORS,
   LABEL_ICONS,
 } from "@/models/board";
-import { useBoard } from "./BoardStore";
+import { useBoardActions, useBoardMeta } from "./BoardStore";
 import LabelIcon from "./LabelIcon";
 import { C } from "./ui";
 
@@ -60,7 +60,9 @@ function PickerBody({
   cardId: string;
   selectedIds: string[];
 }) {
-  const { labels, toggleCardLabel, deleteLabel } = useBoard();
+  // Context hẹp: popover này gắn trên MỌI thẻ, đọc `useBoard()` là vẽ lại theo cả bảng
+  const { labels } = useBoardMeta();
+  const { toggleCardLabel, deleteLabel } = useBoardActions();
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const [keyword, setKeyword] = useState("");
 
@@ -89,9 +91,19 @@ function PickerBody({
         size="small"
         allowClear
         autoFocus
-        placeholder="Tìm hoặc tạo nhãn..."
+        placeholder="Tìm hoặc tạo nhãn... (Enter để chọn)"
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
+        // Gắn nhanh bằng bàn phím: gõ vài chữ rồi Enter là bật/tắt nhãn khớp
+        // đầu tiên; không khớp nhãn nào thì mở form tạo với đúng tên vừa gõ
+        onPressEnter={() => {
+          if (visible[0]) {
+            toggleCardLabel(cardId, visible[0].id);
+            setKeyword("");
+          } else if (kw) {
+            setMode({ kind: "create" });
+          }
+        }}
       />
 
       <div className="flex flex-col gap-0.5 max-h-[232px] overflow-auto">
@@ -187,7 +199,7 @@ function LabelForm({
   initialName?: string;
   onDone: () => void;
 }) {
-  const { createLabel, updateLabel } = useBoard();
+  const { createLabel, updateLabel } = useBoardActions();
   const [name, setName] = useState(label?.name ?? initialName ?? "");
   const [color, setColor] = useState(label?.color ?? LABEL_COLORS[0]);
   // `null` là giá trị hợp lệ: nhãn không icon, chỉ có màu

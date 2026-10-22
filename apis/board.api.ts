@@ -11,8 +11,11 @@
  */
 import {
   AgendaResponse,
+  NotesFeed,
   Board,
   BoardLabel,
+  BoardFullResponse,
+  BoardInclude,
   BoardList,
   BoardSnapshot,
   CardDetail,
@@ -78,6 +81,36 @@ class BoardApi extends AxiosService {
     return this.getWithParams<BoardSnapshot>(
       API_ENDPOINTS.BOARD.ME_FULL,
       params({ projectId, cardsPerList, tz: browserTimezone() }),
+    );
+  }
+
+  /**
+   * Như `snapshot` nhưng gộp thêm danh sách dự án / loại việc vào cùng một
+   * request (backend `?include=`). Đừng gọi trực tiếp — dùng
+   * `hooks/boardSnapshot.loadBoardSnapshot`, nơi đổ phần gộp vào đúng khoá
+   * cache của endpoint riêng.
+   */
+  public snapshotWith(
+    include: BoardInclude[],
+    projectId?: string,
+    cardsPerList = 20,
+  ): Promise<BoardFullResponse> {
+    return this.getWithParams<BoardFullResponse>(
+      API_ENDPOINTS.BOARD.ME_FULL,
+      params({
+        projectId,
+        cardsPerList,
+        tz: browserTimezone(),
+        include: include.join(","),
+      }),
+    );
+  }
+
+  /** Dòng ghi chú của mọi thẻ trên bảng, mới nhất trước (tab Ghi chú mobile) */
+  public notesFeed(before?: string, projectId?: string, limit = 20): Promise<NotesFeed> {
+    return this.getWithParams<NotesFeed>(
+      API_ENDPOINTS.BOARD.ME_NOTES,
+      params({ before, projectId, limit }),
     );
   }
 
@@ -279,6 +312,13 @@ class BoardApi extends AxiosService {
     );
   }
 
+  public updateChecklist(checklistId: string, title: string): Promise<Checklist> {
+    return this.patch<Checklist, { title: string }>(
+      API_ENDPOINTS.CHECKLISTS.DETAIL(checklistId),
+      { title },
+    );
+  }
+
   public deleteChecklist(checklistId: string): Promise<void> {
     return this.delete<void>(API_ENDPOINTS.CHECKLISTS.DETAIL(checklistId));
   }
@@ -342,6 +382,16 @@ class BoardApi extends AxiosService {
   ): Promise<CardAttachment> {
     return this.post<CardAttachment, typeof input>(
       API_ENDPOINTS.CARDS.ATTACHMENTS(cardId),
+      clean(input) as typeof input,
+    );
+  }
+
+  public updateAttachment(
+    attachmentId: string,
+    input: { name?: string; isCover?: boolean },
+  ): Promise<CardAttachment> {
+    return this.patch<CardAttachment, typeof input>(
+      API_ENDPOINTS.ATTACHMENTS.DETAIL(attachmentId),
       clean(input) as typeof input,
     );
   }

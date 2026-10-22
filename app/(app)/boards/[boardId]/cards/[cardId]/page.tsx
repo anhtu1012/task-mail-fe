@@ -15,6 +15,17 @@ import { ConfigProvider } from "antd";
 import { useRouter } from "next/navigation";
 import { CardDetailView } from "@/components/board/CardDetailView";
 
+/**
+ * `?back=/today` — mở thẻ từ tab mobile thì đóng phải về đúng tab đó, không về
+ * bảng. Chỉ nhận đường dẫn nội bộ ("/..." nhưng không "//...") để link lạ
+ * không dẫn được người dùng ra trang ngoài.
+ */
+function backTarget(): string | null {
+  if (typeof window === "undefined") return null;
+  const back = new URLSearchParams(window.location.search).get("back");
+  return back && back.startsWith("/") && !back.startsWith("//") ? back : null;
+}
+
 export default function CardPage({
   params,
 }: {
@@ -40,7 +51,7 @@ export default function CardPage({
         <ConfigProvider theme={{ token: { zIndexPopupBase: 1200 } }}>
         <CardDetailView
           cardId={cardId}
-          onClose={() => router.push(`/boards/${boardId}`)}
+          onClose={() => router.push(backTarget() ?? `/boards/${boardId}`)}
         />
         </ConfigProvider>
       </div>

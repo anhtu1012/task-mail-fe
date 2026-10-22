@@ -38,6 +38,16 @@ import { clearThemeSession } from "@/contexts/ThemeContext";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { getCookie } from "@/utils/client/getCookie";
 
+/**
+ * Trang đầu tiên sau khi vào dự án: điện thoại vào thẳng tab "Hôm nay" (Tổng
+ * quan không có trên thanh tab mobile), máy tính vào Tổng quan như cũ. Cùng
+ * ngưỡng 768px với `useIsMobile`.
+ */
+function landingPath(): string {
+  if (typeof window === "undefined") return "/dashboard";
+  return window.matchMedia("(max-width: 767.98px)").matches ? "/today" : "/dashboard";
+}
+
 export default function SelectProjectPage() {
   const router = useRouter();
   const { data: me } = useMe();
@@ -62,7 +72,7 @@ export default function SelectProjectPage() {
     const fallback = projects.find((p) => p.isDefault);
     if (fallback) {
       switchProject(fallback.id);
-      router.replace("/dashboard");
+      router.replace(landingPath());
     }
   }, [manual, isLoading, me, project, projects, switchProject, router]);
 
@@ -77,7 +87,7 @@ export default function SelectProjectPage() {
 
   const enter = (p: Project) => {
     switchProject(p.id);
-    router.replace("/dashboard");
+    router.replace(landingPath());
   };
 
   const logout = async () => {

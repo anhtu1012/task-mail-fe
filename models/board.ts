@@ -20,7 +20,9 @@ import {
   TaskCategory,
   TaskPriority,
   TaskStatus,
+  TaskType,
 } from "./task";
+import type { ProjectListResponse } from "./project";
 
 /** Luật lặp dùng chung — định nghĩa ở `models/task`, xuất lại cho tiện dùng */
 export type { RepeatRule };
@@ -243,6 +245,15 @@ export type BoardSnapshot = {
   today: TodayStats;
 };
 
+/** Phần gộp thêm vào `/boards/me/full` khi xin qua `?include=` */
+export type BoardInclude = "projects" | "taskTypes";
+
+/** Response thô của `/full` có `include` — chỉ `hooks/boardSnapshot` đọc kiểu này */
+export type BoardFullResponse = BoardSnapshot & {
+  projects?: ProjectListResponse;
+  taskTypes?: TaskType[];
+};
+
 export type CardPage = {
   items: CardSummary[];
   /** position của thẻ cuối; null = đã hết */
@@ -261,6 +272,24 @@ export type AgendaResponse = {
    */
   plannedMinutes: number;
   doneToday: number;
+};
+
+/** GET /boards/me/notes — một ghi chú kèm thẻ chứa nó */
+export type NoteFeedItem = CardNote & {
+  card: {
+    id: string;
+    code: string;
+    title: string;
+    status: TaskStatus;
+    /** null = đang ở Hộp thư đến */
+    listTitle: string | null;
+  };
+};
+
+export type NotesFeed = {
+  items: NoteFeedItem[];
+  /** Truyền vào `before` để lấy trang kế; null = hết */
+  nextCursor: string | null;
 };
 
 export type SearchResponse = {

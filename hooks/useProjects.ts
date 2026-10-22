@@ -17,6 +17,7 @@ import { projectApi } from "@/apis/project.api";
 import {
   CreateProjectInput,
   Project,
+  ProjectListResponse,
   UpdateProjectInput,
 } from "@/models/project";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -24,6 +25,7 @@ import { clearCurrentProject, setCurrentProject } from "@/store/slices/project";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { getCookie } from "@/utils/client/getCookie";
 import { useMe } from "./useTaskApp";
+import { BOARD_QUERY_KEY, boardStashKey } from "./boardKeys";
 
 export const PROJECT_QK = {
   all: ["projects"] as const,
@@ -107,15 +109,33 @@ export function useSwitchProject() {
   const queryClient = useQueryClient();
   const { data: me } = useMe();
 
+  const currentProjectId = useAppSelector((s) => s.project.currentProjectId);
+
   return useCallback(
     (projectId: string) => {
       if (!me) return;
+      /*
+       * Cất bảng của dự án đang rời đi, trước khi dọn cache. Quay lại dự án đó
+       * là bảng hiện NGAY từ bản cất (của đúng dự án đó, nên không có chuyện
+       * lộ việc của dự án khác), rồi tải lại ở nền vì bản cất đã cũ.
+       */
+      const leaving = queryClient.getQueryData(BOARD_QUERY_KEY);
+      if (currentProjectId && leaving) {
+        queryClient.setQueryData(boardStashKey(me.id, currentProjectId), leaving);
+      }
+
       dispatch(setCurrentProject({ projectId, userId: me.id }));
       ["tasks", "task", "task-stats", "board", "agenda"].forEach((key) =>
         queryClient.removeQueries({ queryKey: [key] }),
       );
+
+      const stashed = queryClient.getQueryData(boardStashKey(me.id, projectId));
+      if (stashed) {
+        // updatedAt = 0 -> coi như đã cũ, query của bảng sẽ tự tải lại khi gắn vào
+        queryClient.setQueryData(BOARD_QUERY_KEY, stashed, { updatedAt: 0 });
+      }
     },
-    [dispatch, me, queryClient],
+    [dispatch, me, queryClient, currentProjectId],
   );
 }
 
@@ -135,11 +155,27 @@ function useInvalidateProjects() {
 
 export function useCreateProject() {
   const { message } = App.useApp();
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateProjects();
   return useMutation({
     mutationFn: (input: CreateProjectInput) => projectApi.create(input),
     onSuccess: (project) => {
       message.success(`Đã tạo dự án ${project.name}`);
+      /*
+       * Chèn ngay dự án mới vào danh sách đang cache, TRƯỚC khi tải lại.
+       *
+       * Thiếu bước này thì chuyển sang dự án vừa tạo sẽ hỏng: danh sách cũ
+       * chưa có nó, `useCurrentProject` tưởng dự án đã bị xoá nên dọn lựa
+       * chọn, rồi trang chọn dự án tự vào dự án mặc định — đúng lỗi "tạo dự
+       * án mới lại nhảy về dự án mặc định".
+       */
+      queryClient.setQueriesData<ProjectListResponse>(
+        { queryKey: PROJECT_QK.all },
+        (prev) =>
+          prev && !prev.items.some((p) => p.id === project.id)
+            ? { ...prev, items: [...prev.items, project], total: prev.total + 1 }
+            : prev,
+      );
       invalidate();
     },
     onError: (error) => message.error(getApiErrorMessage(error)),

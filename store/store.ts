@@ -7,6 +7,13 @@ import rootReducer from "./RootReducer";
 const persistConfig = {
   key: "root", // Key để lưu trong storage
   storage,
+  /*
+   * Chỉ lưu những gì PHẢI sống qua lần tải lại trang. Lưu cả root thì mỗi lần
+   * dispatch bất kỳ (kể cả `sider` — dữ liệu phụ của menu) lại serialize toàn
+   * bộ store xuống localStorage, và lúc mở app phải đọc/parse lại tất cả trước
+   * khi PersistGate cho vẽ giao diện.
+   */
+  whitelist: ["project", "boardView", "permissions"],
 };
 
 // Tạo persisted reducer

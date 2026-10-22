@@ -7,6 +7,8 @@ import { RotateCw, TriangleAlert } from "lucide-react";
 import { getApiErrorMessage } from "@/utils/client/apiError";
 import { useBoard } from "./BoardStore";
 import { BoardWorkspace } from "./BoardWorkspace";
+import { MobileBoard } from "@/components/mobile/MobileBoard";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { G } from "./ui";
 import styles from "./board.module.scss";
 
@@ -31,6 +33,8 @@ import styles from "./board.module.scss";
  */
 export function BoardShell() {
   const { fullscreen, setFullscreen, paletteOpen, isLoading, error, refetch } = useBoard();
+  // Điện thoại: một cột mỗi lúc, không kéo thả — xem components/mobile/MobileBoard
+  const isMobile = useIsMobile();
 
 
   useEffect(() => {
@@ -53,6 +57,8 @@ export function BoardShell() {
           <ErrorState message={getApiErrorMessage(error)} onRetry={refetch} />
         ) : isLoading ? (
           <LoadingState />
+        ) : isMobile ? (
+          <MobileBoard />
         ) : (
           <BoardWorkspace />
         )}

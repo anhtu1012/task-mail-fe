@@ -357,7 +357,7 @@ export default function KanbanPage() {
                                     completeTask.isPending &&
                                     completeTask.variables === task.id
                                   }
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center size-5 rounded border-0 cursor-pointer bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white disabled:opacity-100"
+                                  className="md:opacity-0 md:group-hover:opacity-100 transition-opacity grid place-items-center size-8 md:size-5 rounded-md md:rounded border-0 cursor-pointer bg-[#e6f5f3] text-[#2a9d8f] hover:bg-[#2a9d8f] hover:text-white disabled:opacity-100"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     completeTask.mutate(task.id);

@@ -18,6 +18,7 @@ import { taskTypeApi } from "@/apis/task-type.api";
 import { integrationApi } from "@/apis/integration.api";
 import {
   CreateTaskInput,
+  NotificationPreferenceInput,
   QueryTaskParams,
   SaveTaskTypeInput,
   Task,
@@ -53,6 +54,8 @@ export const QK = {
   mailAccounts: ["mail-accounts"] as const,
   zaloMe: ["zalo-me"] as const,
   zaloBot: ["zalo-bot-status"] as const,
+  zaloRecipients: ["zalo-bot-recipients"] as const,
+  notificationPreference: ["notification-preference"] as const,
 };
 
 // ==========================================
@@ -344,10 +347,14 @@ export function useAssignableUsers(enabled: boolean) {
  * Nhãn thuộc BẢNG, mà mỗi dự án một bảng — nên khoá cache có `projectId`, đổi
  * dự án là tra bảng khác.
  */
+/** Khoá cache nhãn của một dự án — `loadBoardSnapshot` cũng ghi vào đây */
+export const boardLabelsKey = (projectId: string | null) =>
+  ["board", "labels", projectId] as const;
+
 export function useBoardLabels() {
   const projectId = useProjectScope();
   const query = useQuery({
-    queryKey: ["board", "labels", projectId],
+    queryKey: boardLabelsKey(projectId),
     queryFn: () => boardApi.labels(projectId ?? undefined),
     enabled: !!projectId,
     staleTime: 5 * 60 * 1000,
@@ -368,7 +375,7 @@ export function useCreateBoardLabel() {
 
   return useMutation({
     mutationFn: async (input: { name: string; color: string; icon?: string | null }) => {
-      const cachedLabels = queryClient.getQueryData<BoardLabel[]>(["board", "labels", projectId]);
+      const cachedLabels = queryClient.getQueryData<BoardLabel[]>(boardLabelsKey(projectId));
       let boardId = cachedLabels?.[0]?.boardId;
       if (!boardId) {
         const snap = queryClient.getQueryData<BoardSnapshot>(["board", "snapshot"]);
@@ -383,7 +390,7 @@ export function useCreateBoardLabel() {
     onSuccess: (newLabel) => {
       message.success(`Đã tạo nhãn "${newLabel.name}"`);
       queryClient.setQueryData<BoardLabel[]>(
-        ["board", "labels", projectId],
+        boardLabelsKey(projectId),
         (old) => (old ? [...old, newLabel] : [newLabel]),
       );
       queryClient.setQueryData<BoardSnapshot>(["board", "snapshot"], (snap) => {
@@ -431,6 +438,28 @@ export function useZaloLinkStatus() {
   });
 }
 
+export function useNotificationPreference() {
+  return useQuery({
+    queryKey: QK.notificationPreference,
+    queryFn: () => integrationApi.getNotificationPreference(),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSaveNotificationPreference() {
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: NotificationPreferenceInput) =>
+      integrationApi.saveNotificationPreference(input),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(QK.notificationPreference, saved);
+      message.success("Đã lưu cài đặt thông báo");
+    },
+    onError: (error) => message.error(getApiErrorMessage(error)),
+  });
+}
+
 export function useZaloBotStatus(enabled: boolean) {
   return useQuery({
     queryKey: QK.zaloBot,
@@ -438,6 +467,15 @@ export function useZaloBotStatus(enabled: boolean) {
     enabled,
     staleTime: 5 * 60 * 1000,
     retry: false,
+  });
+}
+
+export function useZaloRecipients(enabled: boolean) {
+  return useQuery({
+    queryKey: QK.zaloRecipients,
+    queryFn: () => integrationApi.listZaloRecipients(),
+    enabled,
+    staleTime: 60 * 1000,
   });
 }
 

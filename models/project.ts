@@ -127,7 +127,20 @@ export const PROJECT_ERROR_MESSAGES: Record<string, string> = {
   PROJECT_NOT_EMPTY:
     "Dự án vẫn còn công việc. Hãy chuyển hoặc xoá hết công việc trước, hoặc chọn lưu trữ thay vì xoá.",
   PROJECT_ARCHIVED: "Dự án đã được lưu trữ, không thể thêm việc mới.",
+  PROJECT_SYSTEM_LOCKED:
+    "“Công việc chung” là dự án hệ thống — không xoá, không lưu trữ, không đổi mã được.",
 };
+
+/** Mã của dự án hệ thống "Công việc chung" — khớp `DEFAULT_PROJECT_CODE` ở backend */
+export const SYSTEM_PROJECT_CODE = "CHUNG";
+
+/**
+ * "Công việc chung" là dữ liệu cứng: không xoá, không lưu trữ, không đổi mã.
+ * Nhận theo mã chứ không theo `isDefault` — cờ mặc định chuyển sang dự án
+ * khác được. Backend cũng chặn (PROJECT_SYSTEM_LOCKED); ở đây chỉ để ẩn nút.
+ */
+export const isSystemProject = (project: { code: string }): boolean =>
+  project.code === SYSTEM_PROJECT_CODE;
 
 /**
  * Sinh mã 3–4 ký tự từ tên, bỏ dấu tiếng Việt.

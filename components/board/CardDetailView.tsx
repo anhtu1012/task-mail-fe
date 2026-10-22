@@ -10,8 +10,24 @@
  * Cột phải là GHI CHÚ CỦA TÔI, không phải bình luận của người khác: đây là công
  * cụ cá nhân, thứ có giá trị là những gì mình tự nhắc mình.
  */
-import { useState } from "react";
-import { Dropdown, Popover, Progress, Spin } from "antd";
+import { useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Dropdown, Popconfirm, Popover, Progress, Spin } from "antd";
 import {
   AlignLeft,
   ArrowLeft,
@@ -38,6 +54,7 @@ import {
   Trash2,
   X,
   Zap,
+  GripVertical,
 } from "lucide-react";
 
 const toExternalUrl = (url: string) => {
@@ -50,7 +67,10 @@ import {
   COVER_PRESETS,
   CardDetail,
   CardNote,
+  CardAttachment,
+  CardSummary,
   Checklist,
+  ChecklistItem,
 } from "@/models/board";
 import {
   PRIORITY_META,
@@ -78,7 +98,8 @@ import { useCardDetail } from "./useCardDetail";
 import { SNOOZE_OPTIONS } from "./snooze";
 import { RichTextEditor } from "./RichTextEditor";
 import LabelPicker from "./LabelPicker";
-import MarkdownImport from "./MarkdownImport";
+// Chỉ cần khi bấm "Nhập Markdown" — tách chunk để màn chi tiết mở nhanh hơn
+const MarkdownImport = dynamic(() => import("./MarkdownImport"), { ssr: false });
 import { C, LabelChip, fmtBytes, fmtDateTime, fmtShort } from "./ui";
 import styles from "./board.module.scss";
 
@@ -96,18 +117,14 @@ export function CardDetailView({
   cardId: string;
   onClose: () => void;
 }) {
-  const { lists, labelById, snoozeCard, toggleComplete, deleteCard } = useBoard();
+  const { lists, labelById, cardById, snoozeCard, toggleComplete, deleteCard } = useBoard();
   const detail = useCardDetail(cardId);
   const card = detail.card;
   const [completing, setCompleting] = useState(false);
 
 
   if (detail.isLoading) {
-    return (
-      <div className="h-full grid place-items-center bg-white">
-        <Spin />
-      </div>
-    );
+    return <DetailSkeleton summary={cardById.get(cardId)} onClose={onClose} />;
   }
 
   if (!card) {
@@ -161,21 +178,37 @@ export function CardDetailView({
     })),
   };
 
+  const toggleDone = () => {
+    setCompleting(true);
+    void toggleComplete(card.id).finally(() => setCompleting(false));
+  };
+
+  const completeStyle = done
+    ? { background: C.success50, color: C.success }
+    : { background: C.success, color: "#fff" };
+
+  const completeIcon = completing ? (
+    <LoaderCircle size={14} className="animate-spin" />
+  ) : (
+    <CheckSquare size={14} />
+  );
+
   return (
     <div className="h-full flex flex-col bg-white">
       {/* ===== Thanh trên cùng ===== */}
       <div
-        className="h-14 shrink-0 flex items-center gap-2 px-3 sm:px-4"
+        className={`${styles.detailTopBar} h-14 shrink-0 flex items-center gap-2 px-3 sm:px-4`}
         style={{ borderBottom: `1px solid ${C.border}` }}
       >
         <button
           onClick={onClose}
-          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border-0 bg-transparent
-            cursor-pointer text-[13px] hover:bg-[#f0f2f5]"
+          className="inline-flex items-center gap-1.5 h-11 md:h-8 px-3 md:px-2.5 -ml-1 md:ml-0 rounded-lg border-0
+            bg-transparent cursor-pointer text-[14px] md:text-[13px] hover:bg-[#f0f2f5] active:bg-[#e6e9ee]"
           style={{ color: C.neutral700 }}
         >
-          <ArrowLeft size={16} />
-          <span className="hidden sm:inline">Quay lại bảng</span>
+          <ArrowLeft size={18} />
+          <span className="md:hidden">Quay lại</span>
+          <span className="hidden md:inline">Quay lại bảng</span>
         </button>
 
         <span
@@ -198,37 +231,27 @@ export function CardDetailView({
 
         <div className="flex-1" />
 
+        {/* Mobile: hai nút này xuống thanh dưới đáy, trong tầm ngón cái */}
         {!done && (
           <Dropdown trigger={["click"]} placement="bottomRight" menu={snoozeMenu}>
             <button
-              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg cursor-pointer text-[13px]"
+              className="hidden md:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg cursor-pointer text-[13px]"
               style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.neutral700 }}
             >
               <Hourglass size={14} />
-              <span className="hidden sm:inline">Dời hạn</span>
+              Dời hạn
             </button>
           </Dropdown>
         )}
 
         <button
           disabled={completing}
-          onClick={() => {
-            setCompleting(true);
-            void toggleComplete(card.id).finally(() => setCompleting(false));
-          }}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border-0 cursor-pointer
+          onClick={toggleDone}
+          className="hidden md:inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border-0 cursor-pointer
             text-[13px] font-medium disabled:cursor-wait"
-          style={
-            done
-              ? { background: C.success50, color: C.success }
-              : { background: C.success, color: "#fff" }
-          }
+          style={completeStyle}
         >
-          {completing ? (
-            <LoaderCircle size={14} className="animate-spin" />
-          ) : (
-            <CheckSquare size={14} />
-          )}
+          {completeIcon}
           {done ? "Đã xong" : "Hoàn thành"}
         </button>
 
@@ -268,17 +291,18 @@ export function CardDetailView({
         >
           <button
             aria-label="Thao tác khác"
-            className="grid place-items-center size-8 rounded-lg cursor-pointer"
+            className="grid place-items-center size-11 md:size-8 rounded-lg cursor-pointer"
             style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.neutral700 }}
           >
             <MoreHorizontal size={16} />
           </button>
         </Dropdown>
 
+        {/* Mobile đã có "Quay lại" — bỏ X để nút cuối không dính vào mép bo */}
         <button
           aria-label="Đóng"
           onClick={onClose}
-          className="grid place-items-center size-8 rounded-lg border-0 bg-transparent cursor-pointer hover:bg-[#f0f2f5]"
+          className="hidden md:grid place-items-center size-8 rounded-lg border-0 bg-transparent cursor-pointer hover:bg-[#f0f2f5]"
           style={{ color: C.neutral700 }}
         >
           <X size={18} />
@@ -462,69 +486,7 @@ export function CardDetailView({
             <Section icon={<Paperclip size={16} />} title="Tệp đính kèm">
                 <div className="flex flex-col gap-2">
                   {card.attachments.map((att) => (
-                    <div
-                      key={att.id}
-                      className="group/att flex items-center justify-between gap-3 p-2 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50/70 transition-all"
-                    >
-                      <a
-                        href={toExternalUrl(att.url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 min-w-0 flex-1 no-underline text-inherit cursor-pointer group/link"
-                        title={`Mở liên kết: ${att.url}`}
-                      >
-                        <span
-                          className="grid place-items-center w-[52px] h-[38px] rounded-lg shrink-0 text-white shadow-xs"
-                          style={{
-                            background:
-                              att.kind === "IMAGE"
-                                ? "linear-gradient(135deg,#2d79a8,#0a436d)"
-                                : C.neutral700,
-                          }}
-                        >
-                          {att.kind === "IMAGE" ? (
-                            <ImageIcon size={17} />
-                          ) : att.kind === "LINK" ? (
-                            <Link2 size={17} />
-                          ) : (
-                            <FileText size={17} />
-                          )}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[13.5px] font-medium truncate text-slate-800 group-hover/link:text-[#0a436d] flex items-center gap-1.5">
-                            <span className="truncate">{att.name}</span>
-                            <ExternalLink size={12} className="shrink-0 text-slate-400 group-hover/link:text-[#0a436d]" />
-                          </div>
-                          <div className="text-[12px] text-slate-400 truncate flex items-center gap-1">
-                            <span className="text-slate-500 font-mono text-[11px] truncate max-w-[420px]">
-                              {att.url}
-                            </span>
-                            {att.sizeBytes !== null && ` · ${fmtBytes(att.sizeBytes)}`}
-                            {att.isCover && " · ảnh bìa"}
-                          </div>
-                        </div>
-                      </a>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <a
-                          href={toExternalUrl(att.url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="grid place-items-center size-7 rounded-md hover:bg-slate-200 text-slate-500 hover:text-[#0a436d] transition-colors"
-                          title="Mở tab mới"
-                        >
-                          <ExternalLink size={14} />
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => detail.deleteAttachment.mutate(att.id)}
-                          className="grid place-items-center size-7 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500 border-0 bg-transparent cursor-pointer transition-colors"
-                          title="Xoá tệp đính kèm này"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
+                    <AttachmentRow key={att.id} att={att} detail={detail} />
                   ))}
                   <AttachmentComposer detail={detail} />
                 </div>
@@ -546,6 +508,35 @@ export function CardDetailView({
 
         <NotesColumn card={card} detail={detail} />
       </div>
+
+      {/* ===== Thanh thao tác đáy (mobile) — trong tầm ngón cái, tránh mép bo & thanh home ===== */}
+      <div
+        className={`${styles.detailBottomBar} md:hidden shrink-0 flex items-center gap-2 px-4 pt-2`}
+        style={{ borderTop: `1px solid ${C.border}` }}
+      >
+        {!done && (
+          <Dropdown trigger={["click"]} placement="topLeft" menu={snoozeMenu}>
+            <button
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-xl cursor-pointer
+                text-[14px] active:bg-[#f0f2f5]"
+              style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.neutral700 }}
+            >
+              <Hourglass size={16} />
+              Dời hạn
+            </button>
+          </Dropdown>
+        )}
+        <button
+          disabled={completing}
+          onClick={toggleDone}
+          className="flex-[2] inline-flex items-center justify-center gap-1.5 h-11 rounded-xl border-0 cursor-pointer
+            text-[14px] font-semibold disabled:cursor-wait"
+          style={completeStyle}
+        >
+          {completeIcon}
+          {done ? "Đã xong · bỏ đánh dấu" : "Hoàn thành"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -555,6 +546,73 @@ type DetailApi = ReturnType<typeof useCardDetail>;
 // ==========================================
 // TIÊU ĐỀ
 // ==========================================
+/**
+ * Khung chờ của màn chi tiết.
+ *
+ * Thẻ bấm từ bảng đã có sẵn tóm tắt trong snapshot (mã, tiêu đề, nhãn...) —
+ * hiện ngay những thứ đó thay cho một spinner trắng trơn, chỉ phần mô tả /
+ * checklist / ghi chú là chờ mạng. Mở bằng link trực tiếp (không có tóm tắt)
+ * thì chỉ còn khung xám.
+ */
+function DetailSkeleton({
+  summary,
+  onClose,
+}: {
+  summary: CardSummary | undefined;
+  onClose: () => void;
+}) {
+  const bar = (w: string, h = 12) => (
+    <div className="rounded-md animate-pulse" style={{ width: w, height: h, background: C.muted }} />
+  );
+  return (
+    <div className="h-full flex flex-col bg-white" aria-busy="true">
+      <div
+        className={`${styles.detailTopBar} h-14 shrink-0 flex items-center gap-2 px-3 sm:px-4`}
+        style={{ borderBottom: `1px solid ${C.border}` }}
+      >
+        <button
+          onClick={onClose}
+          className="inline-flex items-center gap-1.5 h-11 md:h-8 px-3 md:px-2.5 -ml-1 md:ml-0 rounded-lg border-0
+            bg-transparent cursor-pointer text-[14px] md:text-[13px] hover:bg-[#f0f2f5] active:bg-[#e6e9ee]"
+          style={{ color: C.neutral700 }}
+        >
+          <ArrowLeft size={18} />
+          <span className="md:hidden">Quay lại</span>
+          <span className="hidden md:inline">Quay lại bảng</span>
+        </button>
+        {summary ? (
+          <span
+            className="font-mono text-[12px] px-2 h-6 grid place-items-center rounded-md shrink-0"
+            style={{ background: C.muted, color: C.neutral700 }}
+          >
+            {summary.code}
+          </span>
+        ) : (
+          bar("64px", 24)
+        )}
+        <div className="flex-1" />
+        <Spin size="small" />
+      </div>
+      <div className="flex-1 overflow-hidden px-4 sm:px-6 py-5 flex flex-col gap-4 max-w-[760px]">
+        {summary ? (
+          <h1
+            className="m-0 text-[20px] font-semibold leading-snug [overflow-wrap:anywhere]"
+            style={{ color: C.foreground }}
+          >
+            {summary.title}
+          </h1>
+        ) : (
+          bar("70%", 24)
+        )}
+        {bar("40%")}
+        {bar("100%", 88)}
+        {bar("55%")}
+        {bar("85%")}
+      </div>
+    </div>
+  );
+}
+
 function CardTitle({
   card,
   done,
@@ -681,12 +739,14 @@ function DescriptionSection({ card, detail }: { card: CardDetail; detail: Detail
         </div>
       }
     >
-      <MarkdownImport
-        open={importing}
-        hasExisting={hasDescription}
-        onClose={() => setImporting(false)}
-        onInsert={insertMarkdown}
-      />
+      {importing && (
+        <MarkdownImport
+          open={importing}
+          hasExisting={hasDescription}
+          onClose={() => setImporting(false)}
+          onInsert={insertMarkdown}
+        />
+      )}
 
       {editing ? (
         <div className="flex flex-col gap-2">
@@ -788,11 +848,33 @@ function ChecklistBlock({ checklist, detail }: { checklist: Checklist; detail: D
   const [hideChecked, setHideChecked] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(checklist.title);
+
+  const cancelTitleRef = useRef(false);
+
+  const saveTitle = () => {
+    const title = titleDraft.trim();
+    const cancelled = cancelTitleRef.current;
+    cancelTitleRef.current = false;
+    setEditingTitle(false);
+    if (cancelled || !title || title === checklist.title) {
+      setTitleDraft(checklist.title);
+      return;
+    }
+    detail.renameChecklist.mutate({ checklistId: checklist.id, title });
+  };
 
   const total = checklist.items.length;
   const doneCount = checklist.items.filter((i) => i.checked).length;
   const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
-  const visible = hideChecked ? checklist.items.filter((i) => !i.checked) : checklist.items;
+  const sortedItems = [...checklist.items].sort((a, b) => a.position - b.position);
+  const visible = hideChecked ? sortedItems.filter((i) => !i.checked) : sortedItems;
+  // Kéo phải đi quá 4px mới tính — bấm tay nắm thôi thì không thành kéo
+  const itemSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const addItem = () => {
     const content = draft.trim();
@@ -805,9 +887,46 @@ function ChecklistBlock({ checklist, detail }: { checklist: Checklist; detail: D
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2">
         <CheckSquare size={16} className="shrink-0" style={{ color: C.foreground }} />
-        <span className="font-semibold text-[15px] flex-1" style={{ color: C.foreground }}>
-          {checklist.title}
-        </span>
+        {editingTitle ? (
+          <input
+            autoFocus
+            value={titleDraft}
+            maxLength={200}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
+            onBlur={saveTitle}
+            onKeyDown={(e) => {
+              // Enter chỉ blur — để onBlur lưu, tránh gọi API hai lần
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+              if (e.key === "Escape") {
+                cancelTitleRef.current = true;
+                e.currentTarget.blur();
+              }
+            }}
+            className="flex-1 min-w-0 h-8 rounded-lg px-2 font-semibold text-[15px] outline-none"
+            style={{
+              border: `1px solid ${C.primary300}`,
+              boxShadow: "0 0 0 3px rgba(10,67,109,.1)",
+              color: C.foreground,
+            }}
+          />
+        ) : (
+          <span
+            role="button"
+            title="Bấm để đổi tên"
+            onClick={() => {
+              setTitleDraft(checklist.title);
+              setEditingTitle(true);
+            }}
+            className="font-semibold text-[15px] flex-1 cursor-text rounded px-1 -mx-1 hover:bg-[#f7f8fa]"
+            style={{ color: C.foreground }}
+          >
+            {checklist.title}
+          </span>
+        )}
         {doneCount > 0 && (
           <button
             onClick={() => setHideChecked((v) => !v)}
@@ -817,6 +936,21 @@ function ChecklistBlock({ checklist, detail }: { checklist: Checklist; detail: D
             {hideChecked ? `Hiện ${doneCount} mục đã xong` : "Ẩn mục đã xong"}
           </button>
         )}
+        <Popconfirm
+          title="Xoá danh sách này?"
+          description={total > 0 ? `${total} mục bên trong cũng sẽ bị xoá.` : undefined}
+          okText="Xoá"
+          cancelText="Huỷ"
+          okButtonProps={{ danger: true }}
+          onConfirm={() => detail.deleteChecklist.mutate(checklist.id)}
+        >
+          <button
+            className="h-7 px-2.5 rounded-lg border-0 text-[12.5px] cursor-pointer"
+            style={{ background: C.muted, color: C.neutral700 }}
+          >
+            Xoá
+          </button>
+        </Popconfirm>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -832,40 +966,26 @@ function ChecklistBlock({ checklist, detail }: { checklist: Checklist; detail: D
           />
         </div>
 
-        {visible.map((item) => (
-          <div
-            key={item.id}
-            className="group/item flex items-start gap-2 rounded-lg px-1.5 py-1 hover:bg-[#f7f8fa]"
+        {/* Kéo bằng tay nắm bên trái để đổi thứ tự; bấm vào chữ để sửa */}
+        <DndContext
+          sensors={itemSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={({ active, over }) => {
+            if (!over || active.id === over.id) return;
+            const toIndex = sortedItems.findIndex((it) => it.id === over.id);
+            if (toIndex < 0) return;
+            detail.reorderChecklistItem(checklist.id, String(active.id), toIndex);
+          }}
+        >
+          <SortableContext
+            items={visible.map((it) => it.id)}
+            strategy={verticalListSortingStrategy}
           >
-            <input
-              type="checkbox"
-              checked={item.checked}
-              onChange={() =>
-                detail.toggleChecklistItem.mutate({ itemId: item.id, checked: !item.checked })
-              }
-              className="mt-0.5 size-4 shrink-0 cursor-pointer"
-              style={{ accentColor: C.primary }}
-            />
-            <span
-              className="flex-1 text-[14px] leading-snug"
-              style={{
-                color: item.checked ? C.mutedForeground : C.foreground,
-                textDecoration: item.checked ? "line-through" : undefined,
-              }}
-            >
-              {item.content}
-            </span>
-            <button
-              aria-label="Xoá mục"
-              onClick={() => detail.deleteChecklistItem.mutate(item.id)}
-              className="opacity-0 group-hover/item:opacity-100 grid place-items-center size-6
-                rounded border-0 bg-transparent cursor-pointer"
-              style={{ color: C.neutral500 }}
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
-        ))}
+            {visible.map((item) => (
+              <ChecklistItemRow key={item.id} item={item} detail={detail} />
+            ))}
+          </SortableContext>
+        </DndContext>
 
         {adding ? (
           <div className="flex flex-col gap-2 mt-1">
@@ -1137,6 +1257,253 @@ function NoteRow({ note, detail }: { note: CardNote; detail: DetailApi }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Một mục trong danh sách việc cần làm: tay nắm kéo thả, ô tick, nội dung bấm
+ * để sửa (Enter / bấm ra ngoài để lưu, Esc để huỷ), nút xoá.
+ */
+function ChecklistItemRow({ item, detail }: { item: ChecklistItem; detail: DetailApi }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(item.content);
+  const cancelRef = useRef(false);
+
+  const save = () => {
+    const content = draft.trim();
+    const cancelled = cancelRef.current;
+    cancelRef.current = false;
+    setEditing(false);
+    if (cancelled || !content || content === item.content) return;
+    detail.updateChecklistItemContent.mutate({ itemId: item.id, content });
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : undefined,
+        position: "relative",
+        zIndex: isDragging ? 1 : undefined,
+      }}
+      className="group/item flex items-start gap-1.5 rounded-lg px-1 py-1 hover:bg-[#f7f8fa]"
+    >
+      <button
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        aria-label="Kéo để đổi thứ tự"
+        title="Kéo để đổi thứ tự"
+        className="mt-0.5 grid place-items-center size-4 shrink-0 rounded border-0 bg-transparent
+          cursor-grab active:cursor-grabbing opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
+        style={{ color: C.neutral500, touchAction: "none" }}
+      >
+        <GripVertical size={13} />
+      </button>
+      <input
+        type="checkbox"
+        checked={item.checked}
+        onChange={() =>
+          detail.toggleChecklistItem.mutate({ itemId: item.id, checked: !item.checked })
+        }
+        className="mt-0.5 size-4 shrink-0 cursor-pointer"
+        style={{ accentColor: C.primary }}
+      />
+      {editing ? (
+        <textarea
+          autoFocus
+          rows={1}
+          value={draft}
+          maxLength={500}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={save}
+          onKeyDown={(e) => {
+            // Enter chỉ blur — để onBlur lưu, tránh gọi API hai lần
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+            if (e.key === "Escape") {
+              cancelRef.current = true;
+              e.currentTarget.blur();
+            }
+          }}
+          className="flex-1 min-w-0 resize-none rounded-md px-1.5 py-0.5 text-[14px] leading-snug outline-none"
+          style={{
+            border: `1px solid ${C.primary300}`,
+            boxShadow: "0 0 0 3px rgba(10,67,109,.1)",
+            color: C.foreground,
+          }}
+        />
+      ) : (
+        <span
+          role="button"
+          title="Bấm để sửa"
+          onClick={() => {
+            setDraft(item.content);
+            setEditing(true);
+          }}
+          className="flex-1 min-w-0 text-[14px] leading-snug cursor-text [overflow-wrap:anywhere]"
+          style={{
+            color: item.checked ? C.mutedForeground : C.foreground,
+            textDecoration: item.checked ? "line-through" : undefined,
+          }}
+        >
+          {item.content}
+        </span>
+      )}
+      <button
+        aria-label="Xoá mục"
+        onClick={() => detail.deleteChecklistItem.mutate(item.id)}
+        className="opacity-0 group-hover/item:opacity-100 grid place-items-center size-6
+          rounded border-0 bg-transparent cursor-pointer"
+        style={{ color: C.neutral500 }}
+      >
+        <Trash2 size={13} />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Một dòng tệp đính kèm. Bấm bút chì để đổi tên — tên tự điền lúc thêm thường
+ * chỉ là đuôi URL (một chuỗi id), không đọc được.
+ */
+function AttachmentRow({ att, detail }: { att: CardAttachment; detail: DetailApi }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(att.name);
+  const cancelRef = useRef(false);
+
+  const startEdit = () => {
+    setDraft(att.name);
+    setEditing(true);
+  };
+
+  const save = () => {
+    const name = draft.trim();
+    const cancelled = cancelRef.current;
+    cancelRef.current = false;
+    setEditing(false);
+    if (cancelled || !name || name === att.name) return;
+    detail.renameAttachment.mutate({ attachmentId: att.id, name });
+  };
+
+  const icon = (
+    <span
+      className="grid place-items-center w-[52px] h-[38px] rounded-lg shrink-0 text-white shadow-xs"
+      style={{
+        background:
+          att.kind === "IMAGE" ? "linear-gradient(135deg,#2d79a8,#0a436d)" : C.neutral700,
+      }}
+    >
+      {att.kind === "IMAGE" ? (
+        <ImageIcon size={17} />
+      ) : att.kind === "LINK" ? (
+        <Link2 size={17} />
+      ) : (
+        <FileText size={17} />
+      )}
+    </span>
+  );
+
+  const meta = (
+    <div className="text-[12px] text-slate-400 truncate flex items-center gap-1">
+      <span className="text-slate-500 font-mono text-[11px] truncate max-w-[420px]">{att.url}</span>
+      {att.sizeBytes !== null && ` · ${fmtBytes(att.sizeBytes)}`}
+      {att.isCover && " · ảnh bìa"}
+    </div>
+  );
+
+  return (
+    <div className="group/att flex items-center justify-between gap-3 p-2 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50/70 transition-all">
+      {editing ? (
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {icon}
+          <div className="min-w-0 flex-1 flex flex-col gap-1">
+            <input
+              autoFocus
+              value={draft}
+              maxLength={255}
+              onChange={(e) => setDraft(e.target.value)}
+              onFocus={(e) => e.currentTarget.select()}
+              onBlur={save}
+              onKeyDown={(e) => {
+                // Enter chỉ blur — để onBlur lưu, tránh gọi API hai lần
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+                if (e.key === "Escape") {
+                  cancelRef.current = true;
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="Tên tệp đính kèm"
+              className="w-full h-7 rounded-md px-2 text-[13.5px] font-medium outline-none"
+              style={{
+                border: `1px solid ${C.primary300}`,
+                boxShadow: "0 0 0 3px rgba(10,67,109,.1)",
+                color: C.foreground,
+              }}
+            />
+            {meta}
+          </div>
+        </div>
+      ) : (
+        <a
+          href={toExternalUrl(att.url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 min-w-0 flex-1 no-underline text-inherit cursor-pointer group/link"
+          title={`Mở liên kết: ${att.url}`}
+        >
+          {icon}
+          <div className="min-w-0 flex-1">
+            <div className="text-[13.5px] font-medium truncate text-slate-800 group-hover/link:text-[#0a436d] flex items-center gap-1.5">
+              <span className="truncate">{att.name}</span>
+              <ExternalLink
+                size={12}
+                className="shrink-0 text-slate-400 group-hover/link:text-[#0a436d]"
+              />
+            </div>
+            {meta}
+          </div>
+        </a>
+      )}
+
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={startEdit}
+          className="grid place-items-center size-7 rounded-md hover:bg-slate-200 text-slate-500 hover:text-[#0a436d] border-0 bg-transparent cursor-pointer transition-colors"
+          title="Đổi tên"
+        >
+          <Pencil size={14} />
+        </button>
+        <a
+          href={toExternalUrl(att.url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="grid place-items-center size-7 rounded-md hover:bg-slate-200 text-slate-500 hover:text-[#0a436d] transition-colors"
+          title="Mở tab mới"
+        >
+          <ExternalLink size={14} />
+        </a>
+        <button
+          type="button"
+          onClick={() => detail.deleteAttachment.mutate(att.id)}
+          className="grid place-items-center size-7 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500 border-0 bg-transparent cursor-pointer transition-colors"
+          title="Xoá tệp đính kèm này"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
     </div>
   );
 }

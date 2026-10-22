@@ -12,8 +12,8 @@ const CODE_MESSAGES: Record<string, string> = {
  * Rút thông điệp lỗi thân thiện (ưu tiên map errorCode -> tiếng Việt,
  * fallback về message backend trả về).
  *
- * Cũng hiểu lỗi không đi qua mạng: kho mock dự án ném ra Error có sẵn
- * `errorCode` cùng bộ mã với backend (xem `apis/mock/project.mock.ts`).
+ * Cũng hiểu lỗi không đi qua mạng: Error sinh dưới máy mà có sẵn `errorCode`
+ * cùng bộ mã với backend.
  */
 export function getApiErrorMessage(
   error: unknown,

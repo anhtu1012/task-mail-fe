@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { App, Button, Divider, Form, Input, Typography } from "antd";
+import { App, Button, Divider, Form, Input, Spin, Typography } from "antd";
 import { CSegmented } from "@/components/ui";
 import {
   CheckCircle2,
@@ -29,6 +30,27 @@ export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [submitting, setSubmitting] = useState(false);
   const [googleOnly, setGoogleOnly] = useState(false);
+  // Đang thử khôi phục phiên bằng refresh_token trước khi hiện form
+  const [restoring, setRestoring] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Chỉ nhận đường dẫn nội bộ để tránh open-redirect qua ?from=
+    const from = new URLSearchParams(window.location.search).get("from");
+    const target =
+      from && from.startsWith("/") && !from.startsWith("//")
+        ? from
+        : "/select-project";
+
+    authApi.restoreSession().then((ok) => {
+      if (cancelled) return;
+      if (ok) router.replace(target);
+      else setRestoring(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   const onSubmit = async (values: Credentials) => {
     setSubmitting(true);
@@ -53,6 +75,14 @@ export default function LoginPage() {
       setSubmitting(false);
     }
   };
+
+  if (restoring) {
+    return (
+      <div className="app-themed-bg min-h-screen grid place-items-center">
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div className="app-themed-bg min-h-screen flex">
@@ -207,6 +237,18 @@ export default function LoginPage() {
           >
             Đăng nhập với Google
           </Button>
+
+          <p className="mt-5 text-center text-xs text-slate-500">
+            Tiếp tục nghĩa là bạn đồng ý với{" "}
+            <Link href="/terms" className="underline hover:text-[#0a436d]">
+              Điều khoản dịch vụ
+            </Link>{" "}
+            và{" "}
+            <Link href="/privacy" className="underline hover:text-[#0a436d]">
+              Chính sách quyền riêng tư
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </div>
